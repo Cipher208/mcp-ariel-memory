@@ -771,6 +771,126 @@ async def memory_cleanup(
 
 
 @mcp.tool()
+async def memory_lucidity_purge(
+    user_id: str = "default",
+    hours: int = 24,
+    ctx: Context = None,
+) -> dict:
+    """Emergency purge: удалить все данные за последние N часов (при утечке данных).
+
+    Args:
+        user_id: User identifier
+        hours: How many hours back to purge (default 24)
+    """
+    metrics.inc("tool_calls")
+    metrics.inc("tool_lucidity_purge")
+    results = {}
+    cutoff = time.time() - (hours * 3600)
+
+    # 1. Core memory — удалить записи за N часов
+    from core import memory_manager
+    mm = memory_manager
+    conn = mm.user_memory(user_id).l4._get_conn()
+    try:
+        cursor = conn.execute("DELETE FROM core_memory WHERE user_id=? AND created_at > ?", (user_id, cutoff))
+        results["core_memory"] = cursor.rowcount
+        conn.commit()
+    finally:
+        conn.close()
+
+    # 2. Episodes — удалить за N часов
+    conn = mm.user_memory(user_id).l3._get_conn()
+    try:
+        cursor = conn.execute("DELETE FROM episodes WHERE user_id=? AND created_at > ?", (user_id, cutoff))
+        results["episodes"] = cursor.rowcount
+        conn.commit()
+    finally:
+        conn.close()
+
+    # 3. DreamBuffer — очистить staging
+    from shared.dream_buffer import DreamBuffer
+    db = DreamBuffer()
+    results["staging"] = db.clear_staging(user_id)
+
+    # 4. Audit trail — удалить за N часов
+    from features.audit_trail import AuditTrail
+    at = AuditTrail()
+    conn = at._get_conn()
+    try:
+        cursor = conn.execute("DELETE FROM audit_log WHERE user_id=? AND timestamp > ?", (user_id, cutoff))
+        results["audit"] = cursor.rowcount
+        conn.commit()
+    finally:
+        conn.close()
+
+    # 5. Graph nodes за N часов (эпистемический)
+    from graph.epistemic import EpistemicGraph
+    eg = EpistemicGraph(layer="user")
+    conn = eg._get_conn()
+    try:
+        cursor = conn.execute("DELETE FROM epi_nodes WHERE user_id=? AND created_at > ?", (user_id, cutoff))
+        results["graph_nodes"] = cursor.rowcount
+        conn.commit()
+    finally:
+        conn.close()
+
+    logger.warning("Lucidity purge: user=%s, hours=%d, results=%s" % (user_id, hours, results))
+    return results
+
+
+@mcp.tool()
+async def memory_user_context_inject(
+    user_id: str = "default",
+    ctx: Context = None,
+) -> dict:
+    """Вернуть сжатую сводку для вставки в промпт (L4 top-10 + L3 top-3).
+
+    Args:
+        user_id: User identifier
+    """
+    metrics.inc("tool_calls")
+    metrics.inc("tool_context_inject")
+    app = _get_ctx(ctx)
+
+    # L4: top-10 фактов по важности
+    l4_facts = await asyncio.to_thread(app.mm.user_memory(user_id).l4.get_all, user_id, 10)
+    facts_text = "; ".join(["%s=%s" % (f.key, f.value[:30]) for f in l4_facts])
+
+    # L3: top-3 эпизода
+    l3_episodes = await asyncio.to_thread(app.mm.user_memory(user_id).l3.get_episodes, user_id, 3)
+    episodes_text = "; ".join(["%s" % e.summary[:50] for e in l3_episodes])
+
+    # L1: последние 5 сообщений
+    l1_recent = app.mm.user_memory(user_id).l1.get_recent(5)
+    recent_text = "; ".join(["%s: %s" % (r.role, r.content[:50]) for r in l1_recent])
+
+    # Wiki: последние 3 записи
+    wiki_entries = await asyncio.to_thread(app.user_wiki.list_all, 3)
+    wiki_text = "; ".join(["[%s] %s" % (w.wiki_type, w.title) for w in wiki_entries])
+
+    # Собрать в одну строку
+    context_parts = []
+    if facts_text:
+        context_parts.append("FACTS: " + facts_text)
+    if episodes_text:
+        context_parts.append("EPISODES: " + episodes_text)
+    if recent_text:
+        context_parts.append("RECENT: " + recent_text)
+    if wiki_text:
+        context_parts.append("WIKI: " + wiki_text)
+
+    full_context = "\n".join(context_parts)
+
+    return {
+        "context": full_context,
+        "l4_facts_count": len(l4_facts),
+        "l3_episodes_count": len(l3_episodes),
+        "l1_recent_count": len(l1_recent),
+        "wiki_count": len(wiki_entries),
+    }
+
+
+@mcp.tool()
 async def memory_search_rrf(
     query: str = "",
     user_id: str = "default",

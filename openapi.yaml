@@ -1,0 +1,314 @@
+openapi: 3.1.0
+info:
+  title: Ariel Memory MCP Server API
+  description: |
+    Universal Two-Layer Memory MCP Server.
+    HTTP API для dashboard, metrics, auth, backup.
+    MCP tools доступны через Streamable HTTP endpoint /mcp.
+  version: 1.0.0
+  contact:
+    name: Ariel Memory
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerToken: "mt_..."
+      description: Bearer token (см. /api/auth/create)
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+    Stats:
+      type: object
+      properties:
+        l1_buffer: { type: integer }
+        l2_sessions: { type: integer }
+        l3_episodes: { type: integer }
+        l4_facts: { type: integer }
+        wiki_pages: { type: integer }
+        graph_nodes: { type: integer }
+
+    Fact:
+      type: object
+      properties:
+        key: { type: string }
+        value: { type: string }
+        importance: { type: number }
+
+    Episode:
+      type: object
+      properties:
+        id: { type: integer }
+        summary: { type: string }
+        weight: { type: number }
+        tags: { type: array, items: { type: string } }
+
+    AuditEntry:
+      type: object
+      properties:
+        log_id: { type: integer }
+        action: { type: string }
+        user_id: { type: string }
+        timestamp: { type: number }
+
+    BackupInfo:
+      type: object
+      properties:
+        name: { type: string }
+        files: { type: array, items: { type: string } }
+        timestamp: { type: number }
+
+    ApiKey:
+      type: object
+      properties:
+        api_key: { type: string }
+        user_id: { type: string }
+        label: { type: string }
+
+    PrometheusMetrics:
+      type: string
+      description: Prometheus text format
+
+paths:
+  /dashboard:
+    get:
+      summary: HTML Dashboard
+      description: Визуальный дашборд состояния памяти
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /api/stats:
+    get:
+      summary: Статистика памяти
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: query
+          schema: { type: string, default: default }
+      responses:
+        '200':
+          description: Статистика
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stats'
+
+  /api/user/facts:
+    get:
+      summary: User L4 facts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: query
+          schema: { type: string, default: default }
+      responses:
+        '200':
+          description: Список фактов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Fact'
+
+  /api/agent/facts:
+    get:
+      summary: Agent L4 facts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: query
+          schema: { type: string, default: default }
+      responses:
+        '200':
+          description: Список фактов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Fact'
+
+  /api/user/episodes:
+    get:
+      summary: User episodes
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: query
+          schema: { type: string, default: default }
+      responses:
+        '200':
+          description: Список эпизодов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Episode'
+
+  /api/agent/episodes:
+    get:
+      summary: Agent episodes
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: query
+          schema: { type: string, default: default }
+      responses:
+        '200':
+          description: Список эпизодов
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Episode'
+
+  /api/audit:
+    get:
+      summary: Audit log
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Audit entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditEntry'
+
+  /api/auth/keys:
+    get:
+      summary: List API keys
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: API keys list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  keys:
+                    type: array
+
+  /api/auth/create:
+    post:
+      summary: Create API key
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id: { type: string, default: default }
+                label: { type: string }
+      responses:
+        '200':
+          description: API key created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKey'
+
+  /api/backup/list:
+    get:
+      summary: List backups
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Backup list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  backups:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BackupInfo'
+
+  /api/backup/trigger:
+    post:
+      summary: Trigger immediate backup
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Backup path
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  path: { type: string }
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Prometheus text format
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /metrics/json:
+    get:
+      summary: Metrics (JSON)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Metrics JSON
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /mcp:
+    post:
+      summary: MCP Protocol endpoint
+      description: |
+        Streamable HTTP транспорт для MCP протокола.
+        Все 31 memory tools доступны через этот endpoint.
+        Используйте MCP клиент для вызова tools.
+      responses:
+        '200':
+          description: MCP response
