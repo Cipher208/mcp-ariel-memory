@@ -174,3 +174,43 @@ am.count("alice")
 restored = am.restore(archived_id=42)
 # {"content": "Old memory...", "memory_type": None, "importance": 0.2}
 ```
+
+## Migrations (`shared/migrations.py`)
+
+Система миграций схемы БД. Версионирование: каждая миграция имеет номер.
+
+```python
+from shared.migrations import migration_manager
+
+# Применить недостающие миграции при старте
+result = migration_manager.migrate()
+# {"current_version": 0, "applied": [{"version": 1, "name": "init_schema"}, ...], "new_version": 3}
+
+# Текущая версия
+version = migration_manager.get_current_version()  # 3
+
+# Ожидающие миграции
+pending = migration_manager.get_pending()
+```
+
+**Добавление новой миграции:**
+
+```python
+from shared.migrations import Migration, _get_migrations
+
+def v4_add_field(conn):
+    try:
+        conn.execute("ALTER TABLE staging_memories ADD COLUMN emotional_vector BLOB")
+    except sqlite3.OperationalError:
+        pass
+
+_get_migrations().append(Migration(4, "add_emotional_vector", v4_add_field))
+```
+
+**Текущие миграции:**
+
+| Версия | Имя | Описание |
+|--------|-----|----------|
+| 1 | `init_schema` | Начальная схема всех таблиц |
+| 2 | `add_conflict_fields` | is_conflict + conflict_group_id |
+| 3 | `add_wiki_source` | source column в wiki таблицах |

@@ -134,6 +134,8 @@ backup:
   auto_backup: true
   backup_interval_hours: 24
   backup_retention_days: 30
+  jitter_seconds: 3600
+  wiki_sync_interval_minutes: 30
 
 security:
   per_user_isolation: true

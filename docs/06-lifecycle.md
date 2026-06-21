@@ -18,35 +18,47 @@ fs.compress_duplicates()     # удаление дубликатов
 
 ## EmotionTrigger (`lifecycle/emotion_trigger.py`)
 
-Определение важных моментов по эмоциональным маркерам.
+Определение важных моментов по эмоциональным маркерам. Русский + английский + эмодзи + паттерны фраз.
 
 ```python
 from lifecycle.emotion_trigger import EmotionTrigger
 
 et = EmotionTrigger()
-should, reason, weight = et.should_save("I love this!")
-# (True, "emotion_love", 0.7)
 
+# Русский
+should, reason, weight = et.should_save("Я тебя люблю!")
+# (True, "emotion_love", 0.8)
+
+should, reason, weight = et.should_save("Спасибо за помощь!")
+# (True, "emotion_gratitude", 0.5)
+
+# Английский
+should, reason, weight = et.should_save("I love you so much")
+# (True, "emotion_love", 0.8)
+
+# Эмодзи
+should, reason, weight = et.should_save("Отлично! 😊🎉")
+# (True, "emotion_joy", 0.5)
+
+# Шум — не сохранять
 should, reason, weight = et.should_save("ok")
 # (False, "", 0.0)
 ```
 
-**Эмоциональные маркеры:**
+**Категории эмоций (8):**
 
-| Эмоция | Маркеры | Вес |
-|--------|---------|-----|
-| love | люблю, love, обожаю | 0.7 |
-| fear | боюсь, afraid, страшно | 0.7 |
-| anger | ненавижу, hate, бесит | 0.7 |
-| joy | счастлив, happy, рад | 0.5 |
-| gratitude | спасибо, thanks | 0.5 |
-| importance | важно, important, запомни | 0.5 |
+| Эмоция | Примеры маркеров | Вес |
+|--------|-----------------|-----|
+| love | люблю, обожаю, love, ❤️ | 0.7-0.8 |
+| fear | боюсь, страшно, afraid, 😨 | 0.6-0.7 |
+| anger | ненавижу, бесит, hate, 😡 | 0.6-0.7 |
+| joy | счастлив, рад, happy, 😊 | 0.5 |
+| gratitude | спасибо, благодарю, thanks | 0.5 |
+| importance | важно, запомни, remember | 0.7-0.8 |
+| sadness | грустно, печально, sad, 😢 | 0.6 |
+| surprise | удивлён, wow, 🤯 | 0.5 |
 
-**Авто-тригеры:**
-- joy > 0.8 → weight 0.6
-- state_delta > 0.15 → weight 0.4
-- > 300 символов → weight 0.3
-- 3+ вопросов → weight 0.4
+**Паттерны ф regex:** "я тебя люблю", "никогда не забудь", "это важно запомнить"
 
 ## ConsolidationEngine (`lifecycle/consolidation.py`)
 

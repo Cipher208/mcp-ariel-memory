@@ -15,14 +15,27 @@ auth.list_keys()       # [{"key": "ak_e9eb...", ...}]
 auth.delete_key(key)   # True
 ```
 
-### Bearer Token
+### Bearer Token (persistent)
+
+Токен сохраняется в файл `~/.mcp-ariel-memory/bearer_token.json` и переживает рестарт сервера.
 
 ```python
 from features.auth import BearerAuth
 
-bearer = BearerAuth()
-token = bearer.get_token()     # "mt_..."
-bearer.verify("Bearer mt_...")  # True
+ba = BearerAuth()
+token = ba.get_token()     # один и тот же после рестартов
+ba.verify("Bearer mt_...")  # True
+
+# Ротация токена (старый перестаёт работать)
+new_token = ba.rotate()
+```
+
+**Файл:** `~/.mcp-ariel-memory/bearer_token.json`
+```json
+{
+  "token": "mt_700e728142b97...",
+  "created_at": 1782045000.0
+}
 ```
 
 ## Backup (`features/backup.py`)
@@ -39,7 +52,7 @@ bm.cleanup_old()
 
 ## BackupCron (`features/backup_cron.py`)
 
-Автобэкап каждые 24 часа (включён по умолчанию).
+Автобэкап каждые 24 часа с jitter (случайная задержка) + авто-синхронизация wiki.
 
 ```python
 from features.backup_cron import backup_cron
@@ -49,8 +62,14 @@ backup_cron.stop()         # остановить
 backup_cron.backup_now()   # немедленный бэкап
 backup_cron.list_backups()
 backup_cron.restore("auto_1782041841")
-backup_cron.status()       # {"running": True, "interval_hours": 24, ...}
+backup_cron.status()
+# {"running": True, "interval_hours": 24, "jitter_seconds": 3600,
+#  "wiki_sync_interval_minutes": 30, ...}
 ```
+
+**Jitter:** случайная задержка 0-3600 сек перед бэкапом. Два сервера не бэкапятся одновременно.
+
+**Wiki sync:** автоматическая переиндексация .md файлов каждые 30 минут.
 
 ## Dashboard (`features/dashboard.py`)
 
