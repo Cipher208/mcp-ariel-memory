@@ -149,6 +149,8 @@ security:
   input_validation: true
   sql_injection_prevention: true
   rate_limit_per_user: 100
+  max_ws_per_user: 5           # макс. WebSocket соединений на пользователя
+  max_ws_total: 100            # макс. WebSocket соединений всего
   audit_logging: true
 
 # === Backup ===

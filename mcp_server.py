@@ -943,11 +943,12 @@ def _run_with_dashboard(host: str, port: int):
 
     from features.dashboard import Dashboard
     from features.auth import bearer_auth
-    from features.rate_limiting import RateLimiter
+    from features.rate_limiting import RateLimiter, ConnectionLimiter
     from shared.metrics import metrics as m
 
     dashboard = Dashboard()
     api_rate_limiter = RateLimiter()
+    ws_limiter = ConnectionLimiter()
 
     def check_auth(request) -> bool:
         """Проверка Bearer token. Возвращает True если авторизован."""
@@ -1117,7 +1118,26 @@ def _run_with_dashboard(host: str, port: int):
                 return JSONResponse({"error": "Invalid token"}, status_code=401)
             return await call_next(request)
 
+    class WSConnectionMiddleware(BaseHTTPMiddleware):
+        """Ограничение одновременных WebSocket/SSE соединений."""
+        async def dispatch(self, request, call_next):
+            # Проверяем только для /mcp endpoint (SSE/WebSocket)
+            if request.url.path == "/mcp" and request.headers.get("upgrade", "").lower() == "websocket":
+                user = request.headers.get("X-User-ID", request.client.host if request.client else "unknown")
+                conn_id = "%s_%s" % (user, int(time.time() * 1000))
+                acquired = ws_limiter.acquire(user, conn_id)
+                if not acquired["allowed"]:
+                    from starlette.responses import JSONResponse
+                    return JSONResponse({
+                        "error": "WebSocket connection limit exceeded",
+                        "reason": acquired["reason"],
+                        "current": acquired["current"],
+                        "max": acquired["max"],
+                    }, status_code=429)
+            return await call_next(request)
+
     app.add_middleware(AuthMiddleware)
+    app.add_middleware(WSConnectionMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
