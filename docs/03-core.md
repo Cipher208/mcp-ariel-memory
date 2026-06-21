@@ -78,3 +78,41 @@ agent.remember("approach", "YAGNI first", 0.9)
 
 memory_manager.cleanup_all()
 ```
+
+### get_context() — формат для инжекта в промпт
+
+Метод `get_context()` возвращает текстовый контекст для инжекта в system prompt LLM:
+
+```python
+ctx = memory_manager.user_memory("alice").get_context()
+print(ctx)
+```
+
+**Формат ответа:**
+```
+RECENT: user: Как настроить Redis?; assistant: Используй конфиг...
+FACTS: name=Alice; primary_language=Python; company=Yandex
+```
+
+**Что входит:**
+- **RECENT** — последние 5 сообщений из L1 ReflexBuffer (по 50 символов каждое)
+- **FACTS** — ключевые факты из L4 CoreMemory (по 30 символов, отсортированы по важности)
+
+**Использование в агенте:**
+```python
+# Получить контекст для промпта
+user_ctx = memory_manager.user_memory("alice").get_context()
+agent_ctx = memory_manager.agent_memory("alice").get_context()
+
+prompt = f"""
+Ты — AI-ассистент.
+
+Пользователь:
+{user_ctx}
+
+Твоя память:
+{agent_ctx}
+
+Вопрос: {user_message}
+"""
+```

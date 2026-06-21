@@ -50,6 +50,41 @@ g.find_path(n1, n2, max_depth=5)  # override
 | `correction_pattern` | Паттерн исправления |
 | `personality_trait` | Черта личности |
 
+### Примеры использования тегов
+
+```python
+from graph.epistemic import EpistemicGraph
+
+# User layer — добавить факт с тегом
+g = EpistemicGraph(layer="user")
+g.add_node("alice", "Prefers Python over JavaScript", "fact", ["fact_about_user", "user_preference"], 0.9)
+
+# Запрос по тегу — все факты о пользователе
+nodes = g.query_by_tag("alice", "fact_about_user")
+# [{"id": 1, "content": "Prefers Python...", "type": "fact", "tags": ["fact_about_user", "user_preference"]}]
+
+# Запрос по типу — все решения
+nodes = g.query_by_type("alice", "decision")
+# [{"id": 2, "content": "Chose SQLite", "type": "decision", "tags": ["user_decision"]}]
+
+# Agent layer — ошибки и исправления
+g_agent = EpistemicGraph(layer="agent")
+g_agent.add_node("alice", "NPE in auth middleware", "error_analysis", ["error_pattern"], 0.8)
+g_agent.add_node("alice", "Added null check", "correction", ["correction_pattern"], 0.7)
+
+# Найти все паттерны ошибок
+errors = g_agent.query_by_tag("alice", "error_pattern")
+# [{"id": 1, "content": "NPE in auth middleware", "tags": ["error_pattern"]}]
+
+# Найти все исправления
+fixes = g_agent.query_by_tag("alice", "correction_pattern")
+# [{"id": 2, "content": "Added null check", "tags": ["correction_pattern"]}]
+
+# Найти путь от ошибки к исправлению
+path = g_agent.find_path(1, 2)
+# [{"target": 2, "relation": "corrected_by", "depth": 1}]
+```
+
 ## TemporalGraph (`graph/temporal.py`)
 
 Временной граф: события, таймлайн, каузальные цепочки.

@@ -2,6 +2,8 @@
 
 **Universal Two-Layer Memory MCP Server**
 
+[![CI](https://github.com/ariel-memory/mcp-ariel-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/ariel-memory/mcp-ariel-memory/actions/workflows/ci.yml)
+
 Двухслойная универсальная память для AI-агентов. Реальный MCP Python SDK, async, 31 tool, stdio + Streamable HTTP транспорты, dashboard, метрики, аутентификация, автобэкапы, внешние папки wiki.
 
 ---
