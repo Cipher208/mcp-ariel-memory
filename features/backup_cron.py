@@ -1,13 +1,14 @@
 """
-Backup Cron — automatic scheduled backups
+Backup Cron — automatic scheduled backups with jitter + wiki sync.
 """
 import os
 import time
 import json
+import random
 import threading
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from config import config
 
 logger = logging.getLogger(__name__)
@@ -20,9 +21,12 @@ class BackupCron:
         self.backup_dir.mkdir(parents=True, exist_ok=True)
         self.interval_hours = config.get("backup", "backup_interval_hours") or 24
         self.retention_days = config.get("backup", "backup_retention_days") or 30
+        self.jitter_seconds = config.get("backup", "jitter_seconds") or 3600
+        self.wiki_sync_interval = config.get("backup", "wiki_sync_interval_minutes") or 30
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._last_backup = 0.0
+        self._last_wiki_sync = 0.0
         self._state_file = self.base_dir / ".backup_cron_state.json"
         self._load_state()
 
@@ -31,12 +35,13 @@ class BackupCron:
             try:
                 state = json.loads(self._state_file.read_text(encoding="utf-8"))
                 self._last_backup = state.get("last_backup", 0.0)
+                self._last_wiki_sync = state.get("last_wiki_sync", 0.0)
             except Exception:
                 pass
 
     def _save_state(self):
         self._state_file.write_text(
-            json.dumps({"last_backup": self._last_backup}),
+            json.dumps({"last_backup": self._last_backup, "last_wiki_sync": self._last_wiki_sync}),
             encoding="utf-8"
         )
 
@@ -46,7 +51,8 @@ class BackupCron:
         self._running = True
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
-        logger.info("Backup cron started (interval=%dh)" % self.interval_hours)
+        jitter_info = " (+%ds jitter)" % self.jitter_seconds if self.jitter_seconds else ""
+        logger.info("Backup cron started (interval=%dh%s)" % (self.interval_hours, jitter_info))
 
     def stop(self):
         self._running = False
@@ -57,9 +63,21 @@ class BackupCron:
         while self._running:
             try:
                 now = time.time()
-                if now - self._last_backup >= self.interval_hours * 3600:
+
+                # Backup с jitter
+                next_backup = self._last_backup + self.interval_hours * 3600
+                if now >= next_backup:
+                    jitter = random.randint(0, self.jitter_seconds) if self.jitter_seconds else 0
+                    if jitter:
+                        logger.info("Backup jitter: waiting %ds" % jitter)
+                        time.sleep(jitter)
                     self._do_backup()
                     self._cleanup_old()
+
+                # Wiki sync
+                if now - self._last_wiki_sync >= self.wiki_sync_interval * 60:
+                    self._sync_wiki()
+
                 time.sleep(60)
             except Exception as e:
                 logger.error("Backup cron error: %s" % e)
@@ -73,13 +91,21 @@ class BackupCron:
         dest = self.backup_dir / name
         dest.mkdir(parents=True, exist_ok=True)
 
-        db_files = ["core_memory.db", "episodic.db", "sessions.db", "rag.db", "graph.db", "wiki.db"]
+        db_files = ["core_memory.db", "episodic.db", "sessions.db", "rag.db",
+                     "graph.db", "wiki.db", "wiki_index.db", "rate_limit.db",
+                     "embedding_cache.db", "audit.db"]
         backed_up = []
         for db_file in db_files:
             src = self.base_dir / db_file
             if src.exists():
                 shutil.copy2(src, dest / db_file)
                 backed_up.append(db_file)
+
+        # Бэкап .md файлов wiki
+        wiki_dir = self.base_dir / "wiki"
+        if wiki_dir.exists():
+            shutil.copytree(wiki_dir, dest / "wiki", dirs_exist_ok=True)
+            backed_up.append("wiki/")
 
         manifest = {"name": name, "timestamp": timestamp, "files": backed_up}
         (dest / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -97,9 +123,22 @@ class BackupCron:
             if d.is_dir() and d.stat().st_mtime < cutoff:
                 shutil.rmtree(d)
                 removed += 1
-                logger.info("Removed old backup: %s" % d.name)
         if removed:
             logger.info("Cleaned up %d old backups" % removed)
+
+    def _sync_wiki(self):
+        """Синхронизация wiki файлов с disk."""
+        try:
+            from wiki.file_wiki import FileWiki
+            for layer in ["user", "agent"]:
+                fw = FileWiki(layer=layer)
+                result = fw.reindex_all()
+                if result.get("indexed", 0) > 0:
+                    logger.info("Wiki %s synced: %d files" % (layer, result["indexed"]))
+            self._last_wiki_sync = time.time()
+            self._save_state()
+        except Exception as e:
+            logger.error("Wiki sync error: %s" % e)
 
     def backup_now(self) -> str:
         return self._do_backup()
@@ -118,10 +157,18 @@ class BackupCron:
 
         restored = []
         for db_file in manifest.get("files", []):
-            backup_file = src / db_file
-            if backup_file.exists():
-                shutil.copy2(backup_file, self.base_dir / db_file)
-                restored.append(db_file)
+            if db_file.endswith("/"):
+                # Восстановить wiki директорию
+                src_wiki = src / db_file
+                dest_wiki = self.base_dir / db_file
+                if src_wiki.exists():
+                    shutil.copytree(src_wiki, dest_wiki, dirs_exist_ok=True)
+                    restored.append(db_file)
+            else:
+                backup_file = src / db_file
+                if backup_file.exists():
+                    shutil.copy2(backup_file, self.base_dir / db_file)
+                    restored.append(db_file)
 
         return {"restored": restored, "backup": backup_name}
 
@@ -143,7 +190,9 @@ class BackupCron:
         return {
             "running": self._running,
             "interval_hours": self.interval_hours,
+            "jitter_seconds": self.jitter_seconds,
             "retention_days": self.retention_days,
+            "wiki_sync_interval_minutes": self.wiki_sync_interval,
             "last_backup": self._last_backup,
             "next_backup": self._last_backup + self.interval_hours * 3600,
             "backup_count": len(list(self.backup_dir.iterdir())),

@@ -156,6 +156,8 @@ backup:
   auto_backup: true
   backup_interval_hours: 24
   backup_retention_days: 30
+  jitter_seconds: 3600              # случайная задержка 0-3600 сек перед бэкапом
+  wiki_sync_interval_minutes: 30   # синхронизация wiki каждые 30 мин
 
 # === Dashboard ===
 dashboard:

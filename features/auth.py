@@ -1,16 +1,17 @@
 """
-Authentication — API key + OAuth support for MCP server
+Authentication — API key + persistent Bearer token.
+Bearer token сохраняется в файл, переживает рестарт.
 """
 import os
-import time
-import hashlib
+import json
 import secrets
-from typing import Optional, Dict, Any
+import time
 from pathlib import Path
+from typing import Dict, Any, Optional
 
 
 class APIKeyAuth:
-    """Simple API key authentication."""
+    """API key authentication with file persistence."""
 
     def __init__(self, keys_file: str = None):
         self.keys_file = Path(keys_file or str(Path.home() / ".mcp-ariel-memory" / "api_keys.json"))
@@ -19,14 +20,12 @@ class APIKeyAuth:
 
     def _load(self):
         if self.keys_file.exists():
-            import json
             try:
                 self._keys = json.loads(self.keys_file.read_text(encoding="utf-8"))
             except Exception:
                 self._keys = {}
 
     def _save(self):
-        import json
         self.keys_file.parent.mkdir(parents=True, exist_ok=True)
         self.keys_file.write_text(json.dumps(self._keys, indent=2), encoding="utf-8")
 
@@ -75,12 +74,39 @@ class APIKeyAuth:
 
 
 class BearerAuth:
-    """Bearer token authentication (for HTTP transport)."""
+    """Bearer token authentication — persistent (сохраняется в файл)."""
 
-    def __init__(self):
-        self._token = os.environ.get("MCP_AUTH_TOKEN", "")
-        if not self._token:
-            self._token = f"mt_{secrets.token_hex(32)}"
+    def __init__(self, token_file: str = None):
+        self.token_file = Path(token_file or str(Path.home() / ".mcp-ariel-memory" / "bearer_token.json"))
+        self._token = self._load_or_create()
+
+    def _load_or_create(self) -> str:
+        # 1. Из env переменной
+        env_token = os.environ.get("MCP_AUTH_TOKEN", "")
+        if env_token:
+            return env_token
+
+        # 2. Из файла
+        if self.token_file.exists():
+            try:
+                data = json.loads(self.token_file.read_text(encoding="utf-8"))
+                if data.get("token"):
+                    return data["token"]
+            except Exception:
+                pass
+
+        # 3. Создать новый и сохранить
+        token = f"mt_{secrets.token_hex(32)}"
+        self._save(token)
+        return token
+
+    def _save(self, token: str):
+        self.token_file.parent.mkdir(parents=True, exist_ok=True)
+        self.token_file.write_text(json.dumps({
+            "token": token,
+            "created_at": time.time(),
+            "note": "Не удалять! Токен переживает рестарт сервера."
+        }, indent=2), encoding="utf-8")
 
     def verify(self, auth_header: str) -> bool:
         if not auth_header:
@@ -91,6 +117,13 @@ class BearerAuth:
         return False
 
     def get_token(self) -> str:
+        return self._token
+
+    def rotate(self) -> str:
+        """Создать новый токен (старый перестаёт работать)."""
+        import secrets
+        self._token = f"mt_{secrets.token_hex(32)}"
+        self._save(self._token)
         return self._token
 
 
