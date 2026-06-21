@@ -6,72 +6,54 @@
 
 ```python
 from lifecycle.forgetting import ForgettingSystem
-
 fs = ForgettingSystem()
-stats = fs.cleanup()
-# {"decayed": 15, "archived": 3, "compressed": 2}
-
-fs.decay_importance()        # экспоненциальный decay
-fs.archive_old_entries()     # архивация > 90 дней + importance < 0.3
-fs.compress_duplicates()     # удаление дубликатов
+stats = fs.cleanup()  # {"decayed": 15, "archived": 3, "compressed": 2}
 ```
 
 ## EmotionTrigger (`lifecycle/emotion_trigger.py`)
 
-Определение важных моментов по эмоциональным маркерам. Русский + английский + эмодзи + паттерны фраз.
+Определение важных моментов. Русский + английский + эмодзи + regex паттерны.
 
 ```python
 from lifecycle.emotion_trigger import EmotionTrigger
-
 et = EmotionTrigger()
 
 # Русский
-should, reason, weight = et.should_save("Я тебя люблю!")
-# (True, "emotion_love", 0.8)
-
-should, reason, weight = et.should_save("Спасибо за помощь!")
-# (True, "emotion_gratitude", 0.5)
+et.should_save("Я тебя люблю!")     # (True, "emotion_love", 0.8)
+et.should_save("Спасибо за помощь!") # (True, "emotion_gratitude", 0.5)
+et.should_save("Это важно запомнить") # (True, "emotion_importance", 0.7)
 
 # Английский
-should, reason, weight = et.should_save("I love you so much")
-# (True, "emotion_love", 0.8)
+et.should_save("I love you so much") # (True, "emotion_love", 0.8)
 
 # Эмодзи
-should, reason, weight = et.should_save("Отлично! 😊🎉")
-# (True, "emotion_joy", 0.5)
+et.should_save("Отлично! 😊🎉")     # (True, "emotion_joy", 0.5)
 
-# Шум — не сохранять
-should, reason, weight = et.should_save("ok")
-# (False, "", 0.0)
+# Шум
+et.should_save("ok")                 # (False, "", 0.0)
 ```
 
-**Категории эмоций (8):**
+**8 категорий эмоций:**
 
-| Эмоция | Примеры маркеров | Вес |
-|--------|-----------------|-----|
-| love | люблю, обожаю, love, ❤️ | 0.7-0.8 |
-| fear | боюсь, страшно, afraid, 😨 | 0.6-0.7 |
-| anger | ненавижу, бесит, hate, 😡 | 0.6-0.7 |
-| joy | счастлив, рад, happy, 😊 | 0.5 |
-| gratitude | спасибо, благодарю, thanks | 0.5 |
-| importance | важно, запомни, remember | 0.7-0.8 |
-| sadness | грустно, печально, sad, 😢 | 0.6 |
+| Эмоция | Примеры | Вес |
+|--------|---------|-----|
+| love | люблю, love, ❤️ | 0.7-0.8 |
+| fear | боюсь, afraid, 😨 | 0.6-0.7 |
+| anger | ненавижу, hate, 😡 | 0.6-0.7 |
+| joy | счастлив, happy, 😊 | 0.5 |
+| gratitude | спасибо, thanks | 0.5 |
+| importance | важно, remember | 0.7-0.8 |
+| sadness | грустно, sad, 😢 | 0.6 |
 | surprise | удивлён, wow, 🤯 | 0.5 |
 
-**Паттерны ф regex:** "я тебя люблю", "никогда не забудь", "это важно запомнить"
+**Авто-тригеры:** joy > 0.8 (0.6), state_delta > 0.15 (0.4), >300 chars (0.3), 3+ вопросов (0.4), 2+ ! (0.3)
 
 ## ConsolidationEngine (`lifecycle/consolidation.py`)
 
-Консолидация из staging и эпизодов в L4.
-
 ```python
 from lifecycle.consolidation import ConsolidationEngine
-
 ce = ConsolidationEngine()
-result = ce.consolidate_staging("alice", staging_items, min_importance=0.7)
-# {"promoted": 3, "skipped": 2}
-
-count = ce.consolidate_episodes("alice", min_weight=0.7)
-stats = ce.get_stats("alice")
-# {"total": 45, "high_importance": 12, "low_importance": 8}
+ce.consolidate_staging("alice", staging_items, min_importance=0.7)
+ce.consolidate_episodes("alice", min_weight=0.7)
+ce.get_stats("alice")
 ```

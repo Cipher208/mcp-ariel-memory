@@ -6,154 +6,94 @@
 
 ```python
 from features.auth import APIKeyAuth
-
 auth = APIKeyAuth()
 key = auth.create_key("alice", "my key")
 auth.verify(key)       # {"user_id": "alice", "label": "my key"}
 auth.revoke(key)       # True
 auth.list_keys()       # [{"key": "ak_e9eb...", ...}]
-auth.delete_key(key)   # True
 ```
 
 ### Bearer Token (persistent)
 
-Токен сохраняется в файл `~/.mcp-ariel-memory/bearer_token.json` и переживает рестарт сервера.
+Токен сохраняется в файл, переживает рестарт.
 
 ```python
 from features.auth import BearerAuth
-
 ba = BearerAuth()
-token = ba.get_token()     # один и тот же после рестартов
+token = ba.get_token()      # один и тот же после рестартов
 ba.verify("Bearer mt_...")  # True
-
-# Ротация токена (старый перестаёт работать)
-new_token = ba.rotate()
+new_token = ba.rotate()     # ротация (старый перестаёт работать)
 ```
 
 **Файл:** `~/.mcp-ariel-memory/bearer_token.json`
-```json
-{
-  "token": "mt_700e728142b97...",
-  "created_at": 1782045000.0
-}
-```
-
-## Backup (`features/backup.py`)
-
-```python
-from features.backup import BackupManager
-
-bm = BackupManager()
-path = bm.backup("pre_migration")
-bm.restore("pre_migration")
-bm.list_backups()
-bm.cleanup_old()
-```
 
 ## BackupCron (`features/backup_cron.py`)
 
-Автобэкап каждые 24 часа с jitter (случайная задержка) + авто-синхронизация wiki.
+Автобэкап с jitter + авто-синхронизация wiki.
 
 ```python
 from features.backup_cron import backup_cron
-
-backup_cron.start()        # запустить cron
-backup_cron.stop()         # остановить
-backup_cron.backup_now()   # немедленный бэкап
-backup_cron.list_backups()
-backup_cron.restore("auto_1782041841")
+backup_cron.start()
+backup_cron.backup_now()
 backup_cron.status()
-# {"running": True, "interval_hours": 24, "jitter_seconds": 3600,
-#  "wiki_sync_interval_minutes": 30, ...}
+# {"interval_hours": 24, "jitter_seconds": 3600, "wiki_sync_interval_minutes": 30, ...}
 ```
 
-**Jitter:** случайная задержка 0-3600 сек перед бэкапом. Два сервера не бэкапятся одновременно.
-
-**Wiki sync:** автоматическая переиндексация .md файлов каждые 30 минут.
+**Jitter:** случайная задержка 0-3600 сек → серверы не бэкапятся одновременно.
+**Wiki sync:** переиндексация .md файлов каждые 30 минут.
 
 ## Dashboard (`features/dashboard.py`)
 
-HTML дашборд для визуализации памяти.
-
 ```python
 from features.dashboard import Dashboard
-
 d = Dashboard()
-d.get_stats("alice")         # {"l1_buffer": 0, "l4_facts": 45, ...}
-d.get_user_facts("alice")    # [{"key": "name", "value": "Alice", ...}]
-d.get_agent_facts("alice")
-d.get_user_episodes("alice")
-d.get_agent_episodes("alice")
-d.get_audit()
-d.render_html()              # HTML строка
+d.get_stats("alice")
+d.get_user_facts("alice")
+d.render_html()
 ```
+
+**Эндпоинты (с auth + rate limit):** `/dashboard`, `/api/stats`, `/api/user/facts`, `/api/agent/facts`, `/api/user/episodes`, `/api/agent/episodes`, `/api/audit`
 
 ## AuditTrail (`features/audit_trail.py`)
 
-Лог всех изменений с auto-rotation (30 дней).
+Ротация: архивировать > 30 дней в JSON, затем удалить.
 
 ```python
 from features.audit_trail import AuditTrail
-
 at = AuditTrail()
-at.log("alice", "memory.user.remember", layer="user", details={"key": "name"})
-at.get_history("alice", limit=50)
-at.get_history("alice", action="memory.user.remember")
-at.count("alice")
-at.count_all()
-
-# Ротация: архивировать > 30 дней в JSON, затем удалить
-at.archive_and_prune(retention_days=30, archive_dir="/path/to/archives")
-# {"archived": 100, "pruned": 100}
-
-# Просто удалить старые
+at.log("alice", "action")
+at.get_history("alice")
+at.archive_and_prune(retention_days=30)  # {"archived": 100, "pruned": 100}
 at.cleanup_old(retention_days=30)
 ```
 
 ## RateLimiter (`features/rate_limiting.py`)
 
-SQLite-based per-user rate limiting (persistent) + WebSocket connection limiting.
+SQLite-based HTTP rate limiting + WebSocket connection limiting.
 
 ```python
 from features.rate_limiting import RateLimiter, ConnectionLimiter
 
-# HTTP rate limiting (100 req/min per user)
 rl = RateLimiter()
 rl.check("alice")       # {"allowed": True, "remaining": 99}
-rl.get_stats("alice")   # {"requests_last_minute": 1, "limit": 100}
-rl.cleanup_old()        # удалить старые записи
 
-# WebSocket/SSE connection limiting
 cl = ConnectionLimiter()
-result = cl.acquire("alice", "conn_123")
-# {"allowed": True, "user_connections": 1, "total_connections": 1}
-cl.release("alice", "conn_123")
-cl.get_stats()
-# {"total_connections": 5, "max_total": 100, "max_per_user": 5}
+cl.acquire("alice", "conn_1")  # {"allowed": True, "user_connections": 1}
+cl.release("alice", "conn_1")
+cl.get_stats()                  # {"total_connections": 5, "max_per_user": 5}
 ```
 
-**Защищённые эндпоинты:** все `/api/*`, `/dashboard`, `/metrics`
+**Защита:** все HTTP endpoints + WebSocket upgrade на `/mcp`.
 
-**WebSocket:** `WSConnectionMiddleware` проверяет лимит при upgrade на `/mcp`
-
-## ImportExport (`features/import_export.py`)
+## ImportExport + Compression
 
 ```python
 from features.import_export import ImportExport
+from features.compression import MemoryCompressor
 
 ie = ImportExport()
 path = ie.export_user("alice")
-ie.import_user(path, target_user_id="bob")
-ie.list_exports()
-```
-
-## Compression (`features/compression.py`)
-
-```python
-from features.compression import MemoryCompressor
 
 mc = MemoryCompressor()
 mc.deduplicate_core("alice")
-mc.compress_episodes("alice", min_weight=0.3)
-mc.get_stats("alice")
 ```

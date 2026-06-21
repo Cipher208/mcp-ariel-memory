@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/ariel-memory/mcp-ariel-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/ariel-memory/mcp-ariel-memory/actions/workflows/ci.yml)
 
-Двухслойная универсальная память для AI-агентов. Реальный MCP Python SDK, async, 31 tool, stdio + Streamable HTTP транспорты, dashboard, метрики, аутентификация, автобэкапы, внешние папки wiki.
+Двухслойная универсальная память для AI-агентов. Реальный MCP Python SDK, async, **33 tools**, stdio + Streamable HTTP, dashboard с auth + rate limiting, метрики, автобэкапи с jitter, wiki с внешними папками, read-only replica, OpenAPI spec.
 
 ---
 
@@ -60,8 +60,10 @@ docker run -p 8000:8000 ariel-memory
 
 ## Статус
 
-- **MCP Tools:** 31/31
-- **pytest:** 10/10
+- **MCP Tools:** 33
+- **pytest:** 49/49
+- **Integration:** 36/36
 - **Файлов .py:** 50+
 - **Хуки:** 24
 - **Wiki типов:** 14
+- **Миграции БД:** 3
