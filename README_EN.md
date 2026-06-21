@@ -83,7 +83,7 @@ Windows:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│               MCP Server (27 async tools)            │
+│               MCP Server (31 async tools)            │
 │  FastMCP + stdio/HTTP transports + auth              │
 ├──────────────────────┬──────────────────────────────┤
 │   Layer 1: User      │   Layer 2: Agent             │
@@ -542,7 +542,7 @@ mcp-ariel-memory/
 ├── Dockerfile / docker-compose.yml
 ├── .github/workflows/ci.yml
 ├── config.yaml / config.py
-├── mcp_server.py              # MCP SDK (27 async tools)
+├── mcp_server.py              # MCP SDK (31 async tools)
 ├── server.py                  # Legacy (backward compat)
 ├── tests/test_all.py
 ├── core/                      # L1-L4
