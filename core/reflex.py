@@ -1,0 +1,70 @@
+"""
+L1 ReflexBuffer - ring buffer for recent messages
+"""
+import json
+import threading
+from pathlib import Path
+from typing import List
+from dataclasses import dataclass
+from collections import deque
+
+@dataclass
+class ReflexEntry:
+    role: str
+    content: str
+    tokens: int
+    timestamp: float
+
+class ReflexBuffer:
+    def __init__(self, max_size: int = 50, persist_path: str = None):
+        self.max_size = max_size
+        self.persist_path = persist_path
+        self._buffer = deque(maxlen=max_size)
+        self._lock = threading.Lock()
+        if persist_path:
+            self._load()
+    
+    def add(self, role: str, content: str, tokens: int = 0):
+        import time
+        entry = ReflexEntry(role=role, content=content, tokens=tokens, timestamp=time.time())
+        with self._lock:
+            self._buffer.append(entry)
+            self._save()
+    
+    def get_recent(self, n: int = 10) -> List[ReflexEntry]:
+        with self._lock:
+            return list(self._buffer)[-n:]
+    
+    def get_full(self) -> List[ReflexEntry]:
+        with self._lock:
+            return list(self._buffer)
+    
+    def clear(self):
+        with self._lock:
+            self._buffer.clear()
+            self._save()
+    
+    def size(self) -> int:
+        return len(self._buffer)
+    
+    def to_text(self, max_entries: int = 10) -> str:
+        entries = self.get_recent(max_entries)
+        return "\n".join([f"{e.role}: {e.content[:100]}" for e in entries])
+    
+    def _load(self):
+        if self.persist_path and Path(self.persist_path).exists():
+            try:
+                with open(self.persist_path) as f:
+                    data = json.load(f)
+                for entry in data:
+                    self._buffer.append(ReflexEntry(**entry))
+            except:
+                pass
+    
+    def _save(self):
+        if self.persist_path:
+            try:
+                with open(self.persist_path, 'w') as f:
+                    json.dump([vars(e) for e in self._buffer], f)
+            except:
+                pass

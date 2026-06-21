@@ -1,0 +1,13 @@
+__pycache__
+*.pyc
+*.pyo
+.git
+.gitignore
+*.md
+!README.md
+tests/
+docs/
+*.db
+*.json
+!pyproject.toml
+.mcp-ariel-memory/

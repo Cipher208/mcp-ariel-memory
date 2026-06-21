@@ -1,0 +1,82 @@
+# Поиск (RAG) — rag/
+
+## RAGEngine (`rag/engine.py`)
+
+FTS5 полнотекстовый поиск + sqlite-vec (опционально) + RRF. Автоматический fallback на LIKE если FTS5 недоступен.
+
+```python
+from rag.engine import RAGEngine
+
+rag = RAGEngine(layer="user")
+print(rag._fts_available)  # True если FTS5 есть, False если нет
+
+rag.ingest_text("Architecture", "Two-layer memory", user_id="alice", wiki_type="work_notes")
+rag.ingest_file(Path("docs/design.md"), user_id="alice")
+
+# Обычный FTS5 поиск
+results = rag.search("memory architecture", user_id="alice", limit=5)
+
+# RRF — гибридный поиск (FTS5 + vector similarity)
+results = rag.search_rrf("memory architecture", user_id="alice", limit=5)
+# [{"id": 1, "title": "Architecture", "content": "...", "score": 0.0325, "source": "rrf(fts+vec)"}]
+
+rag.add_relation(page1_id, page2_id, "elaborates", weight=0.8)
+rag.get_relations(page1_id, depth=2)
+rag.count_pages("alice")
+rag.count_chunks()
+```
+
+### RRF (Reciprocal Rank Fusion)
+
+Комбинирует два источника:
+- FTS5 (полнотекстовый поиск)
+- Vector similarity (embedding cosine similarity)
+
+Формула: `score = sum(1 / (k + rank_i))` где k=60
+
+**Источники в ответе:**
+- `fts5` — только FTS5 результат
+- `vec` — только vector результат
+- `rrf(fts+vec)` — комбинированный
+
+**Fallback:** если vector search недоступен, используется чистый FTS5.
+
+## RetrievalRouter (`rag/router.py`)
+
+Роутер запросов: определяет стратегию поиска.
+
+```python
+from rag.router import RetrievalRouter
+
+router = RetrievalRouter(user_id="alice")
+result = router.route("How to configure Redis?")
+# result.strategy = Strategy.WIKI
+# result.context = [{"title": "...", "content": "...", "score": 0.95}]
+# result.confidence = 0.95
+```
+
+**Стратегии:**
+
+| Стратегия | Когда | Источник |
+|-----------|-------|----------|
+| `L1_BUFFER` | Недавние контекстные вопросы | L1 буфер |
+| `SEMANTIC` | Общие запросы | FTS5 поиск |
+| `WIKI` | Технические вопросы | Wiki + relations |
+| `GRAPH` | Связанные сущности | Граф знаний |
+
+## ConflictResolver (`rag/conflict.py`)
+
+Обнаружение конфликтующих записей.
+
+```python
+from rag.conflict import ConflictResolver
+
+cr = ConflictResolver()
+result = cr.check("alice", "Python is the best language")
+# {"is_conflict": False}
+
+result2 = cr.check("alice", "Python is best for coding")
+# {"is_conflict": True, "conflict_group_id": "abc-123", "similarity": 0.6}
+
+cr.resolve("abc-123", keep_id=1)
+```

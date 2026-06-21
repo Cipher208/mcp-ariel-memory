@@ -1,0 +1,170 @@
+# === Two-Layer Unified Memory MCP ===
+# Layer 1: User facts | Layer 2: Agent identity
+
+# === Layers ===
+layers:
+  user:
+    enabled: true
+  agent:
+    enabled: true
+
+# === L1-L4 Limits ===
+limits:
+  l1_buffer_size: 50
+  l2_session_limit: 100
+  l3_episodic_limit: 1000
+  l4_core_limit: 5000
+
+# === Hooks (24 hooks: 12 user + 12 agent) ===
+hooks:
+  user:
+    message_received: true
+    message_sent: true
+    state_delta: true
+    consolidation: true
+    emotion_trigger: true
+    nightly: true
+    importance_gate: true
+    auto_context: true
+    forgetting_ritual: true
+    retrieval_router: true
+    conflict_resolver: true
+    dream_buffer: true
+  agent:
+    error_occurred: true
+    decision_made: true
+    self_correction: true
+    personality_shift: true
+    emotion_context: true
+    wiki_agent: true
+    consolidation: true
+    forgetting_ritual: true
+    auto_context: true
+    retrieval_router: true
+    conflict_resolver: true
+    emotion: true
+
+# === Forgetting ===
+forgetting:
+  decay_rate: 0.01
+  archive_threshold_days: 90
+  archive_min_importance: 0.3
+  consolidate_weight_threshold: 0.7
+
+# === RAG ===
+rag:
+  fts_enabled: true
+  vec_enabled: true
+  embedding_model: "BAAI/bge-small-en-v1.5"
+  chunk_size: 500
+  search_limit: 10
+
+# === Embeddings ===
+embeddings:
+  # Мультиязычная модель (100+ языков включая русский)
+  # Доступные: intfloat/multilingual-e5-small (384d), sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 (384d)
+  model: "intfloat/multilingual-e5-small"
+  dimension: 384
+  fallback: "hash"  # hash если sentence-transformers не установлен
+
+# === Graph ===
+graph:
+  temporal_enabled: true
+  epistemic_enabled: true
+  max_depth: 3
+
+# === Wiki ===
+# Каждый тип можно включить/выключить.
+# external_dirs — внешние папки для автосинхронизации.
+# Папки сканируются при старте и при вызове sync_external.
+wiki:
+  user:
+    # Типы wiki (true = включен, false = отключен)
+    diary: true
+    relationships: true
+    desires: true
+    aspirations: true
+    work_notes: true
+    preferences: true
+    retrospective: true
+    # Внешние папки пользователя (автосинхронизация .md файлов)
+    external_dirs: []
+    # Пример:
+    # external_dirs:
+    #   - "/home/user/notes"          # личные заметки
+    #   - "/home/user/projects/docs"  # документация проектов
+    #   - "C:\Users\me\journal"       # дневник
+  agent:
+    # Типы wiki
+    decision_log: true
+    error_analysis: true
+    personality_evolution: true
+    emotional_context: true
+    wiki_agent: true
+    learning_journal: true
+    principle_log: true
+    # Внешние папки агента (лор, справочники, знания)
+    external_dirs: []
+    # Пример:
+    # external_dirs:
+    #   - "/path/to/lore"             # лор персонажа
+    #   - "/path/to/knowledge-base"   # справочник знаний
+    #   - "/path/to/style-guide"      # гайд по стилю
+
+# === Auth ===
+auth:
+  api_keys_enabled: true
+  bearer_token_enabled: true
+  # Токен генерируется автоматически, или задайте вручную:
+  # bearer_token: "mt_your_custom_token_here"
+
+# === Features ===
+features:
+  import_export: true
+  versioning: true
+  cross_user_learning: false
+  compression: true
+  webhooks: false
+  backup: true
+  dashboard: true
+  plugins: false
+  rate_limiting: true
+  audit_trail: true
+  auth: true
+  backup_cron: true
+  embeddings: true
+
+# === Performance ===
+performance:
+  connection_pool_size: 10
+  prepared_statements: true
+  batch_size: 100
+  wal_mode: true
+  cache_l1_size: 1000
+  cache_l2_ttl: 300
+
+# === Security ===
+security:
+  per_user_isolation: true
+  input_validation: true
+  sql_injection_prevention: true
+  rate_limit_per_user: 100
+  audit_logging: true
+
+# === Backup ===
+backup:
+  auto_backup: true
+  backup_interval_hours: 24
+  backup_retention_days: 30
+
+# === Dashboard ===
+dashboard:
+  enabled: true
+  port: 8000
+
+# === Logging ===
+logging:
+  level: INFO
+  file: memory.log
+  max_size_mb: 10
+  backup_count: 5

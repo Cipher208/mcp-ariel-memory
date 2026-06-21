@@ -1,0 +1,14 @@
+services:
+  ariel-memory:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ariel-data:/data
+      - ./config.yaml:/app/config.yaml:ro
+    environment:
+      - MCP_MEMORY_DATA_DIR=/data
+    restart: unless-stopped
+
+volumes:
+  ariel-data:
