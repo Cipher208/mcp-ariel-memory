@@ -112,16 +112,29 @@ at.cleanup_old(retention_days=30)
 
 ## RateLimiter (`features/rate_limiting.py`)
 
-Ограничение API вызовов per user (100/мин). SQLite-based — переживает рестарт.
+SQLite-based per-user rate limiting (persistent) + WebSocket connection limiting.
 
 ```python
-from features.rate_limiting import RateLimiter
+from features.rate_limiting import RateLimiter, ConnectionLimiter
 
+# HTTP rate limiting (100 req/min per user)
 rl = RateLimiter()
 rl.check("alice")       # {"allowed": True, "remaining": 99}
 rl.get_stats("alice")   # {"requests_last_minute": 1, "limit": 100}
 rl.cleanup_old()        # удалить старые записи
+
+# WebSocket/SSE connection limiting
+cl = ConnectionLimiter()
+result = cl.acquire("alice", "conn_123")
+# {"allowed": True, "user_connections": 1, "total_connections": 1}
+cl.release("alice", "conn_123")
+cl.get_stats()
+# {"total_connections": 5, "max_total": 100, "max_per_user": 5}
 ```
+
+**Защищённые эндпоинты:** все `/api/*`, `/dashboard`, `/metrics`
+
+**WebSocket:** `WSConnectionMiddleware` проверяет лимит при upgrade на `/mcp`
 
 ## ImportExport (`features/import_export.py`)
 

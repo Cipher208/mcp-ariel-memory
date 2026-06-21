@@ -214,3 +214,29 @@ _get_migrations().append(Migration(4, "add_emotional_vector", v4_add_field))
 | 1 | `init_schema` | Начальная схема всех таблиц |
 | 2 | `add_conflict_fields` | is_conflict + conflict_group_id |
 | 3 | `add_wiki_source` | source column в wiki таблицах |
+
+## ReadOnlyReplica (`shared/read_only.py`)
+
+Read-only копия БД для dashboard/metrics/ревизии без нагрузки на основную БД.
+
+```python
+from shared.read_only import read_only_replica
+
+# Запустить авто-синхронизацию (каждые 5 мин)
+read_only_replica.start_auto_sync(interval_seconds=300)
+
+# Ручная синхронизация
+read_only_replica.sync()
+# {"core_memory.db": 1, "episodic.db": 1, ...}
+
+# Read-only соединение
+conn = read_only_replica.get_conn("core_memory.db")
+
+# Проверка готовности
+read_only_replica.is_ready()  # True если replica существует
+```
+
+**Как работает:**
+- SQLite backup API для безопасного копирования
+- Auto-sync каждые 5 минут
+- Read-only URI (`?mode=ro`) — нет нагрузки на основную БД
