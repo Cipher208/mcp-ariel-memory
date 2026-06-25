@@ -369,7 +369,7 @@ async def _backup_copy_db(data: dict) -> dict:
     base = Path.home() / ".mcp-ariel-memory"
     backup_dir = base / "backups" / ("saga_%d" % int(time.time()))
     backup_dir.mkdir(parents=True, exist_ok=True)
-    for db in ["core_memory.db", "episodic.db", "sessions.db", "rag.db", "graph.db", "wiki.db"]:
+    for db in ["memory.db", "memory.db", "memory.db", "memory.db", "memory.db", "memory.db"]:
         src = base / db
         if src.exists():
             shutil.copy2(src, backup_dir / db)

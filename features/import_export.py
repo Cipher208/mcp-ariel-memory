@@ -22,14 +22,14 @@ class ImportExport:
         data = {"user_id": user_id, "exported_at": time.time(), "version": "1.0",
                 "core_memory": [], "episodes": [], "sessions": []}
 
-        conn = await self._cm.get("core_memory.db")
+        conn = await self._cm.get("memory.db")
         cursor = await conn.execute("SELECT * FROM core_memory WHERE user_id=?", (user_id,))
         rows = await cursor.fetchall()
         for r in rows:
             data["core_memory"].append({"key": r["key"], "value": r["value"],
                                          "importance": r["importance"], "created_at": r["created_at"]})
 
-        conn = await self._cm.get("episodic.db")
+        conn = await self._cm.get("memory.db")
         cursor = await conn.execute("SELECT * FROM episodes WHERE user_id=?", (user_id,))
         rows = await cursor.fetchall()
         for r in rows:
@@ -46,7 +46,7 @@ class ImportExport:
         user_id = target_user_id or data.get("user_id", "default")
         imported = {"core_memory": 0, "episodes": 0}
 
-        conn = await self._cm.get("core_memory.db")
+        conn = await self._cm.get("memory.db")
         for item in data.get("core_memory", []):
             await conn.execute(
                 "INSERT OR REPLACE INTO core_memory (user_id, key, value, importance, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -55,7 +55,7 @@ class ImportExport:
             imported["core_memory"] += 1
         await conn.commit()
 
-        conn = await self._cm.get("episodic.db")
+        conn = await self._cm.get("memory.db")
         for item in data.get("episodes", []):
             await conn.execute(
                 "INSERT INTO episodes (user_id, summary, emotional_weight, tags, created_at) VALUES (?, ?, ?, ?, ?)",

@@ -9,7 +9,7 @@ AsyncConnectionManager — единый менеджер соединений SQ
 
 Использование:
     cm = AsyncConnectionManager()
-    conn = await cm.get("core_memory.db")
+    conn = await cm.get("memory.db")
     cur = await conn.execute("SELECT * FROM users WHERE id=?", (uid,))
     row = await cur.fetchone()
 """
@@ -41,7 +41,7 @@ class AsyncConnectionManager:
     # Основное API
     # ------------------------------------------------------------------
 
-    async def get(self, db_name: str = "core_memory.db") -> aiosqlite.Connection:
+    async def get(self, db_name: str = "memory.db") -> aiosqlite.Connection:
         """Вернуть (или создать) коннект к `db_name`."""
         if db_name in self._conns:
             conn = self._conns[db_name]
@@ -121,7 +121,7 @@ connection_manager = AsyncConnectionManager()
 #
 #   class CoreMemory:
 #       def __init__(self, db_path=None):
-#           self.db_path = db_path or str(Path.home() / ".mcp-ariel-memory" / "core_memory.db")
+#           self.db_path = db_path or str(Path.home() / ".mcp-ariel-memory" / "memory.db")
 #           self._init_db()
 #
 #       def _get_conn(self):
@@ -137,11 +137,11 @@ connection_manager = AsyncConnectionManager()
 #           self._cm = cm or connection_manager
 #
 #       async def _init_db(self):
-#           await self._cm.execute_script("core_memory.db", """
+#           await self._cm.execute_script("memory.db", """
 #               CREATE TABLE IF NOT EXISTS core_memory (...)
 #           """)
 #
 #       async def save(self, user_id, key, value, importance=0.5):
-#           conn = await self._cm.get("core_memory.db")
+#           conn = await self._cm.get("memory.db")
 #           await conn.execute("UPSERT ...", (user_id, key, value, importance))
 #           await conn.commit()

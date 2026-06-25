@@ -28,7 +28,7 @@ class ConsolidationEngine:
 
     async def consolidate_episodes(self, user_id: str, episodic_db: str = None,
                              min_weight: float = 0.7) -> int:
-        epi_db = episodic_db or "episodic.db"
+        epi_db = episodic_db or "memory.db"
         epi_conn = await self._cm.get(epi_db)
         cursor = await epi_conn.execute(
             "SELECT summary, emotional_weight FROM episodes WHERE user_id=? AND emotional_weight > ? ORDER BY created_at DESC LIMIT 10",
@@ -49,7 +49,7 @@ class ConsolidationEngine:
         return consolidated
 
     async def _save_to_core(self, user_id: str, key: str, value: str, importance: float):
-        conn = await self._cm.get("core_memory.db")
+        conn = await self._cm.get("memory.db")
         now = time.time()
         cursor = await conn.execute(
             "SELECT entry_id FROM core_memory WHERE user_id=? AND key=?", (user_id, key)
@@ -68,7 +68,7 @@ class ConsolidationEngine:
         await conn.commit()
 
     async def get_stats(self, user_id: str) -> Dict[str, int]:
-        conn = await self._cm.get("core_memory.db")
+        conn = await self._cm.get("memory.db")
         total_cursor = await conn.execute("SELECT COUNT(*) FROM core_memory WHERE user_id=?", (user_id,))
         total = (await total_cursor.fetchone())[0]
         high_cursor = await conn.execute("SELECT COUNT(*) FROM core_memory WHERE user_id=? AND importance > 0.7", (user_id,))

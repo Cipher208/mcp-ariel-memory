@@ -57,7 +57,7 @@ class UserWiki:
         self._cm = cm or connection_manager
 
     async def init_db(self):
-        await self._cm.execute_script("wiki.db", """
+        await self._cm.execute_script("memory.db", """
             CREATE TABLE IF NOT EXISTS user_wiki (
                 entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL,
@@ -75,7 +75,7 @@ class UserWiki:
             CREATE INDEX IF NOT EXISTS idx_uwiki_user_type ON user_wiki(user_id, wiki_type);
             CREATE INDEX IF NOT EXISTS idx_uwiki_source ON user_wiki(source);
         """)
-        conn = await self._cm.get("wiki.db")
+        conn = await self._cm.get("memory.db")
         try:
             await conn.execute("ALTER TABLE user_wiki ADD COLUMN source TEXT DEFAULT 'manual'")
         except Exception:
@@ -95,7 +95,7 @@ class UserWiki:
         if enabled and wiki_type not in enabled:
             raise ValueError(f"Wiki type '{wiki_type}' is disabled. Enabled: {enabled}")
 
-        conn = await self._cm.get("wiki.db")
+        conn = await self._cm.get("memory.db")
         now = time.time()
         cur = await conn.execute(
             "INSERT INTO user_wiki (user_id, wiki_type, title, content, tags, importance, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -111,7 +111,7 @@ class UserWiki:
 
     async def update(self, entry_id: int, title: str = None, content: str = None,
                tags: List[str] = None, importance: float = None):
-        conn = await self._cm.get("wiki.db")
+        conn = await self._cm.get("memory.db")
         updates = ["updated_at=?"]
         params = [time.time()]
         if title:
@@ -131,14 +131,14 @@ class UserWiki:
         await conn.commit()
 
     async def get(self, entry_id: int) -> Optional[WikiEntry]:
-        conn = await self._cm.get("wiki.db")
+        conn = await self._cm.get("memory.db")
         cur = await conn.execute("SELECT * FROM user_wiki WHERE entry_id=?", (entry_id,))
         row = await cur.fetchone()
         return self._row_to_entry(row) if row else None
 
     async def search(self, user_id: str, query: str, limit: int = 10) -> List[Dict[str, Any]]:
         try:
-            conn = await self._cm.get("wiki.db")
+            conn = await self._cm.get("memory.db")
             cur = await conn.execute(
                 """SELECT uw.entry_id, uw.title, uw.content, uw.wiki_type, uw.tags, uw.importance, fts.rank
                    FROM user_wiki_fts fts JOIN user_wiki uw ON fts.rowid = uw.entry_id
@@ -156,7 +156,7 @@ class UserWiki:
             return []
 
     async def list_by_type(self, user_id: str, wiki_type: str, limit: int = 20) -> List[WikiEntry]:
-        conn = await self._cm.get("wiki.db")
+        conn = await self._cm.get("memory.db")
         cur = await conn.execute(
             "SELECT * FROM user_wiki WHERE user_id=? AND wiki_type=? ORDER BY updated_at DESC LIMIT ?",
             (user_id, wiki_type, limit)
@@ -165,7 +165,7 @@ class UserWiki:
         return [self._row_to_entry(r) for r in rows]
 
     async def list_all(self, user_id: str, limit: int = 50) -> List[WikiEntry]:
-        conn = await self._cm.get("wiki.db")
+        conn = await self._cm.get("memory.db")
         cur = await conn.execute(
             "SELECT * FROM user_wiki WHERE user_id=? ORDER BY updated_at DESC LIMIT ?",
             (user_id, limit)
@@ -174,13 +174,13 @@ class UserWiki:
         return [self._row_to_entry(r) for r in rows]
 
     async def delete(self, entry_id: int) -> bool:
-        conn = await self._cm.get("wiki.db")
+        conn = await self._cm.get("memory.db")
         cur = await conn.execute("DELETE FROM user_wiki WHERE entry_id=?", (entry_id,))
         await conn.commit()
         return cur.rowcount > 0
 
     async def count(self, user_id: str = None, wiki_type: str = None) -> int:
-        conn = await self._cm.get("wiki.db")
+        conn = await self._cm.get("memory.db")
         conditions, params = [], []
         if user_id:
             conditions.append("user_id=?")
@@ -226,7 +226,7 @@ class UserWiki:
         return results
 
     async def _find_by_source(self, user_id: str, source: str) -> Optional[int]:
-        conn = await self._cm.get("wiki.db")
+        conn = await self._cm.get("memory.db")
         cur = await conn.execute(
             "SELECT entry_id FROM user_wiki WHERE user_id=? AND source=?",
             (user_id, source)

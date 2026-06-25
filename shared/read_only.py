@@ -23,7 +23,7 @@ class ReadOnlyReplica:
         self._last_sync = 0.0
 
     def sync(self) -> Dict[str, int]:
-        db_files = ["core_memory.db", "episodic.db", "sessions.db", "rag.db", "graph.db", "wiki_index.db", "audit.db"]
+        db_files = ["memory.db"]
         synced = {}
         for db_file in db_files:
             src = self.source_dir / db_file
@@ -69,7 +69,7 @@ class ReadOnlyReplica:
                 logger.error("Replica sync error: %s" % e)
                 time.sleep(300)
 
-    def get_conn(self, db_name: str = "core_memory.db") -> sqlite3.Connection:
+    def get_conn(self, db_name: str = "memory.db") -> sqlite3.Connection:
         db_path = self.replica_dir / db_name
         if not db_path.exists():
             db_path = self.source_dir / db_name
@@ -78,7 +78,7 @@ class ReadOnlyReplica:
         return conn
 
     def is_ready(self) -> bool:
-        return (self.replica_dir / "core_memory.db").exists()
+        return (self.replica_dir / "memory.db").exists()
 
 
 read_only_replica = ReadOnlyReplica()

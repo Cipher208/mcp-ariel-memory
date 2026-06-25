@@ -23,7 +23,7 @@ class TemporalGraph:
         self._cm = cm or connection_manager
 
     async def init_db(self):
-        await self._cm.execute_script("graph.db", """
+        await self._cm.execute_script("memory.db", """
             CREATE TABLE IF NOT EXISTS temporal_events (
                 event_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL,
@@ -48,7 +48,7 @@ class TemporalGraph:
     async def add_event(self, user_id: str, event_type: str, content: str,
                         importance: float = 0.5, metadata: Dict = None) -> int:
         import json
-        conn = await self._cm.get("graph.db")
+        conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
             "INSERT INTO temporal_events (user_id, event_type, content, timestamp, importance, metadata) VALUES (?, ?, ?, ?, ?, ?)",
             (user_id, event_type, content, time.time(), importance, json.dumps(metadata or {}))
@@ -57,7 +57,7 @@ class TemporalGraph:
         return cursor.lastrowid
 
     async def link_events(self, from_event: int, to_event: int, link_type: str = "follows", strength: float = 0.5):
-        conn = await self._cm.get("graph.db")
+        conn = await self._cm.get("memory.db")
         await conn.execute(
             "INSERT OR REPLACE INTO temporal_links (from_event, to_event, link_type, strength) VALUES (?, ?, ?, ?)",
             (from_event, to_event, link_type, strength)
@@ -66,7 +66,7 @@ class TemporalGraph:
 
     async def get_timeline(self, user_id: str, limit: int = 50, offset: int = 0) -> List[TemporalEvent]:
         import json
-        conn = await self._cm.get("graph.db")
+        conn = await self._cm.get("memory.db")
         cur = await conn.execute(
             "SELECT * FROM temporal_events WHERE user_id=? ORDER BY timestamp DESC LIMIT ? OFFSET ?",
             (user_id, limit, offset)
@@ -83,7 +83,7 @@ class TemporalGraph:
     async def get_events_near(self, user_id: str, timestamp: float, window_seconds: float = 3600,
                               limit: int = 20) -> List[TemporalEvent]:
         import json
-        conn = await self._cm.get("graph.db")
+        conn = await self._cm.get("memory.db")
         cur = await conn.execute(
             "SELECT * FROM temporal_events WHERE user_id=? AND ABS(timestamp - ?) < ? ORDER BY timestamp LIMIT ?",
             (user_id, timestamp, window_seconds, limit)
@@ -98,7 +98,7 @@ class TemporalGraph:
         ]
 
     async def get_causal_chain(self, event_id: int, direction: str = "forward", limit: int = 10) -> List[Dict[str, Any]]:
-        conn = await self._cm.get("graph.db")
+        conn = await self._cm.get("memory.db")
         if direction == "forward":
             sql = "SELECT tl.to_event, te.event_type, te.content, te.timestamp FROM temporal_links tl JOIN temporal_events te ON tl.to_event = te.event_id WHERE tl.from_event = ? LIMIT ?"
         else:
@@ -108,7 +108,7 @@ class TemporalGraph:
         return [{"event_id": r[0], "type": r[1], "content": r[2], "timestamp": r[3]} for r in rows]
 
     async def count_events(self, user_id: str = None) -> int:
-        conn = await self._cm.get("graph.db")
+        conn = await self._cm.get("memory.db")
         if user_id:
             cur = await conn.execute("SELECT COUNT(*) FROM temporal_events WHERE user_id=?", (user_id,))
         else:

@@ -48,7 +48,7 @@ class FileWiki:
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
     async def init_db(self):
-        await self._cm.execute_script("wiki_index.db", """
+        await self._cm.execute_script("memory.db", """
             CREATE TABLE IF NOT EXISTS wiki_index (
                 entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 layer TEXT NOT NULL,
@@ -66,7 +66,7 @@ class FileWiki:
             CREATE INDEX IF NOT EXISTS idx_wiki_layer ON wiki_index(layer);
             CREATE INDEX IF NOT EXISTS idx_wiki_type ON wiki_index(wiki_type);
         """)
-        conn = await self._cm.get("wiki_index.db")
+        conn = await self._cm.get("memory.db")
         await conn.execute("""
             CREATE VIRTUAL TABLE IF NOT EXISTS wiki_fts USING fts5(
                 title, content, wiki_type, tags,
@@ -129,7 +129,7 @@ class FileWiki:
         if not p.exists():
             return None
         parsed = self._parse_md(p.read_text(encoding="utf-8"))
-        conn = await self._cm.get("wiki_index.db")
+        conn = await self._cm.get("memory.db")
         cur = await conn.execute("SELECT * FROM wiki_index WHERE file_path=?", (str(p),))
         row = await cur.fetchone()
         if row:
@@ -145,7 +145,7 @@ class FileWiki:
     async def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
         """FTS5 search across all indexed files."""
         try:
-            conn = await self._cm.get("wiki_index.db")
+            conn = await self._cm.get("memory.db")
             cur = await conn.execute(
                 """SELECT wi.entry_id, wi.wiki_type, wi.file_path, wi.tags, wi.importance, fts.rank
                    FROM wiki_fts fts JOIN wiki_index wi ON fts.rowid = wi.entry_id
@@ -173,7 +173,7 @@ class FileWiki:
             return []
 
     async def list_by_type(self, wiki_type: str, limit: int = 20) -> List[WikiEntry]:
-        conn = await self._cm.get("wiki_index.db")
+        conn = await self._cm.get("memory.db")
         cur = await conn.execute(
             "SELECT * FROM wiki_index WHERE layer=? AND wiki_type=? ORDER BY updated_at DESC LIMIT ?",
             (self.layer, wiki_type, limit)
@@ -194,7 +194,7 @@ class FileWiki:
         return entries
 
     async def list_all(self, limit: int = 50) -> List[WikiEntry]:
-        conn = await self._cm.get("wiki_index.db")
+        conn = await self._cm.get("memory.db")
         cur = await conn.execute(
             "SELECT * FROM wiki_index WHERE layer=? ORDER BY updated_at DESC LIMIT ?",
             (self.layer, limit)
@@ -218,13 +218,13 @@ class FileWiki:
         p = Path(file_path)
         if p.exists():
             p.unlink()
-        conn = await self._cm.get("wiki_index.db")
+        conn = await self._cm.get("memory.db")
         cur = await conn.execute("DELETE FROM wiki_index WHERE file_path=?", (str(p),))
         await conn.commit()
         return cur.rowcount > 0
 
     async def count(self, wiki_type: str = None) -> int:
-        conn = await self._cm.get("wiki_index.db")
+        conn = await self._cm.get("memory.db")
         if wiki_type:
             cur = await conn.execute("SELECT COUNT(*) FROM wiki_index WHERE layer=? AND wiki_type=?", (self.layer, wiki_type))
         else:
@@ -291,7 +291,7 @@ class FileWiki:
         content_hash = hashlib.md5(content.encode()).hexdigest()
         now = time.time()
 
-        conn = await self._cm.get("wiki_index.db")
+        conn = await self._cm.get("memory.db")
         cur = await conn.execute("SELECT entry_id, content_hash FROM wiki_index WHERE file_path=?", (str(file_path),))
         existing = await cur.fetchone()
 

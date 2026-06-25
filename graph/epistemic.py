@@ -54,7 +54,7 @@ class EpistemicGraph:
         self.layer = layer
 
     async def init_db(self):
-        await self._cm.execute_script("graph.db", """
+        await self._cm.execute_script("memory.db", """
             CREATE TABLE IF NOT EXISTS epi_nodes (
                 node_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL,
@@ -80,7 +80,7 @@ class EpistemicGraph:
     async def add_node(self, user_id: str, content: str, node_type: str,
                        tags: List[str] = None, confidence: float = 0.5) -> int:
         import json
-        conn = await self._cm.get("graph.db")
+        conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
             "INSERT INTO epi_nodes (user_id, content, node_type, tags, confidence, created_at) VALUES (?, ?, ?, ?, ?, ?)",
             (user_id, content, node_type, json.dumps(tags or []), confidence, time.time())
@@ -89,7 +89,7 @@ class EpistemicGraph:
         return cursor.lastrowid
 
     async def add_edge(self, source_id: int, target_id: int, relation: str, weight: float = 0.8):
-        conn = await self._cm.get("graph.db")
+        conn = await self._cm.get("memory.db")
         await conn.execute(
             "INSERT OR REPLACE INTO epi_edges (source_id, target_id, relation, weight, created_at) VALUES (?, ?, ?, ?, ?)",
             (source_id, target_id, relation, weight, time.time())
@@ -97,7 +97,7 @@ class EpistemicGraph:
         await conn.commit()
 
     async def query_by_tag(self, user_id: str, tag: str, limit: int = 20) -> List[EpistemicNode]:
-        conn = await self._cm.get("graph.db")
+        conn = await self._cm.get("memory.db")
         cur = await conn.execute(
             "SELECT * FROM epi_nodes WHERE user_id=? AND tags LIKE ? ORDER BY confidence DESC LIMIT ?",
             (user_id, f'%"{tag}"%', limit)
@@ -106,7 +106,7 @@ class EpistemicGraph:
         return [self._row_to_node(r) for r in rows]
 
     async def query_by_type(self, user_id: str, node_type: str, limit: int = 20) -> List[EpistemicNode]:
-        conn = await self._cm.get("graph.db")
+        conn = await self._cm.get("memory.db")
         cur = await conn.execute(
             "SELECT * FROM epi_nodes WHERE user_id=? AND node_type=? ORDER BY confidence DESC LIMIT ?",
             (user_id, node_type, limit)
@@ -115,7 +115,7 @@ class EpistemicGraph:
         return [self._row_to_node(r) for r in rows]
 
     async def get_neighbors(self, node_id: int, depth: int = 1) -> List[Dict[str, Any]]:
-        conn = await self._cm.get("graph.db")
+        conn = await self._cm.get("memory.db")
         sql = """
         WITH RECURSIVE graph AS (
             SELECT e.source_id, e.target_id, e.relation, e.weight, 1 as d
@@ -144,7 +144,7 @@ class EpistemicGraph:
                 max_depth = config.get("graph", "max_depth") or 3
             except Exception:
                 max_depth = 3
-        conn = await self._cm.get("graph.db")
+        conn = await self._cm.get("memory.db")
         sql = """
         WITH RECURSIVE path AS (
             SELECT source_id, target_id, relation, weight, 1 as d, source_id || '->' || target_id as path_str
@@ -162,7 +162,7 @@ class EpistemicGraph:
         return [{"target": r[0], "relation": r[1], "weight": r[2], "depth": r[3]} for r in rows]
 
     async def count_nodes(self, user_id: str = None) -> int:
-        conn = await self._cm.get("graph.db")
+        conn = await self._cm.get("memory.db")
         if user_id:
             cur = await conn.execute("SELECT COUNT(*) FROM epi_nodes WHERE user_id=?", (user_id,))
         else:

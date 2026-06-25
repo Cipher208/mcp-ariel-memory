@@ -15,7 +15,7 @@ class RateLimiter:
         self._window_seconds = 60
 
     async def _init_db(self):
-        await self._cm.execute_script("rate_limit.db", """
+        await self._cm.execute_script("memory.db", """
             CREATE TABLE IF NOT EXISTS rate_limits (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL,
@@ -27,7 +27,7 @@ class RateLimiter:
     async def check(self, user_id: str) -> Dict[str, Any]:
         now = time.time()
         cutoff = now - self._window_seconds
-        conn = await self._cm.get("rate_limit.db")
+        conn = await self._cm.get("memory.db")
         await conn.execute("DELETE FROM rate_limits WHERE timestamp < ?", (cutoff,))
         await conn.execute("INSERT INTO rate_limits (user_id, timestamp) VALUES (?, ?)", (user_id, now))
         cursor = await conn.execute(
@@ -51,7 +51,7 @@ class RateLimiter:
 
     async def get_stats(self, user_id: str) -> Dict[str, Any]:
         cutoff = time.time() - self._window_seconds
-        conn = await self._cm.get("rate_limit.db")
+        conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
             "SELECT COUNT(*) as cnt FROM rate_limits WHERE user_id=? AND timestamp >= ?",
             (user_id, cutoff),
@@ -61,7 +61,7 @@ class RateLimiter:
 
     async def cleanup_old(self) -> int:
         cutoff = time.time() - (self._window_seconds * 10)
-        conn = await self._cm.get("rate_limit.db")
+        conn = await self._cm.get("memory.db")
         cursor = await conn.execute("DELETE FROM rate_limits WHERE timestamp < ?", (cutoff,))
         await conn.commit()
         return cursor.rowcount

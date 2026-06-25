@@ -27,7 +27,7 @@ class SessionStore:
         self._cm = cm or connection_manager
 
     async def _init_db(self):
-        await self._cm.execute_script("sessions.db", """
+        await self._cm.execute_script("memory.db", """
             CREATE TABLE IF NOT EXISTS sessions (
                 session_id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -44,7 +44,7 @@ class SessionStore:
 
     async def create_session(self, user_id: str) -> str:
         session_id = f"sess_{user_id}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
-        conn = await self._cm.get("sessions.db")
+        conn = await self._cm.get("memory.db")
         await conn.execute(
             "INSERT INTO sessions (session_id, user_id, started_at) VALUES (?, ?, ?)",
             (session_id, user_id, time.time()),
@@ -53,7 +53,7 @@ class SessionStore:
         return session_id
 
     async def close_session(self, session_id: str, summary: str = "", state_deltas: Dict = None, topics: List[str] = None):
-        conn = await self._cm.get("sessions.db")
+        conn = await self._cm.get("memory.db")
         await conn.execute(
             "UPDATE sessions SET summary=?, state_deltas=?, topics=?, ended_at=? WHERE session_id=?",
             (summary, json.dumps(state_deltas or {}), json.dumps(topics or []), time.time(), session_id),
@@ -61,7 +61,7 @@ class SessionStore:
         await conn.commit()
 
     async def get_recent_sessions(self, user_id: str, limit: int = 10) -> List["SessionRecord"]:
-        conn = await self._cm.get("sessions.db")
+        conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
             "SELECT * FROM sessions WHERE user_id=? ORDER BY started_at DESC LIMIT ?",
             (user_id, limit),
@@ -76,7 +76,7 @@ class SessionStore:
         return "\n".join([f"- {s.summary[:80]}" for s in sessions if s.summary])
 
     async def count_sessions(self, user_id: str = None) -> int:
-        conn = await self._cm.get("sessions.db")
+        conn = await self._cm.get("memory.db")
         if user_id:
             cursor = await conn.execute("SELECT COUNT(*) FROM sessions WHERE user_id=?", (user_id,))
         else:

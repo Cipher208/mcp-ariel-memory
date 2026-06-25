@@ -32,7 +32,7 @@ class EmbeddingCache:
         self._dimension = 384
 
     async def _init_db(self):
-        await self._cm.execute_script("embedding_cache.db", """
+        await self._cm.execute_script("memory.db", """
             CREATE TABLE IF NOT EXISTS embedding_cache (
                 text_hash TEXT PRIMARY KEY,
                 embedding BLOB NOT NULL,
@@ -52,7 +52,7 @@ class EmbeddingCache:
 
     async def _get_cached(self, text: str) -> Optional[List[float]]:
         text_hash = self._hash_text(text)
-        conn = await self._cm.get("embedding_cache.db")
+        conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
             "SELECT embedding FROM embedding_cache WHERE text_hash=? AND model_name=?",
             (text_hash, self.model_name),
@@ -66,7 +66,7 @@ class EmbeddingCache:
     async def _cache(self, text: str, embedding: List[float]):
         text_hash = self._hash_text(text)
         blob = struct.pack("%df" % len(embedding), *embedding)
-        conn = await self._cm.get("embedding_cache.db")
+        conn = await self._cm.get("memory.db")
         await conn.execute(
             "INSERT OR REPLACE INTO embedding_cache (text_hash, embedding, model_name) VALUES (?, ?, ?)",
             (text_hash, blob, self.model_name),
@@ -102,7 +102,7 @@ class EmbeddingCache:
         return (await self.embed([text]))[0]
 
     async def count(self) -> int:
-        conn = await self._cm.get("embedding_cache.db")
+        conn = await self._cm.get("memory.db")
         row = await (await conn.execute("SELECT COUNT(*) FROM embedding_cache")).fetchone()
         return row[0] if row else 0
 

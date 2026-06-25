@@ -26,7 +26,7 @@ class ForgettingSystem:
     async def decay_importance(self) -> int:
         try:
             now = time.time()
-            conn = await self._cm.get("core_memory.db")
+            conn = await self._cm.get("memory.db")
             cursor = await conn.execute(
                 """UPDATE core_memory SET importance = MAX(0.01,
                    importance * EXP(-? * (? - updated_at) / 86400))
@@ -44,7 +44,7 @@ class ForgettingSystem:
 
     async def archive_old_entries(self) -> int:
         try:
-            conn = await self._cm.get("core_memory.db")
+            conn = await self._cm.get("memory.db")
             cutoff = time.time() - (self.archive_days * 86400)
             cursor = await conn.execute(
                 "SELECT * FROM core_memory WHERE updated_at < ? AND importance < ?",
@@ -84,7 +84,7 @@ class ForgettingSystem:
 
     async def compress_duplicates(self) -> int:
         try:
-            conn = await self._cm.get("core_memory.db")
+            conn = await self._cm.get("memory.db")
             cursor = await conn.execute(
                 "SELECT user_id, key, COUNT(*) as cnt FROM core_memory GROUP BY user_id, key HAVING cnt > 1"
             )

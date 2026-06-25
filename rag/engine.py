@@ -17,7 +17,7 @@ class RAGEngine:
         self._fts_available = False
 
     async def _init_db(self):
-        conn = await self._cm.get("rag.db")
+        conn = await self._cm.get("memory.db")
         try:
             # Проверка FTS5
             cur = await conn.execute("PRAGMA compile_options")
@@ -31,7 +31,7 @@ class RAGEngine:
                 )
 
             await conn.executescript("""
-                CREATE TABLE IF NOT EXISTS wiki_pages (
+                CREATE TABLE IF NOT EXISTS rag_pages (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     layer TEXT NOT NULL DEFAULT 'user',
                     user_id TEXT NOT NULL DEFAULT 'default',
@@ -43,13 +43,13 @@ class RAGEngine:
                     created_at REAL DEFAULT (strftime('%s','now')),
                     updated_at REAL DEFAULT (strftime('%s','now'))
                 );
-                CREATE TABLE IF NOT EXISTS wiki_chunks (
+                CREATE TABLE IF NOT EXISTS rag_chunks (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     page_id INTEGER NOT NULL,
                     chunk_index INTEGER NOT NULL,
                     content TEXT NOT NULL,
                     embedding BLOB,
-                    FOREIGN KEY (page_id) REFERENCES wiki_pages(id) ON DELETE CASCADE
+                    FOREIGN KEY (page_id) REFERENCES rag_pages(id) ON DELETE CASCADE
                 );
                 CREATE TABLE IF NOT EXISTS relations (
                     source_id INTEGER NOT NULL,
@@ -58,16 +58,16 @@ class RAGEngine:
                     weight REAL DEFAULT 0.8,
                     PRIMARY KEY (source_id, target_id, relation_type)
                 );
-                CREATE INDEX IF NOT EXISTS idx_pages_layer ON wiki_pages(layer);
-                CREATE INDEX IF NOT EXISTS idx_pages_user ON wiki_pages(user_id);
-                CREATE INDEX IF NOT EXISTS idx_pages_type ON wiki_pages(wiki_type);
-                CREATE INDEX IF NOT EXISTS idx_chunks_page ON wiki_chunks(page_id);
+                CREATE INDEX IF NOT EXISTS idx_pages_layer ON rag_pages(layer);
+                CREATE INDEX IF NOT EXISTS idx_pages_user ON rag_pages(user_id);
+                CREATE INDEX IF NOT EXISTS idx_pages_type ON rag_pages(wiki_type);
+                CREATE INDEX IF NOT EXISTS idx_chunks_page ON rag_chunks(page_id);
             """)
             if self._fts_available:
                 await conn.execute("""
                     CREATE VIRTUAL TABLE IF NOT EXISTS wiki_fts USING fts5(
                         title, content, wiki_type,
-                        content=wiki_pages,
+                        content=rag_pages,
                         content_rowid=id
                     )
                 """)
@@ -78,10 +78,10 @@ class RAGEngine:
     async def ingest_file(self, filepath: Path, user_id: str = "default", wiki_type: str = None) -> str:
         content = filepath.read_text(encoding="utf-8")
         file_hash = hashlib.sha256(content.encode()).hexdigest()
-        conn = await self._cm.get("rag.db")
+        conn = await self._cm.get("memory.db")
         try:
             cur = await conn.execute(
-                "SELECT id FROM wiki_pages WHERE sha256_hash = ? AND user_id = ?",
+                "SELECT id FROM rag_pages WHERE sha256_hash = ? AND user_id = ?",
                 (file_hash, user_id)
             )
             existing = await cur.fetchone()
@@ -89,7 +89,7 @@ class RAGEngine:
                 return f"[SKIP] {filepath.name} (already ingested)"
 
             cursor = await conn.execute(
-                "INSERT INTO wiki_pages (layer, user_id, title, path, content, sha256_hash, wiki_type) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO rag_pages (layer, user_id, title, path, content, sha256_hash, wiki_type) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (self.layer, user_id, filepath.stem, str(filepath), content, file_hash, wiki_type)
             )
             page_id = cursor.lastrowid
@@ -101,7 +101,7 @@ class RAGEngine:
             chunks = self._chunk_text(content)
             for i, chunk in enumerate(chunks):
                 await conn.execute(
-                    "INSERT INTO wiki_chunks (page_id, chunk_index, content) VALUES (?, ?, ?)",
+                    "INSERT INTO rag_chunks (page_id, chunk_index, content) VALUES (?, ?, ?)",
                     (page_id, i, chunk)
                 )
             await conn.commit()
@@ -113,10 +113,10 @@ class RAGEngine:
                     wiki_type: str = None, path: str = "",
                     relation_to: int = None, relation_type: str = "elaborates") -> int:
         text_hash = hashlib.sha256(text.encode()).hexdigest()
-        conn = await self._cm.get("rag.db")
+        conn = await self._cm.get("memory.db")
         try:
             cur = await conn.execute(
-                "SELECT id FROM wiki_pages WHERE sha256_hash = ? AND user_id = ?",
+                "SELECT id FROM rag_pages WHERE sha256_hash = ? AND user_id = ?",
                 (text_hash, user_id)
             )
             existing = await cur.fetchone()
@@ -124,7 +124,7 @@ class RAGEngine:
                 return existing[0]
 
             cursor = await conn.execute(
-                "INSERT INTO wiki_pages (layer, user_id, title, path, content, sha256_hash, wiki_type) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO rag_pages (layer, user_id, title, path, content, sha256_hash, wiki_type) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (self.layer, user_id, title, path, text, text_hash, wiki_type)
             )
             page_id = cursor.lastrowid
@@ -136,12 +136,12 @@ class RAGEngine:
             chunks = self._chunk_text(text)
             for i, chunk in enumerate(chunks):
                 await conn.execute(
-                    "INSERT INTO wiki_chunks (page_id, chunk_index, content) VALUES (?, ?, ?)",
+                    "INSERT INTO rag_chunks (page_id, chunk_index, content) VALUES (?, ?, ?)",
                     (page_id, i, chunk)
                 )
             if relation_to is not None:
                 await conn.execute(
-                    "INSERT OR IGNORE INTO relations (source_id, target_id, relation_type) VALUES (?, ?, ?)",
+                    "INSERT OR IGNORE INTO rag_relations (source_id, target_id, relation_type) VALUES (?, ?, ?)",
                     (page_id, relation_to, relation_type)
                 )
             await conn.commit()
@@ -150,13 +150,13 @@ class RAGEngine:
             await self._cm.close_all()
 
     async def search(self, query: str, user_id: str = "default", limit: int = 10) -> List[Dict[str, Any]]:
-        conn = await self._cm.get("rag.db")
+        conn = await self._cm.get("memory.db")
         try:
             if self._fts_available:
                 cur = await conn.execute(
                     """SELECT wp.id, wp.title, wp.content, wp.wiki_type, fts.rank
                        FROM wiki_fts fts
-                       JOIN wiki_pages wp ON fts.rowid = wp.id
+                       JOIN rag_pages wp ON fts.rowid = wp.id
                        WHERE wiki_fts MATCH ? AND wp.user_id = ?
                        ORDER BY fts.rank DESC LIMIT ?""",
                     (query, user_id, limit)
@@ -176,7 +176,7 @@ class RAGEngine:
                 # Fallback: LIKE search когда FTS5 недоступен
                 cur = await conn.execute(
                     """SELECT id, title, content, wiki_type
-                       FROM wiki_pages
+                       FROM rag_pages
                        WHERE user_id=? AND (title LIKE ? OR content LIKE ?)
                        LIMIT ?""",
                     (user_id, f"%{query}%", f"%{query}%", limit)
@@ -216,11 +216,11 @@ class RAGEngine:
 
         vec_ranks = {}
         try:
-            conn = await self._cm.get("rag.db")
+            conn = await self._cm.get("memory.db")
             try:
                 cur = await conn.execute(
-                    "SELECT wc.page_id, wc.content FROM wiki_chunks wc "
-                    "JOIN wiki_pages wp ON wc.page_id = wp.id WHERE wp.user_id = ?",
+                    "SELECT wc.page_id, wc.content FROM rag_chunks wc "
+                    "JOIN rag_pages wp ON wc.page_id = wp.id WHERE wp.user_id = ?",
                     (user_id,)
                 )
                 rows = await cur.fetchall()
@@ -255,12 +255,12 @@ class RAGEngine:
 
         sorted_ids = sorted(rrf_scores.keys(), key=lambda x: -rrf_scores[x])[:limit]
 
-        conn = await self._cm.get("rag.db")
+        conn = await self._cm.get("memory.db")
         try:
             results = []
             for doc_id in sorted_ids:
                 cur = await conn.execute(
-                    "SELECT id, title, content, wiki_type FROM wiki_pages WHERE id=?",
+                    "SELECT id, title, content, wiki_type FROM rag_pages WHERE id=?",
                     (doc_id,)
                 )
                 row = await cur.fetchone()
@@ -280,19 +280,19 @@ class RAGEngine:
             await self._cm.close_all()
 
     async def get_relations(self, page_id: int, depth: int = 1) -> List[Dict[str, Any]]:
-        conn = await self._cm.get("rag.db")
+        conn = await self._cm.get("memory.db")
         try:
             sql = """
             WITH RECURSIVE graph AS (
                 SELECT r.source_id, r.target_id, r.relation_type, r.weight, 1 as d
-                FROM relations r WHERE r.source_id = ?
+                FROM rag_relations r WHERE r.source_id = ?
                 UNION ALL
                 SELECT r.source_id, r.target_id, r.relation_type, r.weight, g.d + 1
-                FROM relations r JOIN graph g ON r.source_id = g.target_id
+                FROM rag_relations r JOIN graph g ON r.source_id = g.target_id
                 WHERE g.d < ?
             )
             SELECT wp.id, wp.title, g.relation_type, g.weight
-            FROM graph g JOIN wiki_pages wp ON g.target_id = wp.id
+            FROM graph g JOIN rag_pages wp ON g.target_id = wp.id
             """
             cur = await conn.execute(sql, (page_id, depth))
             rows = await cur.fetchall()
@@ -301,10 +301,10 @@ class RAGEngine:
             await self._cm.close_all()
 
     async def add_relation(self, source_id: int, target_id: int, relation_type: str = "elaborates", weight: float = 0.8):
-        conn = await self._cm.get("rag.db")
+        conn = await self._cm.get("memory.db")
         try:
             await conn.execute(
-                "INSERT OR REPLACE INTO relations (source_id, target_id, relation_type, weight) VALUES (?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO rag_relations (source_id, target_id, relation_type, weight) VALUES (?, ?, ?, ?)",
                 (source_id, target_id, relation_type, weight)
             )
             await conn.commit()
@@ -312,21 +312,21 @@ class RAGEngine:
             await self._cm.close_all()
 
     async def count_pages(self, user_id: str = None) -> int:
-        conn = await self._cm.get("rag.db")
+        conn = await self._cm.get("memory.db")
         try:
             if user_id:
-                cur = await conn.execute("SELECT COUNT(*) FROM wiki_pages WHERE user_id=?", (user_id,))
+                cur = await conn.execute("SELECT COUNT(*) FROM rag_pages WHERE user_id=?", (user_id,))
             else:
-                cur = await conn.execute("SELECT COUNT(*) FROM wiki_pages")
+                cur = await conn.execute("SELECT COUNT(*) FROM rag_pages")
             row = await cur.fetchone()
             return row[0] if row else 0
         finally:
             await self._cm.close_all()
 
     async def count_chunks(self) -> int:
-        conn = await self._cm.get("rag.db")
+        conn = await self._cm.get("memory.db")
         try:
-            cur = await conn.execute("SELECT COUNT(*) FROM wiki_chunks")
+            cur = await conn.execute("SELECT COUNT(*) FROM rag_chunks")
             row = await cur.fetchone()
             return row[0] if row else 0
         finally:

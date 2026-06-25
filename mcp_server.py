@@ -64,6 +64,13 @@ class AppContext:
 
 @asynccontextmanager
 async def lifespan(server: FastMCP):
+    # 1. Запустить миграции (создать все таблицы в memory.db)
+    from shared.migrations import migration_manager
+    result = await migration_manager.migrate()
+    import logging
+    logging.getLogger(__name__).info("Migrations: %s" % result)
+
+    # 2. Инициализировать контекст
     ctx = AppContext()
     backup_cron.start()
     try:

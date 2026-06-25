@@ -5,6 +5,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Ensure migrations run before any test
+async def _setup():
+    from shared.migrations import migration_manager
+    await migration_manager.migrate()
+asyncio.run(_setup())
+
 
 def test_mcp_tools_count():
     from mcp_server import mcp

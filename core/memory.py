@@ -24,7 +24,7 @@ class CoreMemory:
         self._cm = cm or connection_manager
 
     async def _init_db(self):
-        await self._cm.execute_script("core_memory.db", """
+        await self._cm.execute_script("memory.db", """
             CREATE TABLE IF NOT EXISTS core_memory (
                 entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL,
@@ -37,7 +37,7 @@ class CoreMemory:
 
     async def save(self, user_id: str, key: str, value: str, importance: float = 0.5) -> int:
         now = time.time()
-        conn = await self._cm.get("core_memory.db")
+        conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
             "SELECT entry_id FROM core_memory WHERE user_id=? AND key=?", (user_id, key),
         )
@@ -58,25 +58,25 @@ class CoreMemory:
         return entry_id
 
     async def get(self, user_id: str, key: str) -> Optional[CoreEntry]:
-        conn = await self._cm.get("core_memory.db")
+        conn = await self._cm.get("memory.db")
         cursor = await conn.execute("SELECT * FROM core_memory WHERE user_id=? AND key=?", (user_id, key))
         row = await cursor.fetchone()
         return self._row_to_entry(row) if row else None
 
     async def get_all(self, user_id: str, limit: int = 50) -> List[CoreEntry]:
-        conn = await self._cm.get("core_memory.db")
+        conn = await self._cm.get("memory.db")
         cursor = await conn.execute("SELECT * FROM core_memory WHERE user_id=? ORDER BY importance DESC LIMIT ?", (user_id, limit))
         rows = await cursor.fetchall()
         return [self._row_to_entry(r) for r in rows]
 
     async def delete(self, user_id: str, key: str) -> bool:
-        conn = await self._cm.get("core_memory.db")
+        conn = await self._cm.get("memory.db")
         cursor = await conn.execute("DELETE FROM core_memory WHERE user_id=? AND key=?", (user_id, key))
         await conn.commit()
         return cursor.rowcount > 0
 
     async def search(self, user_id: str, query: str, limit: int = 10) -> List[Dict]:
-        conn = await self._cm.get("core_memory.db")
+        conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
             "SELECT * FROM core_memory WHERE user_id=? AND (key LIKE ? OR value LIKE ?) ORDER BY importance DESC LIMIT ?",
             (user_id, f"%{query}%", f"%{query}%", limit),
@@ -85,7 +85,7 @@ class CoreMemory:
         return [{"key": r["key"], "value": r["value"], "importance": r["importance"]} for r in rows]
 
     async def count(self, user_id: Optional[str] = None) -> int:
-        conn = await self._cm.get("core_memory.db")
+        conn = await self._cm.get("memory.db")
         if user_id:
             cursor = await conn.execute("SELECT COUNT(*) FROM core_memory WHERE user_id=?", (user_id,))
         else:
