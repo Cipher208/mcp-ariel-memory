@@ -62,15 +62,27 @@ result = await pipeline.execute(ctx, handler)
 
 ## EmbeddingCache (`shared/embeddings.py`)
 
-Мультиязычная модель `intfloat/multilingual-e5-small` (100+ языков). Нормализация текста перед хешированием.
+Кэш эмбеддингов (SHA-256 → blob) в SQLite. Мультиязычная модель `intfloat/multilingual-e5-small` (100+ языков). Нормализация текста перед хешированием.
 
 ```python
-from shared.embeddings import EmbeddingCache, embed_text, similarity, DEFAULT_MODEL
-ec = EmbeddingCache()
-emb = ec.embed_single("Привет мир")  # русский работает!
-h1 = ec._hash_text("Python is great")
-h2 = ec._hash_text("Python is great!")
-assert h1 == h2  # нормализация!
+from shared.embeddings import EmbeddingCache, embed_text, embed_texts, similarity, DEFAULT_MODEL
+
+print(DEFAULT_MODEL)  # "intfloat/multilingual-e5-small"
+
+cache = EmbeddingCache()
+emb = await cache.embed_single("Привет мир")  # русский работает!
+emb = await cache.embed_single("Hello world")  # английский тоже
+
+# Нормализация: "Python is great" и "Python is great!" дают одинаковый кэш
+h1 = cache._hash_text("Python is great")
+h2 = cache._hash_text("Python is great!")
+assert h1 == h2
+
+# Пакетное вычисление
+embeddings = await embed_texts(["text1", "text2"])
+
+# Similarity
+similarity(emb1, emb2)  # cosine similarity
 ```
 
 ## Metrics (`shared/metrics.py`)
@@ -90,16 +102,25 @@ db.cleanup_old(max_age_hours=24, max_count=500)
 
 ## ArchivedMemories (`shared/archived_memories.py`)
 
-Архив с восстановлением.
-
-## Migrations (`shared/migrations.py`)
-
-Версионирование схемы БД. 3 миграции.
+Архив с восстановлением. Единый путь для всех архиваций (forgetting, consolidation).
 
 ```python
-from shared.migrations import migration_manager
-migration_manager.migrate()  # {"current_version": 0, "new_version": 3}
+from shared.archived_memories import ArchivedMemories
+
+am = ArchivedMemories()
+await am.archive("alice", "Old memory", importance=0.2, reason="inactive_30d")
+archived = await am.get_archived("alice", limit=50)
+
+# Восстановить
+restored = await am.restore(archived_id=42)
+# {"content": "Old memory...", "importance": 0.2}
+
+await am.count("alice")
 ```
+
+**Используется:**
+- `forgetting.archive_old_entries()` — архивация старых записей
+- `consolidation.consolidate_staging()` — архивация staging
 
 ## ReadOnlyReplica (`shared/read_only.py`)
 

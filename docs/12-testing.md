@@ -10,7 +10,7 @@ python -m pytest tests/ -v
 uv run mcp dev mcp_server.py
 ```
 
-**Статус:** 49/49 pytest + 33/33 MCP tools. Один файл `memory.db`.
+**Статус:** 49/49 pytest + 33/33 MCP tools. Один файл `memory.db`. Эмбеддинги записываются при ingest.
 
 ## Тесты — async
 

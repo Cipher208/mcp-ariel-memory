@@ -2,10 +2,16 @@
 
 ## ForgettingSystem (`lifecycle/forgetting.py`)
 
+Забывание: decay, архивация через `ArchivedMemories`, сжатие.
+
 ```python
 from lifecycle.forgetting import ForgettingSystem
 fs = ForgettingSystem()
-stats = await fs.cleanup()  # {"decayed": 15, "archived": 3, "compressed": 2}
+stats = await fs.cleanup()
+# {"decayed": 15, "archived": 3, "compressed": 2}
+
+# Архивация: использует ArchivedMemories.archive()
+await fs.archive_old_entries()
 ```
 
 ## ConsolidationEngine (`lifecycle/consolidation.py`)

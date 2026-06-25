@@ -1,19 +1,32 @@
-# Поиск (RAG) — rag/ (async)
+# Поиск (RAG) — rag/ (async, embeddings в БД)
 
 ## RAGEngine (`rag/engine.py`)
 
-FTS5 + RRF + fallback на LIKE. Нативный async через AsyncConnectionManager.
+FTS5 + RRF + fallback на LIKE. Эмбеддинги записываются при ingest и читаются из БД при поиске.
 
 ```python
 from rag.engine import RAGEngine
 
 rag = RAGEngine(layer="user")
+
+# Индексация (эмбеддинги вычисляются и сохраняются в rag_chunks.embedding)
 await rag.ingest_text("Architecture", "Two-layer memory", user_id="alice")
+await rag.ingest_file(Path("docs/design.md"), user_id="alice")
+
+# Поиск (эмбеддинги читаются из БД, не вычисляются заново)
 results = await rag.search("memory architecture", user_id="alice", limit=5)
 results = await rag.search_rrf("memory architecture", user_id="alice", limit=5)
-await rag.add_relation(page1_id, page2_id, "elaborates", weight=0.8)
-relations = await rag.get_relations(page1_id, depth=2)
+
+# RRF результаты:
+# [{"title": "...", "score": 0.0325, "source": "rrf(fts+vec)"}]
+# source: "fts5", "vec", или "rrf(fts+vec)"
 ```
+
+**Архитектура поиска:**
+- `search()` — FTS5 полнотекстовый (fallback на LIKE)
+- `search_rrf()` — Reciprocal Rank Fusion: FTS5 + vector similarity
+- Эмбеддинги: вычисляются 1 раз при ingest, хранятся в `rag_chunks.embedding`
+- При поиске: читаются из БД → O(1) вместо O(N)
 
 ## RetrievalRouter (`rag/router.py`)
 
