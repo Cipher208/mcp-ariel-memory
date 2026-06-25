@@ -22,6 +22,9 @@ def _get_migrations() -> List[Migration]:
     migrations = []
 
     async def v1_init(conn):
+        """Начальная схема — core_memory.db.
+        staging_memories и archived_memories создаются в cognitive.db через _init_db().
+        """
         await conn.executescript("""
             CREATE TABLE IF NOT EXISTS core_memory (
                 entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,20 +47,6 @@ def _get_migrations() -> List[Migration]:
                 emotional_weight REAL DEFAULT 0.5, tags TEXT, created_at REAL NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_episodes_user ON episodes(user_id);
-
-            CREATE TABLE IF NOT EXISTS staging_memories (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id TEXT NOT NULL DEFAULT 'default', session_id TEXT NOT NULL,
-                event_id TEXT, content TEXT NOT NULL, importance REAL DEFAULT 0.5,
-                metadata TEXT DEFAULT '{}', created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
-
-            CREATE TABLE IF NOT EXISTS archived_memories (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id TEXT NOT NULL DEFAULT 'default', original_id INTEGER,
-                content TEXT NOT NULL, memory_type TEXT, importance REAL,
-                archive_reason TEXT NOT NULL, archived_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
 
             CREATE TABLE IF NOT EXISTS audit_log (
                 log_id INTEGER PRIMARY KEY AUTOINCREMENT,
