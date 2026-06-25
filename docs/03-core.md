@@ -1,19 +1,118 @@
 # Ядро памяти — core/ (async)
 
-## AsyncConnectionManager (`shared/connection.py`)
+## ReflexEntry (`core/reflex.py`)
 
-Все модули core используют единый AsyncConnectionManager через `self._cm.get("db_name")`.
+```python
+@dataclass
+class ReflexEntry:
+    role: str          # "user" или "assistant"
+    content: str       # текст сообщения
+    tokens: int        # количество токенов
+    timestamp: float   # время
+```
 
 ## L1 ReflexBuffer (`core/reflex.py`)
 
-Кольцевой буфер последних сообщений. RAM + JSON. Синхронный (не требует БД).
+Кольцевой буфер последних сообщений. RAM + JSON persistence.
 
 ```python
 from core.reflex import ReflexBuffer
-
 buf = ReflexBuffer(max_size=50, persist_path="reflex.json")
 buf.add(role="user", content="Hello", tokens=5)
 recent = buf.get_recent(5)
+```
+
+## SessionRecord (`core/session.py`)
+
+```python
+@dataclass
+class SessionRecord:
+    session_id: str
+    user_id: str
+    summary: str
+    state_deltas: Dict
+    topics: List[str]
+    message_count: int
+    started_at: float
+    ended_at: float
+```
+
+## L2 SessionStore (`core/session.py`)
+
+```python
+from core.session import SessionStore
+ss = SessionStore()
+sid = await ss.create_session(user_id="alice")
+await ss.close_session(sid, summary="Обсуждали проект")
+sessions = await ss.get_recent_sessions("alice", limit=10)
+```
+
+## L3 EpisodicMemory (`core/episodic.py`)
+
+```python
+from core.episodic import EpisodicMemory
+ep = EpisodicMemory()
+await ep.save("alice", "Первая встреча", emotional_weight=0.8, tags=["work"])
+await ep.get_episodes("alice", limit=10)
+await ep.archive_old("alice", days=90)  # архивирует + удаляет
+```
+
+## CoreEntry (`core/memory.py`)
+
+```python
+@dataclass
+class CoreEntry:
+    entry_id: int
+    user_id: str
+    key: str
+    value: str
+    importance: float
+    created_at: float
+    updated_at: float
+```
+
+## L4 CoreMemory (`core/memory.py`)
+
+### UPSERT-логика в `save()`
+
+```python
+async def save(self, user_id: str, key: str, value: str, importance: float = 0.5) -> int:
+    conn = await self._cm.get("memory.db")
+    cursor = await conn.execute(
+        "SELECT entry_id FROM core_memory WHERE user_id=? AND key=?", (user_id, key))
+    existing = await cursor.fetchone()
+
+    if existing:
+        # UPDATE — ключ уже существует
+        await conn.execute(
+            "UPDATE core_memory SET value=?, importance=?, updated_at=? WHERE entry_id=?",
+            (value, importance, now, existing["entry_id"]))
+        entry_id = existing["entry_id"]
+    else:
+        # INSERT — новый ключ
+        cursor = await conn.execute(
+            "INSERT INTO core_memory (user_id, key, value, importance, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, key, value, importance, now, now))
+        entry_id = cursor.lastrowid
+
+    await conn.commit()
+    return entry_id
+```
+
+**Использование:**
+```python
+from core.memory import CoreMemory
+cm = CoreMemory()
+
+# UPSERT: сохранить или обновить
+await cm.save("alice", "name", "Alice", importance=0.9)
+await cm.save("alice", "name", "Alice Smith", importance=0.95)  # обновит
+
+# Получить (возвращает None если не найден)
+entry = await cm.get("alice", "name")
+
+# Получить с default (никогда не None)
+value = await cm.get_or_default("alice", "name", default="unknown")
 ```
 
 ## L2 SessionStore (`core/session.py`)
