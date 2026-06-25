@@ -2,14 +2,26 @@
 
 ## FileWiki (`wiki/file_wiki.py`) — основной модуль
 
-.md файлы = source of truth + SQLite FTS5 индекс.
+.md файлы = source of truth + SQLite FTS5 индекс. **content_hash (MD5)** для дедупликации — skip при совпадении.
 
 ```python
 from wiki.file_wiki import FileWiki
 uw = FileWiki(layer="user")
+
+# add() — создаёт .md + индексирует. Пропускает если content_hash совпадает.
 await uw.add("diary", "Day 1", "Content", tags=["work"])
+
+# search() — FTS5 поиск
 results = await uw.search("Content")
+
+# reindex_all() — пересканировать все .md с диска
+await uw.reindex_all()
+
+# sync_external() — импорт .md из внешних папок
+await uw.sync_external(["/home/user/notes"])
 ```
+
+**Дедупликация:** при ingest вычисляется MD5 контента. Если файл с таким хешем уже в БД — skip без повторной записи.
 
 ## UserWiki (`wiki/user_wiki.py`) — 7 типов, 590 строк
 

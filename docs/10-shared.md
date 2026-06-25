@@ -75,6 +75,20 @@ saga_watchdog.cleanup_completed()
 - Если вложенная сага завершилась → её шаги НЕ компенсируются
 - Если outer сага упала после inner → inner компенсируется
 
+### Готовые саги
+
+```python
+from shared.saga import create_consolidation_saga, create_backup_saga
+
+# Консолидация: gather → distill → promote
+saga = create_consolidation_saga(user_id="alice", mm=memory_manager)
+result = await saga.execute({"user_id": "alice", "_mm": memory_manager})
+
+# Бэкап: copy → verify
+saga = create_backup_saga()
+result = await saga.execute()
+```
+
 ## Middleware (`shared/middleware.py`)
 
 Цепочка: Validation → RateLimit → ImportanceGate → Audit → Dedup.
@@ -113,17 +127,30 @@ similarity(emb1, emb2)  # cosine similarity
 
 ## Metrics (`shared/metrics.py`)
 
-Prometheus-compatible метрики.
-
-## DreamBuffer (`shared/dream_buffer.py`)
-
-Staging с TTL + auto-cleanup (24ч / 500 записей).
+Prometheus-compatible метрики. Counters, gauges, histograms.
 
 ```python
-from shared.dream_buffer import DreamBuffer
-db = DreamBuffer()
-db.add("alice", "s1", "msg", 0.5)
-db.cleanup_old(max_age_hours=24, max_count=500)
+from shared.metrics import metrics
+
+metrics.inc("tool_calls")           # counter +1
+metrics.inc("tool_user_remember")   # counter +1
+metrics.gauge("active_users", 5)    # gauge set
+metrics.histogram("latency", 0.1)   # histogram observe
+
+metrics.render_prometheus()  # Prometheus text format
+metrics.render_json()        # JSON format
+```
+
+**Prometheus формат:**
+```
+# HELP ariel_memory_uptime_seconds Server uptime
+# TYPE ariel_memory_uptime_seconds gauge
+ariel_memory_uptime_seconds 3600.0
+# TYPE ariel_memory_tool_calls counter
+ariel_memory_tool_calls 42
+# TYPE ariel_memory_latency_summary summary
+ariel_memory_latency_summary{quantile="0.5"} 0.12
+ariel_memory_latency_summary{quantile="0.9"} 0.18
 ```
 
 ## ArchivedMemories (`shared/archived_memories.py`)
