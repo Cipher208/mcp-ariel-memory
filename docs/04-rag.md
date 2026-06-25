@@ -17,6 +17,16 @@ if existing:
     return existing[0]  # skip — уже индексировано
 ```
 
+### WAL journal mode
+
+Все SQLite соединения используют WAL для конкурентного чтения. Настроено в `AsyncConnectionManager`:
+
+```python
+await conn.execute("PRAGMA journal_mode=WAL")
+await conn.execute("PRAGMA busy_timeout=5000")
+await conn.execute("PRAGMA synchronous=NORMAL")
+```
+
 ```python
 from rag.engine import RAGEngine
 

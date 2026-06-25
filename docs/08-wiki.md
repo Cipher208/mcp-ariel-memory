@@ -115,6 +115,24 @@ await aw.sync_external(["/path/to/lore"])
 
 **FTS5 индексы:** `user_wiki_fts`, `agent_wiki_fts` — полнотекстовый поиск.
 
+### _parse_md() — YAML frontmatter + fallback
+
+Файл парсится с YAML frontmatter. Если нет frontmatter — fallback на `# Заголовок`:
+
+```python
+def _parse_md(self, text: str) -> Dict[str, Any]:
+    result = {"title": "", "content": text, "tags": [], "importance": 0.5}
+    if text.startswith("---"):
+        # YAML frontmatter: title, tags, importance
+        ...
+    if not result["title"]:
+        for line in result["content"].split("\n"):
+            if line.startswith("# "):
+                result["title"] = line[2:].strip()
+                break
+    return result
+```
+
 ## Архитектура
 
 `.md` файлы на диске = основа. SQLite (`wiki_index.db`) = FTS5 индекс для поиска.

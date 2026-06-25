@@ -54,6 +54,8 @@ from core.episodic import EpisodicMemory
 ep = EpisodicMemory()
 await ep.save("alice", "Первая встреча", emotional_weight=0.8, tags=["work"])
 await ep.get_episodes("alice", limit=10)
+await ep.get_episodes("alice", limit=10, offset=20)  # пагинация
+await ep.search_by_tag("alice", "work")
 await ep.archive_old("alice", days=90)  # архивирует + удаляет
 ```
 
@@ -76,43 +78,26 @@ class CoreEntry:
 ### UPSERT-логика в `save()`
 
 ```python
-async def save(self, user_id: str, key: str, value: str, importance: float = 0.5) -> int:
-    conn = await self._cm.get("memory.db")
-    cursor = await conn.execute(
-        "SELECT entry_id FROM core_memory WHERE user_id=? AND key=?", (user_id, key))
-    existing = await cursor.fetchone()
-
+async def save(self, user_id, key, value, importance=0.5):
+    existing = await conn.execute("SELECT entry_id FROM core_memory WHERE user_id=? AND key=?", ...).fetchone()
     if existing:
-        # UPDATE — ключ уже существует
-        await conn.execute(
-            "UPDATE core_memory SET value=?, importance=?, updated_at=? WHERE entry_id=?",
-            (value, importance, now, existing["entry_id"]))
-        entry_id = existing["entry_id"]
+        await conn.execute("UPDATE core_memory SET value=?, importance=?, updated_at=? WHERE entry_id=?", ...)
     else:
-        # INSERT — новый ключ
-        cursor = await conn.execute(
-            "INSERT INTO core_memory (user_id, key, value, importance, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (user_id, key, value, importance, now, now))
-        entry_id = cursor.lastrowid
-
-    await conn.commit()
-    return entry_id
+        await conn.execute("INSERT INTO core_memory (...) VALUES (...)", ...)
 ```
 
 **Использование:**
 ```python
 from core.memory import CoreMemory
 cm = CoreMemory()
-
-# UPSERT: сохранить или обновить
 await cm.save("alice", "name", "Alice", importance=0.9)
-await cm.save("alice", "name", "Alice Smith", importance=0.95)  # обновит
+await cm.save("alice", "name", "Alice Smith", importance=0.95)  # обновит (upsert)
 
-# Получить (возвращает None если не найден)
-entry = await cm.get("alice", "name")
+entry = await cm.get("alice", "name")         # None если не найден
+value = await cm.get_or_default("alice", "name", default="unknown")  # никогда не None
 
-# Получить с default (никогда не None)
-value = await cm.get_or_default("alice", "name", default="unknown")
+count = await cm.count("alice")       # по пользователю
+count = await cm.count()              # глобальный (все пользователи)
 ```
 
 ## L2 SessionStore (`core/session.py`)

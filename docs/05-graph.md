@@ -49,16 +49,39 @@ path = await g.find_path(n1, n2, max_depth=3)
 
 ### Теги
 
-| User | Agent |
-|------|-------|
-| `fact_about_user` | `learned_from` |
-| `user_decision` | `decided_because` |
-| `user_preference` | `evolved_to` |
-| `user_emotion` | `felt_in_context` |
-| | `wiki_contains` |
-| | `error_pattern` |
-| | `correction_pattern` |
-| | `personality_trait` |
+**User Layer (с русскими описаниями):**
+
+| Тег | Описание |
+|-----|----------|
+| `fact_about_user` | Факт о пользователе |
+| `user_decision` | Решение пользователя |
+| `user_preference` | Предпочтение пользователя |
+| `user_emotion` | Эмоция пользователя |
+
+**Agent Layer (с русскими описаниями):**
+
+| Тег | Описание |
+|-----|----------|
+| `learned_from` | Агент узнал из ошибки |
+| `decided_because` | Агент принял решение |
+| `evolved_to` | Личность изменилась |
+| `felt_in_context` | Эмоция в контексте |
+| `wiki_contains` | Вторая кора мозга |
+| `error_pattern` | Паттерн ошибки |
+| `correction_pattern` | Паттерн исправления |
+| `personality_trait` | Черта личности |
+
+### WAL journal mode
+
+Все SQLite соединения используют WAL (Write-Ahead Logging) для конкурентного чтения:
+
+```python
+conn = await self._cm.get("memory.db")
+# Уже настроено в AsyncConnectionManager:
+# PRAGMA journal_mode=WAL
+# PRAGMA busy_timeout=5000
+# PRAGMA synchronous=NORMAL
+```
 
 ### find_path — config vs code
 
