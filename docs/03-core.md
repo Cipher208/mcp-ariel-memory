@@ -47,7 +47,14 @@ from core.memory import CoreMemory
 
 cm = CoreMemory()
 await cm.save("alice", "name", "Alice", importance=0.9)
+
+# get() возвращает None если не найден
 entry = await cm.get("alice", "name")
+
+# get_or_default() никогда не возвращает None
+value = await cm.get_or_default("alice", "name", default="unknown")
+# "Alice" или "unknown"
+
 results = await cm.search("alice", "Python")
 await cm.delete("alice", "lang")
 count = await cm.count("alice")

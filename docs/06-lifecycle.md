@@ -14,6 +14,17 @@ stats = await fs.cleanup()
 await fs.archive_old_entries()
 ```
 
+## EpisodicMemory.archive_old()
+
+Архивирует старые эпизоды в `ArchivedMemories`, затем удаляет из `episodes`.
+
+```python
+from core.episodic import EpisodicMemory
+ep = EpisodicMemory()
+archived = await ep.archive_old("alice", days=90)
+# Архивирует эпизоды > 90 дней с emotional_weight < 0.3
+```
+
 ## ConsolidationEngine (`lifecycle/consolidation.py`)
 
 ```python

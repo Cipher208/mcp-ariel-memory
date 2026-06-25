@@ -37,17 +37,43 @@ cache.size()
 
 ## Saga + Watchdog (`shared/saga.py`)
 
-Persistence на диск + watchdog + timeout + recovery.
+Persistence на диск + watchdog + per-step timeout + вложенные саги + компенсация.
 
 ```python
 from shared.saga import Saga, saga_watchdog
+
+# Сaga с timeout
 saga = Saga("backup", timeout_seconds=60)
-saga.add_step("copy", copy_fn, compensate_fn)
-await saga.execute()
+
+# Step с кастомным timeout
+saga.add_step("copy", copy_fn, compensate_fn, timeout_seconds=30)
+saga.add_step("verify", verify_fn, timeout_seconds=10)
+saga.add_step("default", default_fn)  # timeout саги (60s)
+
+# Вложенная сага
+inner = Saga("inner")
+inner.add_step("inner_step", inner_action, inner_compensate)
+saga.add_step("inner_saga", inner)
+
+# Async функции в шагах — поддерживаются автоматически
+async def async_step(data):
+    return {"result": "ok"}
+saga.add_step("async_step", async_step)
+
+# Выполнение
+result = await saga.execute({"user_id": "alice"})
+
+# Watchdog
 saga_watchdog.start()
 saga_watchdog.get_stuck_sagas()
+saga_watchdog.recover_saga("saga_id")
 saga_watchdog.cleanup_completed()
 ```
+
+**Компенсация:**
+- Если шаг упал → откат предыдущих шагов
+- Если вложенная сага завершилась → её шаги НЕ компенсируются
+- Если outer сага упала после inner → inner компенсируется
 
 ## Middleware (`shared/middleware.py`)
 
