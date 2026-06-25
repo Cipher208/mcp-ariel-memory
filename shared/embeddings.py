@@ -21,7 +21,7 @@ def _get_model(model_name: str = None):
             _model = SentenceTransformer(target)
             _model_name = target
         except ImportError:
-            _model = False
+            _model = None
     return _model
 
 
