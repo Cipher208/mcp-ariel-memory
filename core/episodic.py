@@ -74,14 +74,36 @@ class EpisodicMemory:
         return [self._row_to_episode(r) for r in rows]
 
     async def archive_old(self, user_id: str, days: int = 90) -> int:
+        """Архивировать старые эпизоды в ArchivedMemories, затем удалить."""
         conn = await self._cm.get("memory.db")
         cutoff = time.time() - (days * 86400)
         cursor = await conn.execute(
-            "DELETE FROM episodes WHERE user_id=? AND created_at < ? AND emotional_weight < 0.3",
+            "SELECT * FROM episodes WHERE user_id=? AND created_at < ? AND emotional_weight < 0.3",
             (user_id, cutoff),
         )
+        rows = await cursor.fetchall()
+        if not rows:
+            return 0
+
+        from shared.archived_memories import ArchivedMemories
+        am = ArchivedMemories()
+        archived_count = 0
+        for row in rows:
+            await am.archive(
+                user_id=user_id,
+                content=row["summary"],
+                memory_type="episode",
+                importance=row["emotional_weight"],
+                original_id=row["episode_id"],
+                reason="inactive_%dd" % days,
+            )
+            archived_count += 1
+
+        ids = [row["episode_id"] for row in rows]
+        placeholders = ",".join(["?"] * len(ids))
+        await conn.execute("DELETE FROM episodes WHERE episode_id IN (%s)" % placeholders, ids)
         await conn.commit()
-        return cursor.rowcount
+        return archived_count
 
     def _row_to_episode(self, row) -> Episode:
         return Episode(
