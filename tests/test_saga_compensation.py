@@ -199,10 +199,59 @@ def test_nested_saga_compensation():
         except RuntimeError:
             pass
 
-        # inner compensate should have been called
-        assert "inner_comp" in executed, "inner_comp should be in %s" % executed
+        assert "inner_comp" in executed
         assert "inner" in executed
+        print("Nested compensation PASSED")
 
-        print("Nested compensation test PASSED: %s" % executed)
+    asyncio.run(test())
+
+
+def test_step_timeout():
+    """Verify per-step timeout works."""
+    from shared.saga import Saga
+
+    async def test():
+        async def fast_step(data):
+            return {"r": 1}
+
+        async def slow_step(data):
+            await asyncio.sleep(10)
+            return {"r": 2}
+
+        saga = Saga("timeout_test", timeout_seconds=60)
+        saga.add_step("fast", fast_step, timeout_seconds=1)
+        saga.add_step("slow", slow_step, timeout_seconds=1)
+
+        try:
+            await saga.execute()
+        except TimeoutError:
+            pass
+
+        assert saga.status.value in ("failed", "compensated")
+        print("Step timeout PASSED: %s" % saga.status.value)
+
+    asyncio.run(test())
+
+
+def test_step_timeout_override():
+    """Verify step timeout overrides saga timeout."""
+    from shared.saga import Saga
+
+    async def test():
+        async def slow(d):
+            await asyncio.sleep(10)
+            return {}
+
+        # Saga timeout = 60s, step timeout = 1s
+        saga = Saga("override_test", timeout_seconds=60)
+        saga.add_step("slow", slow, timeout_seconds=1)
+
+        try:
+            await saga.execute()
+        except TimeoutError:
+            pass
+
+        assert saga.status.value in ("failed", "compensated")
+        print("Timeout override PASSED")
 
     asyncio.run(test())

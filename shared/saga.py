@@ -32,6 +32,7 @@ class SagaStep:
     name: str
     action: Callable[[dict], Coroutine[Any, Any, dict]]
     compensation: Optional[Callable[[dict], Coroutine[Any, Any, None]]] = None
+    timeout_seconds: Optional[int] = None  # таймаут шага (None = использовать таймаут саги)
     status: SagaStatus = SagaStatus.PENDING
     result: dict = field(default_factory=dict)
     data: dict = field(default_factory=dict)
@@ -62,8 +63,10 @@ class Saga:
         name: str,
         action: Callable[[dict], Coroutine[Any, Any, dict]],
         compensation: Optional[Callable[[dict], Coroutine[Any, Any, None]]] = None,
+        timeout_seconds: Optional[int] = None,
     ) -> "Saga":
-        self._steps.append(SagaStep(name=name, action=action, compensation=compensation))
+        self._steps.append(SagaStep(name=name, action=action, compensation=compensation,
+                                    timeout_seconds=timeout_seconds))
         return self
 
     def _save_state(self):
@@ -124,16 +127,17 @@ class Saga:
 
                 try:
                     # Поддержка вложенных саг
+                    step_timeout = step.timeout_seconds or self.timeout_seconds
                     if isinstance(step.action, Saga):
                         inner = step.action
                         step.result = await asyncio.wait_for(
-                            inner.execute(self._data), timeout=self.timeout_seconds
+                            inner.execute(self._data), timeout=step_timeout
                         )
                     else:
                         action_result = step.action(self._data)
                         if hasattr(action_result, '__await__'):
                             step.result = await asyncio.wait_for(
-                                action_result, timeout=self.timeout_seconds
+                                action_result, timeout=step_timeout
                             )
                         else:
                             step.result = action_result
