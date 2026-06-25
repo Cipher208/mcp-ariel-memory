@@ -89,7 +89,12 @@ class FileWiki:
     def _get_enabled_types(self) -> List[str]:
         cfg = _get_config()
         wiki_cfg = cfg.get("wiki", {}).get(self.layer, {})
-        all_types = ALL_USER_TYPES if self.layer == "user" else ALL_AGENT_TYPES
+
+        # Если layer не найден в config — вернуть все типы для данного layer
+        if not wiki_cfg:
+            return ALL_USER_TYPES if "user" in self.layer else ALL_AGENT_TYPES
+
+        all_types = ALL_USER_TYPES if "user" in self.layer else ALL_AGENT_TYPES
         return [t for t in all_types if wiki_cfg.get(t, True)]
 
     def _type_dir(self, wiki_type: str) -> Path:
