@@ -1,14 +1,17 @@
-"""Tests for lifecycle/ module."""
+"""Tests for lifecycle/ module — async."""
 import sys
+import asyncio
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
 def test_forgetting_cleanup():
     from lifecycle.forgetting import ForgettingSystem
-    fs = ForgettingSystem()
-    stats = fs.cleanup()
-    assert "archived" in stats
+    async def t():
+        fs = ForgettingSystem()
+        stats = await fs.cleanup()
+        assert "archived" in stats
+    asyncio.run(t())
 
 
 def test_emotion_trigger():
@@ -22,6 +25,8 @@ def test_emotion_trigger():
 
 def test_consolidation():
     from lifecycle.consolidation import ConsolidationEngine
-    ce = ConsolidationEngine()
-    result = ce.consolidate_staging("test_lc", [{"content": "test", "importance": 0.9}], 0.7)
-    assert result["promoted"] == 1
+    async def t():
+        ce = ConsolidationEngine()
+        result = await ce.consolidate_staging("test_lc", [{"content": "test", "importance": 0.9}], 0.7)
+        assert result["promoted"] == 1
+    asyncio.run(t())

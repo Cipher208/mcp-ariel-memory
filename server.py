@@ -2,7 +2,7 @@
 Legacy MemoryMCPServer — обратная совместимость.
 
 Этот модуль НЕ используется для MCP протокола.
-Основной MCP сервер: mcp_server.py (FastMCP, async, 31 tool).
+Основной MCP сервер: mcp_server.py (FastMCP, async, 33 tools).
 
 Legacy сервер нужен для:
 - Тестов (test_backward_compat)
@@ -11,15 +11,19 @@ Legacy сервер нужен для:
 
 Если пишешь новый код — используй mcp_server.py или вызывай модули напрямую.
 """
+import asyncio
 import json
 from typing import Any, Dict, List, Optional
 from core import memory_manager
-from rag import RAGEngine, RetrievalRouter
-from graph import EpistemicGraph, TemporalGraph
-from lifecycle import ForgettingSystem, EmotionTrigger, ConsolidationEngine
+from rag.engine import RAGEngine
+from graph.epistemic import EpistemicGraph
+from graph.temporal import TemporalGraph
+from lifecycle.forgetting import ForgettingSystem
+from lifecycle.emotion_trigger import EmotionTrigger
+from lifecycle.consolidation import ConsolidationEngine
 from wiki.file_wiki import FileWiki
-from features import ImportExport, BackupManager, MemoryCompressor, AuditTrail, RateLimiter
-from shared import MemoryCache, DBPool
+from features import ImportExport, BackupManager, MemoryCompressor
+from shared import MemoryCache
 from hooks import HookRegistry, UserHooks, AgentHooks
 from config import config
 
@@ -40,10 +44,7 @@ class MemoryMCPServer:
         self.import_export = ImportExport()
         self.backup = BackupManager()
         self.compressor = MemoryCompressor()
-        self.audit = AuditTrail()
-        self.rate_limiter = RateLimiter()
         self.cache = MemoryCache()
-        self.db_pool = DBPool()
         self.hooks = HookRegistry()
 
         self._tools = self._register_tools()
@@ -75,24 +76,20 @@ class MemoryMCPServer:
         }
 
     def call(self, tool_name: str, **kwargs) -> Dict[str, Any]:
+        """Legacy sync call — для обратной совместимости.
+        Оборачивает async методы через asyncio.run().
+        """
         tool = self._tools.get(tool_name)
         if not tool:
             return {"error": f"Unknown tool: {tool_name}"}
 
-        if config.get("features", "rate_limiting"):
-            check = self.rate_limiter.check(kwargs.get("user_id", "default"))
-            if not check["allowed"]:
-                return {"error": "Rate limit exceeded", "reset_in": check["reset_in"]}
-
-        result = tool(**kwargs)
-
-        if config.get("features", "audit_trail"):
-            self.audit.log(
-                kwargs.get("user_id", "default"), tool_name,
-                details={"args": {k: str(v)[:100] for k, v in kwargs.items()}}
-            )
-
-        return result
+        try:
+            result = tool(**kwargs)
+            if asyncio.iscoroutine(result):
+                result = asyncio.run(result)
+            return result
+        except Exception as e:
+            return {"error": str(e)}
 
     # === User Layer Tools ===
 

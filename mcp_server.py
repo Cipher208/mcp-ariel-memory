@@ -101,9 +101,7 @@ async def memory_user_remember(
     app = _get_ctx(ctx)
     metrics.inc("tool_calls")
     metrics.inc("tool_user_remember")
-    entry_id = await asyncio.to_thread(
-        app.mm.user_memory(user_id).remember, key, value, importance
-    )
+    entry_id = await app.mm.user_memory(user_id).remember(key, value, importance)
     return {"status": "ok", "entry_id": entry_id}
 
 
@@ -124,9 +122,7 @@ async def memory_user_recall(
     app = _get_ctx(ctx)
     metrics.inc("tool_calls")
     metrics.inc("tool_user_recall")
-    results = await asyncio.to_thread(
-        app.mm.user_memory(user_id).recall, query, limit
-    )
+    results = await app.mm.user_memory(user_id).recall(query, limit)
     return {"results": results, "count": len(results)}
 
 
@@ -145,9 +141,7 @@ async def memory_user_forget(
     app = _get_ctx(ctx)
     metrics.inc("tool_calls")
     metrics.inc("tool_user_forget")
-    deleted = await asyncio.to_thread(
-        app.mm.user_memory(user_id).forget, key
-    )
+    deleted = await app.mm.user_memory(user_id).forget(key)
     return {"deleted": deleted}
 
 
@@ -164,9 +158,7 @@ async def memory_user_session_start(
     app = _get_ctx(ctx)
     metrics.inc("tool_calls")
     metrics.inc("tool_user_session_start")
-    session_id = await asyncio.to_thread(
-        app.mm.user_memory(user_id).l2.create_session, user_id
-    )
+    session_id = await app.mm.user_memory(user_id).l2.create_session(user_id)
     return {"session_id": session_id}
 
 
@@ -187,9 +179,7 @@ async def memory_user_session_end(
     app = _get_ctx(ctx)
     metrics.inc("tool_calls")
     metrics.inc("tool_user_session_end")
-    await asyncio.to_thread(
-        app.mm.user_memory(user_id).l2.close_session, session_id, summary
-    )
+    await app.mm.user_memory(user_id).l2.close_session(session_id, summary)
     return {"status": "ok"}
 
 
@@ -212,9 +202,7 @@ async def memory_user_episode_save(
     app = _get_ctx(ctx)
     metrics.inc("tool_calls")
     metrics.inc("tool_user_episode_save")
-    episode_id = await asyncio.to_thread(
-        app.mm.user_memory(user_id).l3.save, user_id, summary, weight, tags
-    )
+    episode_id = await app.mm.user_memory(user_id).l3.save(user_id, summary, weight, tags)
     return {"episode_id": episode_id}
 
 
@@ -236,13 +224,9 @@ async def memory_user_episode_recall(
     metrics.inc("tool_calls")
     metrics.inc("tool_user_episode_recall")
     if tag:
-        episodes = await asyncio.to_thread(
-            app.mm.user_memory(user_id).l3.search_by_tag, user_id, tag, limit
-        )
+        episodes = await app.mm.user_memory(user_id).l3.search_by_tag(user_id, tag, limit)
     else:
-        episodes = await asyncio.to_thread(
-            app.mm.user_memory(user_id).l3.get_episodes, user_id, limit
-        )
+        episodes = await app.mm.user_memory(user_id).l3.get_episodes(user_id, limit)
     return {
         "episodes": [
             {"id": e.episode_id, "summary": e.summary, "weight": e.emotional_weight}
@@ -270,9 +254,7 @@ async def memory_user_graph_add(
     app = _get_ctx(ctx)
     metrics.inc("tool_calls")
     metrics.inc("tool_user_graph_add")
-    node_id = await asyncio.to_thread(
-        app.user_graph.add_node, user_id, content, node_type, tags
-    )
+    node_id = await app.user_graph.add_node(user_id, content, node_type, tags)
     return {"node_id": node_id}
 
 
@@ -296,9 +278,9 @@ async def memory_user_graph_query(
     metrics.inc("tool_calls")
     metrics.inc("tool_user_graph_query")
     if tag:
-        nodes = await asyncio.to_thread(app.user_graph.query_by_tag, user_id, tag, limit)
+        nodes = await app.user_graph.query_by_tag(user_id, tag, limit)
     elif node_type:
-        nodes = await asyncio.to_thread(app.user_graph.query_by_type, user_id, node_type, limit)
+        nodes = await app.user_graph.query_by_type(user_id, node_type, limit)
     else:
         nodes = []
     return {
@@ -323,14 +305,14 @@ async def memory_user_stats(
     metrics.inc("tool_calls")
     metrics.inc("tool_user_stats")
     mem = app.mm.user_memory(user_id)
-    l3_count = await asyncio.to_thread(mem.l3.get_episodes, user_id, 1000)
+    l3_count = await mem.l3.get_episodes(user_id, 1000)
     return {
         "l1_buffer": mem.l1.size(),
-        "l2_sessions": await asyncio.to_thread(mem.l2.count_sessions, user_id),
+        "l2_sessions": await mem.l2.count_sessions(user_id),
         "l3_episodes": len(l3_count),
-        "l4_facts": await asyncio.to_thread(mem.l4.count, user_id),
-        "wiki_pages": await asyncio.to_thread(app.user_wiki.count),
-        "graph_nodes": await asyncio.to_thread(app.user_graph.count_nodes, user_id),
+        "l4_facts": await mem.l4.count(user_id),
+        "wiki_pages": await app.user_wiki.count(),
+        "graph_nodes": await app.user_graph.count_nodes(user_id),
     }
 
 
@@ -357,9 +339,7 @@ async def memory_agent_remember(
     app = _get_ctx(ctx)
     metrics.inc("tool_calls")
     metrics.inc("tool_agent_remember")
-    entry_id = await asyncio.to_thread(
-        app.mm.agent_memory(user_id).remember, key, value, importance
-    )
+    entry_id = await app.mm.agent_memory(user_id).remember(key, value, importance)
     return {"status": "ok", "entry_id": entry_id}
 
 
@@ -380,9 +360,7 @@ async def memory_agent_recall(
     app = _get_ctx(ctx)
     metrics.inc("tool_calls")
     metrics.inc("tool_agent_recall")
-    results = await asyncio.to_thread(
-        app.mm.agent_memory(user_id).recall, query, limit
-    )
+    results = await app.mm.agent_memory(user_id).recall(query, limit)
     return {"results": results, "count": len(results)}
 
 
@@ -401,9 +379,7 @@ async def memory_agent_forget(
     app = _get_ctx(ctx)
     metrics.inc("tool_calls")
     metrics.inc("tool_agent_forget")
-    deleted = await asyncio.to_thread(
-        app.mm.agent_memory(user_id).forget, key
-    )
+    deleted = await app.mm.agent_memory(user_id).forget(key)
     return {"deleted": deleted}
 
 
@@ -420,9 +396,7 @@ async def memory_agent_session_start(
     app = _get_ctx(ctx)
     metrics.inc("tool_calls")
     metrics.inc("tool_agent_session_start")
-    session_id = await asyncio.to_thread(
-        app.mm.agent_memory(user_id).l2.create_session, user_id
-    )
+    session_id = await app.mm.agent_memory(user_id).l2.create_session(user_id)
     return {"session_id": session_id}
 
 
@@ -443,9 +417,7 @@ async def memory_agent_session_end(
     app = _get_ctx(ctx)
     metrics.inc("tool_calls")
     metrics.inc("tool_agent_session_end")
-    await asyncio.to_thread(
-        app.mm.agent_memory(user_id).l2.close_session, session_id, summary
-    )
+    await app.mm.agent_memory(user_id).l2.close_session(session_id, summary)
     return {"status": "ok"}
 
 
@@ -468,9 +440,7 @@ async def memory_agent_episode_save(
     app = _get_ctx(ctx)
     metrics.inc("tool_calls")
     metrics.inc("tool_agent_episode_save")
-    episode_id = await asyncio.to_thread(
-        app.mm.agent_memory(user_id).l3.save, user_id, summary, weight, tags
-    )
+    episode_id = await app.mm.agent_memory(user_id).l3.save(user_id, summary, weight, tags)
     return {"episode_id": episode_id}
 
 
@@ -492,13 +462,9 @@ async def memory_agent_episode_recall(
     metrics.inc("tool_calls")
     metrics.inc("tool_agent_episode_recall")
     if tag:
-        episodes = await asyncio.to_thread(
-            app.mm.agent_memory(user_id).l3.search_by_tag, user_id, tag, limit
-        )
+        episodes = await app.mm.agent_memory(user_id).l3.search_by_tag(user_id, tag, limit)
     else:
-        episodes = await asyncio.to_thread(
-            app.mm.agent_memory(user_id).l3.get_episodes, user_id, limit
-        )
+        episodes = await app.mm.agent_memory(user_id).l3.get_episodes(user_id, limit)
     return {
         "episodes": [
             {"id": e.episode_id, "summary": e.summary, "weight": e.emotional_weight}
@@ -526,9 +492,7 @@ async def memory_agent_graph_add(
     app = _get_ctx(ctx)
     metrics.inc("tool_calls")
     metrics.inc("tool_agent_graph_add")
-    node_id = await asyncio.to_thread(
-        app.agent_graph.add_node, user_id, content, node_type, tags
-    )
+    node_id = await app.agent_graph.add_node(user_id, content, node_type, tags)
     return {"node_id": node_id}
 
 
@@ -552,9 +516,9 @@ async def memory_agent_graph_query(
     metrics.inc("tool_calls")
     metrics.inc("tool_agent_graph_query")
     if tag:
-        nodes = await asyncio.to_thread(app.agent_graph.query_by_tag, user_id, tag, limit)
+        nodes = await app.agent_graph.query_by_tag(user_id, tag, limit)
     elif node_type:
-        nodes = await asyncio.to_thread(app.agent_graph.query_by_type, user_id, node_type, limit)
+        nodes = await app.agent_graph.query_by_type(user_id, node_type, limit)
     else:
         nodes = []
     return {
@@ -579,14 +543,14 @@ async def memory_agent_stats(
     metrics.inc("tool_calls")
     metrics.inc("tool_agent_stats")
     mem = app.mm.agent_memory(user_id)
-    l3_count = await asyncio.to_thread(mem.l3.get_episodes, user_id, 1000)
+    l3_count = await mem.l3.get_episodes(user_id, 1000)
     return {
         "l1_buffer": mem.l1.size(),
-        "l2_sessions": await asyncio.to_thread(mem.l2.count_sessions, user_id),
+        "l2_sessions": await mem.l2.count_sessions(user_id),
         "l3_episodes": len(l3_count),
-        "l4_facts": await asyncio.to_thread(mem.l4.count, user_id),
-        "wiki_pages": await asyncio.to_thread(app.agent_wiki.count),
-        "graph_nodes": await asyncio.to_thread(app.agent_graph.count_nodes, user_id),
+        "l4_facts": await mem.l4.count(user_id),
+        "wiki_pages": await app.agent_wiki.count(),
+        "graph_nodes": await app.agent_graph.count_nodes(user_id),
     }
 
 
@@ -645,7 +609,7 @@ async def memory_backup_now(
     """Create an immediate backup of all databases."""
     metrics.inc("tool_calls")
     metrics.inc("tool_backup_now")
-    path = await asyncio.to_thread(backup_cron.backup_now)
+    path = await backup_cron.backup_now()
     return {"path": path}
 
 
@@ -656,7 +620,7 @@ async def memory_backup_list(
     """List available backups."""
     metrics.inc("tool_calls")
     metrics.inc("tool_backup_list")
-    backups = await asyncio.to_thread(backup_cron.list_backups)
+    backups = await backup_cron.list_backups()
     return {"backups": backups}
 
 
@@ -672,7 +636,7 @@ async def memory_backup_restore(
     """
     metrics.inc("tool_calls")
     metrics.inc("tool_backup_restore")
-    result = await asyncio.to_thread(backup_cron.restore, backup_name)
+    result = await backup_cron.restore(backup_name)
     return result
 
 
@@ -744,28 +708,28 @@ async def memory_cleanup(
     # 1. Deduplicate core memory
     from features.compression import MemoryCompressor
     mc = MemoryCompressor()
-    results["dedup_core"] = await asyncio.to_thread(mc.deduplicate_core, user_id)
+    results["dedup_core"] = await mc.deduplicate_core(user_id)
 
     # 2. Compress old episodes
-    results["compress_episodes"] = await asyncio.to_thread(mc.compress_episodes, user_id, 0.3)
+    results["compress_episodes"] = await mc.compress_episodes(user_id, 0.3)
 
     # 3. Clean DreamBuffer
     from shared.dream_buffer import dream_buffer
-    results["dream_buffer_cleanup"] = await asyncio.to_thread(dream_buffer.cleanup_old, 24, 500)
+    results["dream_buffer_cleanup"] = await dream_buffer.cleanup_old(24, 500)
 
     # 4. Archive old audit logs
     from features.audit_trail import AuditTrail
     at = AuditTrail()
     archive_dir = str(Path.home() / ".mcp-ariel-memory" / "archives")
-    results["audit_archive"] = await asyncio.to_thread(at.archive_and_prune, retention_days, archive_dir)
+    results["audit_archive"] = await at.archive_and_prune(retention_days, archive_dir)
 
     # 5. Cleanup old backups
     from features.backup_cron import backup_cron
-    results["backup_cleanup"] = await asyncio.to_thread(backup_cron.cleanup_old)
+    results["backup_cleanup"] = await backup_cron.cleanup_old()
 
     # 6. Cleanup completed sagas
     from shared.saga import saga_watchdog
-    results["saga_cleanup"] = await asyncio.to_thread(saga_watchdog.cleanup_completed)
+    results["saga_cleanup"] = await saga_watchdog.cleanup_completed()
 
     return results
 
@@ -853,11 +817,11 @@ async def memory_user_context_inject(
     app = _get_ctx(ctx)
 
     # L4: top-10 фактов по важности
-    l4_facts = await asyncio.to_thread(app.mm.user_memory(user_id).l4.get_all, user_id, 10)
+    l4_facts = await app.mm.user_memory(user_id).l4.get_all(user_id, 10)
     facts_text = "; ".join(["%s=%s" % (f.key, f.value[:30]) for f in l4_facts])
 
     # L3: top-3 эпизода
-    l3_episodes = await asyncio.to_thread(app.mm.user_memory(user_id).l3.get_episodes, user_id, 3)
+    l3_episodes = await app.mm.user_memory(user_id).l3.get_episodes(user_id, 3)
     episodes_text = "; ".join(["%s" % e.summary[:50] for e in l3_episodes])
 
     # L1: последние 5 сообщений
@@ -865,7 +829,7 @@ async def memory_user_context_inject(
     recent_text = "; ".join(["%s: %s" % (r.role, r.content[:50]) for r in l1_recent])
 
     # Wiki: последние 3 записи
-    wiki_entries = await asyncio.to_thread(app.user_wiki.list_all, 3)
+    wiki_entries = await app.user_wiki.list_all(3)
     wiki_text = "; ".join(["[%s] %s" % (w.wiki_type, w.title) for w in wiki_entries])
 
     # Собрать в одну строку
@@ -909,7 +873,7 @@ async def memory_search_rrf(
     metrics.inc("tool_calls")
     metrics.inc("tool_search_rrf")
     app = _get_ctx(ctx)
-    results = await asyncio.to_thread(app.user_rag.search_rrf, query, user_id, limit)
+    results = await app.user_rag.search_rrf(query, user_id, limit)
     return {"results": results, "count": len(results), "method": "rrf"}
 
 
@@ -1077,7 +1041,7 @@ def _run_with_dashboard(host: str, port: int):
         if not check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         from features.backup_cron import backup_cron
-        path = await asyncio.to_thread(backup_cron.backup_now)
+        path = await backup_cron.backup_now()
         return JSONResponse({"path": path})
 
     async def backup_list(request):

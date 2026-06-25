@@ -1,5 +1,5 @@
 """
-Retrieval Router - routes queries to the right memory strategy
+Retrieval Router — async routes queries to the right memory strategy
 """
 from enum import Enum
 from typing import Any, Dict, List
@@ -32,26 +32,26 @@ class RetrievalRouter:
             "функция", "класс", "модуль", "сервис", "api", "handler",
         }
 
-    def route(self, query: str, recent_context: List[Dict] = None) -> RouterResult:
+    async def route(self, query: str, recent_context: List[Dict] = None) -> RouterResult:
         q = query.lower()
 
         if self._is_recent_query(q) and recent_context:
             return RouterResult(Strategy.L1_BUFFER, recent_context, 0.9)
 
         if self._is_wiki_query(q):
-            results = self._rag.search_rrf(query, self.user_id, limit=3)
+            results = await self._rag.search_rrf(query, self.user_id, limit=3)
             if results:
                 page_id = results[0]["id"]
-                relations = self._rag.get_relations(page_id, depth=1)
+                relations = await self._rag.get_relations(page_id, depth=1)
                 if relations:
                     results.append({
                         "title": "Relations",
                         "content": "\n".join([f"- {r['title']} [{r['relation']}]" for r in relations]),
-                        "score": 0.7
+                        "score": 0.7,
                     })
                 return RouterResult(Strategy.WIKI, results, 0.95)
 
-        results = self._rag.search_rrf(query, self.user_id, limit=3)
+        results = await self._rag.search_rrf(query, self.user_id, limit=3)
         if results:
             return RouterResult(Strategy.SEMANTIC, results, 0.8)
 
