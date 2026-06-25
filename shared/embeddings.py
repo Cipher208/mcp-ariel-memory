@@ -60,7 +60,9 @@ class EmbeddingCache:
         row = await cursor.fetchone()
         if row:
             blob = row[0]
-            return list(struct.unpack("%df" % (len(blob) // 4), blob))
+            raw = list(struct.unpack("%df" % (len(blob) // 4), blob))
+            import math
+            return [v if math.isfinite(v) else 0.0 for v in raw]
         return None
 
     async def _cache(self, text: str, embedding: List[float]):
@@ -116,10 +118,11 @@ async def embed_texts(texts: List[str]) -> List[List[float]]:
 
 
 def similarity(a: List[float], b: List[float]) -> float:
+    import math
     dot = sum(x * y for x, y in zip(a, b))
     na = sum(x * x for x in a) ** 0.5
     nb = sum(x * x for x in b) ** 0.5
-    if na == 0 or nb == 0:
+    if na == 0 or nb == 0 or not math.isfinite(dot):
         return 0.0
     return dot / (na * nb)
 
