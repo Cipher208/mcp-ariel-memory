@@ -1,5 +1,6 @@
 """
-Consolidation Engine - L1→L2→L3→L4 memory promotion
+Consolidation Engine — L1→L2→L3→L4 memory promotion (async)
+Uses CoreMemory.save() instead of duplicating UPSERT logic.
 """
 import time
 import json
@@ -14,6 +15,8 @@ class ConsolidationEngine:
 
     async def consolidate_staging(self, user_id: str, staging_items: List[Dict[str, Any]],
                             min_importance: float = 0.7) -> Dict[str, int]:
+        from core.memory import CoreMemory
+        cm = CoreMemory(cm=self._cm)
         promoted = 0
         skipped = 0
         for item in staging_items:
@@ -21,13 +24,15 @@ class ConsolidationEngine:
                 skipped += 1
                 continue
             content = item.get("content", "")
-            key = f"staging_{content[:30].replace(' ', '_').lower()}"
-            await self._save_to_core(user_id, key, content, item.get("importance", 0.7))
+            key = "staging_%s" % content[:30].replace(" ", "_").lower()
+            await cm.save(user_id, key, content, item.get("importance", 0.7))
             promoted += 1
         return {"promoted": promoted, "skipped": skipped}
 
     async def consolidate_episodes(self, user_id: str, episodic_db: str = None,
                              min_weight: float = 0.7) -> int:
+        from core.memory import CoreMemory
+        cm = CoreMemory(cm=self._cm)
         epi_db = episodic_db or "memory.db"
         epi_conn = await self._cm.get(epi_db)
         cursor = await epi_conn.execute(
@@ -43,29 +48,10 @@ class ConsolidationEngine:
         for row in rows:
             summary = row["summary"]
             weight = row["emotional_weight"]
-            key = f"ep_{summary[:30].replace(' ', '_').lower()}"
-            await self._save_to_core(user_id, key, summary[:200], weight)
+            key = "ep_%s" % summary[:30].replace(" ", "_").lower()
+            await cm.save(user_id, key, summary[:200], weight)
             consolidated += 1
         return consolidated
-
-    async def _save_to_core(self, user_id: str, key: str, value: str, importance: float):
-        conn = await self._cm.get("memory.db")
-        now = time.time()
-        cursor = await conn.execute(
-            "SELECT entry_id FROM core_memory WHERE user_id=? AND key=?", (user_id, key)
-        )
-        existing = await cursor.fetchone()
-        if existing:
-            await conn.execute(
-                "UPDATE core_memory SET value=?, importance=?, updated_at=? WHERE entry_id=?",
-                (value, importance, now, existing["entry_id"])
-            )
-        else:
-            await conn.execute(
-                "INSERT INTO core_memory (user_id, key, value, importance, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (user_id, key, value, importance, now, now)
-            )
-        await conn.commit()
 
     async def get_stats(self, user_id: str) -> Dict[str, int]:
         conn = await self._cm.get("memory.db")
