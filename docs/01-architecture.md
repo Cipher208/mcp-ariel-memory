@@ -7,8 +7,8 @@
 | MCP протокол | Python MCP SDK v1.28 (FastMCP) |
 | Транспорты | stdio + Streamable HTTP |
 | Хранилище | SQLite (WAL mode) |
+| Async DB | **aiosqlite** через AsyncConnectionManager |
 | Поиск | FTS5 + sqlite-vec (опционально) |
-| Async | asyncio + to_thread для SQLite |
 | Docker | Dockerfile + docker-compose |
 | Тесты | pytest + pytest-asyncio |
 | CI/CD | GitHub Actions |

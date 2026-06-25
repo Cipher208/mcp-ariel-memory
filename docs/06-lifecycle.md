@@ -1,13 +1,21 @@
-# Жизненный цикл — lifecycle/
+# Жизненный цикл — lifecycle/ (async)
 
 ## ForgettingSystem (`lifecycle/forgetting.py`)
-
-Забывание: decay, архивация, сжатие.
 
 ```python
 from lifecycle.forgetting import ForgettingSystem
 fs = ForgettingSystem()
-stats = fs.cleanup()  # {"decayed": 15, "archived": 3, "compressed": 2}
+stats = await fs.cleanup()  # {"decayed": 15, "archived": 3, "compressed": 2}
+```
+
+## ConsolidationEngine (`lifecycle/consolidation.py`)
+
+```python
+from lifecycle.consolidation import ConsolidationEngine
+ce = ConsolidationEngine()
+await ce.consolidate_staging("alice", staging_items, min_importance=0.7)
+await ce.consolidate_episodes("alice", min_weight=0.7)
+stats = await ce.get_stats("alice")
 ```
 
 ## EmotionTrigger (`lifecycle/emotion_trigger.py`)

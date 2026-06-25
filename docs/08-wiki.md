@@ -41,7 +41,7 @@ updated: 2026-06-21T22:00:00
 Обсудили план на неделю.
 ```
 
-## Методы FileWiki
+## Методы FileWiki (async)
 
 ```python
 from wiki.file_wiki import FileWiki
@@ -49,36 +49,30 @@ from wiki.file_wiki import FileWiki
 uw = FileWiki(layer="user")
 aw = FileWiki(layer="agent")
 
-# Запись — создаёт .md файл + индексирует в FTS5
-path = uw.add("diary", "Day 1", "Started project", tags=["work"], importance=0.7)
-# → wiki/user/diary/Day_1.md
+# Запись
+path = await uw.add("diary", "Day 1", "Started project", tags=["work"], importance=0.7)
 
-# Обновление — перезаписывает .md + переиндексирует
-uw.update(path, content="Updated content", importance=0.8)
+# Обновление
+await uw.update(path, content="Updated content", importance=0.8)
 
 # Чтение
-entry = uw.get(path)
-# WikiEntry(title="Day 1", content="...", file_path="wiki/user/diary/Day_1.md")
+entry = await uw.get(path)
 
-# Поиск — FTS5 по всем .md файлам
-results = uw.search("project")
-# [{"title": "Day 1", "type": "diary", "file_path": "...", "score": 0.95}]
+# Поиск (FTS5)
+results = await uw.search("project")
 
 # Список
-entries = uw.list_all()
-entries = uw.list_by_type("diary")
+entries = await uw.list_all()
+entries = await uw.list_by_type("diary")
 
-# Удаление — удаляет .md + из индекса
-uw.delete(path)
+# Удаление
+await uw.delete(path)
 
-# Переиндексация — пересканировать все .md с диска
-uw.reindex_all()
+# Переиндексация
+await uw.reindex_all()
 
-# Внешние папки — импорт .md извне
-uw.sync_external(["/home/user/notes"])
-
-# Какие типы включены
-uw.get_enabled_types()  # ['diary', 'work_notes', ...]
+# Внешние папки
+await uw.sync_external(["/home/user/notes"])
 ```
 
 ## Типы wiki

@@ -1,16 +1,29 @@
-# Поиск (RAG) — rag/
+# Поиск (RAG) — rag/ (async)
 
 ## RAGEngine (`rag/engine.py`)
 
-FTS5 полнотекстовый поиск + sqlite-vec (опционально) + RRF. Автоматический fallback на LIKE если FTS5 недоступен.
+FTS5 + RRF + fallback на LIKE. Нативный async через AsyncConnectionManager.
 
 ```python
 from rag.engine import RAGEngine
 
 rag = RAGEngine(layer="user")
-print(rag._fts_available)  # True если FTS5 есть, False если нет
+await rag.ingest_text("Architecture", "Two-layer memory", user_id="alice")
+results = await rag.search("memory architecture", user_id="alice", limit=5)
+results = await rag.search_rrf("memory architecture", user_id="alice", limit=5)
+await rag.add_relation(page1_id, page2_id, "elaborates", weight=0.8)
+relations = await rag.get_relations(page1_id, depth=2)
+```
 
-rag.ingest_text("Architecture", "Two-layer memory", user_id="alice", wiki_type="work_notes")
+## RetrievalRouter (`rag/router.py`)
+
+```python
+from rag.router import RetrievalRouter
+
+router = RetrievalRouter(user_id="alice")
+result = await router.route("How to configure Redis?")
+# result.strategy, result.context, result.confidence
+```
 rag.ingest_file(Path("docs/design.md"), user_id="alice")
 
 # Обычный FTS5 поиск

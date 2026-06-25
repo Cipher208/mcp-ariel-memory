@@ -8,9 +8,72 @@
 from features.auth import APIKeyAuth
 auth = APIKeyAuth()
 key = auth.create_key("alice", "my key")
-auth.verify(key)       # {"user_id": "alice", "label": "my key"}
-auth.revoke(key)       # True
-auth.list_keys()       # [{"key": "ak_e9eb...", ...}]
+auth.verify(key)
+```
+
+### Bearer Token (persistent)
+
+```python
+from features.auth import BearerAuth
+ba = BearerAuth()
+token = ba.get_token()
+ba.rotate()
+```
+
+## BackupCron (`features/backup_cron.py`)
+
+```python
+from features.backup_cron import backup_cron
+backup_cron.start()
+await backup_cron.backup_now()
+backup_cron.status()
+```
+
+## Dashboard (`features/dashboard.py`)
+
+```python
+from features.dashboard import Dashboard
+d = Dashboard()
+stats = await d.get_stats("alice")
+facts = await d.get_user_facts("alice")
+```
+
+## AuditTrail (`features/audit_trail.py`) — async
+
+```python
+from features.audit_trail import AuditTrail
+at = AuditTrail()
+await at.log("alice", "action")
+history = await at.get_history("alice")
+await at.archive_and_prune(retention_days=30)
+await at.cleanup_old(retention_days=30)
+```
+
+## RateLimiter (`features/rate_limiting.py`) — async
+
+```python
+from features.rate_limiting import RateLimiter, ConnectionLimiter
+
+rl = RateLimiter()
+result = await rl.check("alice")
+stats = await rl.get_stats("alice")
+
+cl = ConnectionLimiter()
+cl.acquire("alice", "conn_1")
+cl.release("alice", "conn_1")
+```
+
+## ImportExport + Compression — async
+
+```python
+from features.import_export import ImportExport
+from features.compression import MemoryCompressor
+
+ie = ImportExport()
+path = await ie.export_user("alice")
+
+mc = MemoryCompressor()
+await mc.deduplicate_core("alice")
 ```
 
 ### Bearer Token (persistent)

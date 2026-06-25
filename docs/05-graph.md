@@ -1,22 +1,18 @@
-# Граф знаний — graph/
+# Граф знаний — graph/ (async)
 
 ## EpistemicGraph (`graph/epistemic.py`)
-
-Эпистемический граф с тегами, рёбрами, поиском соседей и путей.
 
 ```python
 from graph.epistemic import EpistemicGraph
 
 g = EpistemicGraph(layer="user")
-n1 = g.add_node("alice", "Prefers Python", "fact", ["fact_about_user"], 0.9)
-n2 = g.add_node("alice", "Knows JavaScript", "fact", ["fact_about_user"], 0.7)
-g.add_edge(n1, n2, "related_to", 0.8)
+n1 = await g.add_node("alice", "Prefers Python", "fact", ["fact_about_user"], 0.9)
+n2 = await g.add_node("alice", "Knows JavaScript", "fact", ["fact_about_user"], 0.7)
+await g.add_edge(n1, n2, "related_to", 0.8)
 
-nodes = g.query_by_tag("alice", "fact_about_user")
-nodes = g.query_by_type("alice", "decision_log")
-neighbors = g.get_neighbors(n1, depth=2)
-path = g.find_path(n1, n2, max_depth=3)
-g.count_nodes("alice")
+nodes = await g.query_by_tag("alice", "fact_about_user")
+neighbors = await g.get_neighbors(n1, depth=2)
+path = await g.find_path(n1, n2, max_depth=3)
 ```
 
 ### find_path — config vs code

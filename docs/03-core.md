@@ -1,82 +1,70 @@
-# Ядро памяти — core/
+# Ядро памяти — core/ (async)
+
+## AsyncConnectionManager (`shared/connection.py`)
+
+Все модули core используют единый AsyncConnectionManager через `self._cm.get("db_name")`.
 
 ## L1 ReflexBuffer (`core/reflex.py`)
 
-Кольцевой буфер последних сообщений. Thread-safe, RAM + JSON persistence.
+Кольцевой буфер последних сообщений. RAM + JSON. Синхронный (не требует БД).
 
 ```python
 from core.reflex import ReflexBuffer
 
 buf = ReflexBuffer(max_size=50, persist_path="reflex.json")
 buf.add(role="user", content="Hello", tokens=5)
-recent = buf.get_recent(5)   # последние 5
-buf.to_text(10)              # текстовое представление
-buf.clear()
-buf.size()
+recent = buf.get_recent(5)
 ```
 
 ## L2 SessionStore (`core/session.py`)
-
-История сессий с SQLite индексами.
 
 ```python
 from core.session import SessionStore
 
 ss = SessionStore()
-sid = ss.create_session(user_id="alice")
-ss.close_session(sid, summary="Обсуждали проект", topics=["project"])
-sessions = ss.get_recent_sessions("alice", limit=10)
-ss.get_session_summary("alice")
-ss.count_sessions("alice")
+sid = await ss.create_session(user_id="alice")
+await ss.close_session(sid, summary="Обсуждали проект")
+sessions = await ss.get_recent_sessions("alice", limit=10)
+count = await ss.count_sessions("alice")
 ```
 
 ## L3 EpisodicMemory (`core/episodic.py`)
-
-Важные моменты с эмоциональным весом и тегами.
 
 ```python
 from core.episodic import EpisodicMemory
 
 ep = EpisodicMemory()
-ep.save("alice", "Первая встреча с командой", emotional_weight=0.8, tags=["work"])
-ep.get_episodes("alice", limit=10)
-ep.search_by_tag("alice", "work")
-ep.search("alice", "встреча")
-ep.archive_old("alice", days=90)
+eid = await ep.save("alice", "Первая встреча", emotional_weight=0.8, tags=["work"])
+episodes = await ep.get_episodes("alice", limit=10)
+episodes = await ep.search_by_tag("alice", "work")
+await ep.archive_old("alice", days=90)
 ```
 
 ## L4 CoreMemory (`core/memory.py`)
-
-Ключ-значение хранилище фактов.
 
 ```python
 from core.memory import CoreMemory
 
 cm = CoreMemory()
-cm.save("alice", "name", "Alice", importance=0.9)
-cm.get("alice", "name")
-cm.search("alice", "Python")
-cm.get_all("alice", limit=10)
-cm.delete("alice", "lang")
-cm.count("alice")
+await cm.save("alice", "name", "Alice", importance=0.9)
+entry = await cm.get("alice", "name")
+results = await cm.search("alice", "Python")
+await cm.delete("alice", "lang")
+count = await cm.count("alice")
 ```
 
 ## MemoryManager (`core/__init__.py`)
-
-Единый менеджер для обоих слоёв.
 
 ```python
 from core import memory_manager
 
 user = memory_manager.user_memory("alice")
-user.remember("name", "Alice", 0.9)
-results = user.recall("name")
-user.get_context()  # текст для инжекта в промпт
+await user.remember("name", "Alice", 0.9)
+results = await user.recall("name")
+context = await user.get_context()  # текст для инжекта в промпт
 
 agent = memory_manager.agent_memory("alice")
-agent.remember("approach", "YAGNI first", 0.9)
-
-memory_manager.cleanup_all()
+await agent.remember("approach", "YAGNI first", 0.9)
 ```
 
 ### get_context() — формат для инжекта в промпт
