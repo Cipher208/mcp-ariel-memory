@@ -4,6 +4,19 @@
 
 FTS5 + RRF + fallback на LIKE. Эмбеддинги записываются при ingest и читаются из БД при поиске.
 
+### SHA256 дедупликация
+
+Файл с тем же SHA256 хешем пропускается при ingest:
+
+```python
+text_hash = hashlib.sha256(text.encode()).hexdigest()
+existing = await conn.execute(
+    "SELECT id FROM rag_pages WHERE sha256_hash = ? AND user_id = ?",
+    (text_hash, user_id)).fetchone()
+if existing:
+    return existing[0]  # skip — уже индексировано
+```
+
 ```python
 from rag.engine import RAGEngine
 

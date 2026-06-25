@@ -127,7 +127,7 @@ similarity(emb1, emb2)  # cosine similarity
 
 ## Metrics (`shared/metrics.py`)
 
-Prometheus-compatible метрики. Counters, gauges, histograms.
+MetricsCollector — Prometheus-compatible метрики. Thread-safe. Counters, gauges, histograms.
 
 ```python
 from shared.metrics import metrics
@@ -141,7 +141,7 @@ metrics.render_prometheus()  # Prometheus text format
 metrics.render_json()        # JSON format
 ```
 
-**Prometheus формат:**
+**Prometheus формат (каждый вызов):**
 ```
 # HELP ariel_memory_uptime_seconds Server uptime
 # TYPE ariel_memory_uptime_seconds gauge
@@ -151,6 +151,7 @@ ariel_memory_tool_calls 42
 # TYPE ariel_memory_latency_summary summary
 ariel_memory_latency_summary{quantile="0.5"} 0.12
 ariel_memory_latency_summary{quantile="0.9"} 0.18
+ariel_memory_latency_count 42
 ```
 
 ## ArchivedMemories (`shared/archived_memories.py`)

@@ -2,16 +2,64 @@
 
 ## FileWiki (`wiki/file_wiki.py`) — основной модуль
 
-.md файлы = source of truth + SQLite FTS5 индекс. **content_hash (MD5)** для дедупликации — skip при совпадении.
+.md файлы = source of truth + SQLite FTS5 индекс.
+
+### FTS5 content-sync table
+
+```python
+# content=wiki_index, content_rowid=entry_id
+# FTS5 автоматически синхронизируется с wiki_index таблицей
+conn.execute("""
+    CREATE VIRTUAL TABLE IF NOT EXISTS wiki_fts USING fts5(
+        title, content, wiki_type, tags,
+        content=wiki_index,
+        content_rowid=entry_id
+    )
+""")
+```
+
+### content_hash (MD5) дедупликация
+
+При ingest вычисляется MD5 контента. Если файл с таким хешем уже в БД — skip:
+
+```python
+content_hash = hashlib.md5(content.encode()).hexdigest()
+existing = await conn.execute(
+    "SELECT entry_id FROM wiki_index WHERE content_hash=?", (content_hash,)).fetchone()
+if existing:
+    return  # skip — уже проиндексировано
+```
+
+### Config-based disable типов
+
+Каждый тип можно отключить в `config.yaml`:
+
+```python
+def _get_enabled_types(self) -> List[str]:
+    cfg = _get_config()
+    wiki_cfg = cfg.get("wiki", {}).get(self.layer, {})
+    all_types = ALL_USER_TYPES if "user" in self.layer else ALL_AGENT_TYPES
+    return [t for t in all_types if wiki_cfg.get(t, True)]
+```
+
+```yaml
+wiki:
+  user:
+    diary: true
+    relationships: false  # отключено
+    external_dirs: ["/home/user/notes"]
+```
+
+### Методы FileWiki
 
 ```python
 from wiki.file_wiki import FileWiki
 uw = FileWiki(layer="user")
 
-# add() — создаёт .md + индексирует. Пропускает если content_hash совпадает.
+# add() — создаёт .md + индексирует (skip при MD5 совпадении)
 await uw.add("diary", "Day 1", "Content", tags=["work"])
 
-# search() — FTS5 поиск
+# search() — FTS5 + content-sync
 results = await uw.search("Content")
 
 # reindex_all() — пересканировать все .md с диска
@@ -20,8 +68,6 @@ await uw.reindex_all()
 # sync_external() — импорт .md из внешних папок
 await uw.sync_external(["/home/user/notes"])
 ```
-
-**Дедупликация:** при ingest вычисляется MD5 контента. Если файл с таким хешем уже в БД — skip без повторной записи.
 
 ## UserWiki (`wiki/user_wiki.py`) — 7 типов, 590 строк
 
