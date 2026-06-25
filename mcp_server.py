@@ -701,9 +701,10 @@ async def memory_saga_consolidate(
     """
     metrics.inc("tool_calls")
     metrics.inc("tool_saga_consolidate")
+    app = _get_ctx(ctx)
     from shared.saga import create_consolidation_saga
-    saga = create_consolidation_saga(user_id)
-    result = await saga.execute({"user_id": user_id})
+    saga = create_consolidation_saga(user_id, mm=app.mm)
+    result = await saga.execute({"user_id": user_id, "_mm": app.mm})
     return {"status": saga.status.value, "result": result, "steps": saga.get_state()["steps"]}
 
 

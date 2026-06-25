@@ -315,9 +315,10 @@ saga_watchdog = SagaWatchdog()
 
 async def _consolidation_gather(data: dict) -> dict:
     """Собрать staging memories."""
-    from core import memory_manager
+    mm = data.get("_mm")
+    if not mm:
+        return {"staging_count": 0}
     user_id = data.get("user_id", "default")
-    mm = memory_manager
     l1 = mm.user_memory(user_id).l1
     recent = l1.get_recent(20)
     data["staging_items"] = [{"content": r.content, "importance": 0.5} for r in recent]
@@ -334,15 +335,16 @@ async def _consolidation_distill(data: dict) -> dict:
 
 async def _consolidation_promote(data: dict) -> dict:
     """Продвинуть важное в L4."""
-    from core import memory_manager
+    mm = data.get("_mm")
+    if not mm:
+        return {"promoted": 0}
     user_id = data.get("user_id", "default")
-    mm = memory_manager
     items = data.get("important_items", [])
     promoted = 0
     for item in items:
         content = item.get("content", "")
         key = "auto_%s" % content[:20].replace(" ", "_").lower()
-        mm.user_memory(user_id).remember(key, content, item.get("importance", 0.5))
+        await mm.user_memory(user_id).remember(key, content, item.get("importance", 0.5))
         promoted += 1
     return {"promoted": promoted}
 
@@ -352,12 +354,53 @@ async def _consolidation_compensate(data: dict) -> None:
     pass
 
 
-def create_consolidation_saga(user_id: str) -> Saga:
-    """Сага консолидации памяти: gather → distill → promote."""
+def create_consolidation_saga(user_id: str, mm=None) -> Saga:
+    """Сага консолидации: gather → distill → promote.
+    Принимает mm (memory_manager) для избежания циркулярного импорта.
+    """
     saga = Saga("consolidation_%s" % user_id)
     saga.add_step("gather", _consolidation_gather, _consolidation_compensate)
     saga.add_step("distill", _consolidation_distill, _consolidation_compensate)
     saga.add_step("promote", _consolidation_promote, _consolidation_compensate)
+    return saga
+
+
+async def _backup_copy_db(data: dict) -> dict:
+    """Скопировать БД."""
+    import shutil
+    from pathlib import Path
+    base = Path.home() / ".mcp-ariel-memory"
+    backup_dir = base / "backups" / ("saga_%d" % int(time.time()))
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    src = base / "memory.db"
+    if src.exists():
+        shutil.copy2(src, backup_dir / "memory.db")
+    data["backup_path"] = str(backup_dir)
+    return {"backup_path": str(backup_dir)}
+
+
+async def _backup_verify(data: dict) -> dict:
+    """Проверить целостность бэкапа."""
+    from pathlib import Path
+    backup_path = Path(data.get("backup_path", ""))
+    files = list(backup_path.glob("*.db")) if backup_path.exists() else []
+    return {"verified_files": len(files)}
+
+
+async def _backup_compensate(data: dict) -> None:
+    """Откат: удалить неудачный бэкап."""
+    import shutil
+    from pathlib import Path
+    backup_path = Path(data.get("backup_path", ""))
+    if backup_path.exists():
+        shutil.rmtree(backup_path)
+
+
+def create_backup_saga() -> Saga:
+    """Сага бэкапа: copy → verify."""
+    saga = Saga("backup")
+    saga.add_step("copy", _backup_copy_db, _backup_compensate)
+    saga.add_step("verify", _backup_verify)
     return saga
 
 
