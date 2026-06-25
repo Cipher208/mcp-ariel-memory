@@ -125,13 +125,14 @@ def similarity(a: List[float], b: List[float]) -> float:
 
 
 def _hash_embedding(text: str, dim: int = 384) -> List[float]:
+    import math
     h = hashlib.sha512(text.lower().encode()).digest()
     floats = []
     for i in range(0, len(h) - 3, 4):
         if len(floats) >= dim:
             break
         val = struct.unpack("f", h[i:i + 4])[0]
-        if abs(val) < 1e10:
+        if math.isfinite(val):
             floats.append(val)
     while len(floats) < dim:
         floats.append(0.0)
