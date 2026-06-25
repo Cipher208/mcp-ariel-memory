@@ -110,6 +110,7 @@ def _get_migrations() -> List[Migration]:
             -- === Graph ===
             CREATE TABLE IF NOT EXISTS epi_nodes (
                 node_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                layer TEXT NOT NULL DEFAULT 'user',
                 user_id TEXT NOT NULL, content TEXT NOT NULL,
                 node_type TEXT NOT NULL, tags TEXT,
                 confidence REAL DEFAULT 0.5, created_at REAL NOT NULL

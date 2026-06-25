@@ -1,8 +1,9 @@
 """
-Epistemic Graph - tags and relations between knowledge items
+Epistemic Graph — async, layer-aware tags and relations
 """
+import json
 import time
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from shared.connection import AsyncConnectionManager, connection_manager
 
@@ -11,6 +12,7 @@ from shared.connection import AsyncConnectionManager, connection_manager
 class EpistemicNode:
     node_id: int
     user_id: str
+    layer: str
     content: str
     node_type: str
     tags: List[str]
@@ -18,16 +20,6 @@ class EpistemicNode:
     created_at: float
 
 
-@dataclass
-class EpistemicEdge:
-    source_id: int
-    target_id: int
-    relation: str
-    weight: float
-    created_at: float
-
-
-# User layer tags
 USER_TAGS = {
     "fact_about_user": "Факт о пользователе",
     "user_decision": "Решение пользователя",
@@ -35,7 +27,6 @@ USER_TAGS = {
     "user_emotion": "Эмоция пользователя",
 }
 
-# Agent layer tags
 AGENT_TAGS = {
     "learned_from": "Агент узнал из ошибки",
     "decided_because": "Агент принял решение",
@@ -57,6 +48,7 @@ class EpistemicGraph:
         await self._cm.execute_script("memory.db", """
             CREATE TABLE IF NOT EXISTS epi_nodes (
                 node_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                layer TEXT NOT NULL DEFAULT 'user',
                 user_id TEXT NOT NULL,
                 content TEXT NOT NULL,
                 node_type TEXT NOT NULL,
@@ -72,18 +64,24 @@ class EpistemicGraph:
                 created_at REAL NOT NULL,
                 PRIMARY KEY (source_id, target_id, relation)
             );
+            CREATE INDEX IF NOT EXISTS idx_epi_layer ON epi_nodes(layer);
             CREATE INDEX IF NOT EXISTS idx_epi_user ON epi_nodes(user_id);
             CREATE INDEX IF NOT EXISTS idx_epi_type ON epi_nodes(node_type);
             CREATE INDEX IF NOT EXISTS idx_epi_tags ON epi_nodes(tags);
         """)
+        # Migration: add layer column if missing
+        try:
+            await self._cm.execute_script("memory.db",
+                "ALTER TABLE epi_nodes ADD COLUMN layer TEXT NOT NULL DEFAULT 'user'")
+        except Exception:
+            pass
 
     async def add_node(self, user_id: str, content: str, node_type: str,
                        tags: List[str] = None, confidence: float = 0.5) -> int:
-        import json
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
-            "INSERT INTO epi_nodes (user_id, content, node_type, tags, confidence, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (user_id, content, node_type, json.dumps(tags or []), confidence, time.time())
+            "INSERT INTO epi_nodes (layer, user_id, content, node_type, tags, confidence, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (self.layer, user_id, content, node_type, json.dumps(tags or []), confidence, time.time())
         )
         await conn.commit()
         return cursor.lastrowid
@@ -99,8 +97,8 @@ class EpistemicGraph:
     async def query_by_tag(self, user_id: str, tag: str, limit: int = 20) -> List[EpistemicNode]:
         conn = await self._cm.get("memory.db")
         cur = await conn.execute(
-            "SELECT * FROM epi_nodes WHERE user_id=? AND tags LIKE ? ORDER BY confidence DESC LIMIT ?",
-            (user_id, f'%"{tag}"%', limit)
+            "SELECT * FROM epi_nodes WHERE layer=? AND user_id=? AND tags LIKE ? ORDER BY confidence DESC LIMIT ?",
+            (self.layer, user_id, f'%"{tag}"%', limit)
         )
         rows = await cur.fetchall()
         return [self._row_to_node(r) for r in rows]
@@ -108,8 +106,8 @@ class EpistemicGraph:
     async def query_by_type(self, user_id: str, node_type: str, limit: int = 20) -> List[EpistemicNode]:
         conn = await self._cm.get("memory.db")
         cur = await conn.execute(
-            "SELECT * FROM epi_nodes WHERE user_id=? AND node_type=? ORDER BY confidence DESC LIMIT ?",
-            (user_id, node_type, limit)
+            "SELECT * FROM epi_nodes WHERE layer=? AND user_id=? AND node_type=? ORDER BY confidence DESC LIMIT ?",
+            (self.layer, user_id, node_type, limit)
         )
         rows = await cur.fetchall()
         return [self._row_to_node(r) for r in rows]
@@ -127,10 +125,10 @@ class EpistemicGraph:
         )
         SELECT n.node_id, n.content, n.node_type, n.tags, g.relation, g.weight
         FROM graph g JOIN epi_nodes n ON g.target_id = n.node_id
+        WHERE n.layer = ?
         """
-        cur = await conn.execute(sql, (node_id, depth))
+        cur = await conn.execute(sql, (node_id, depth, self.layer))
         rows = await cur.fetchall()
-        import json
         return [
             {"id": r[0], "content": r[1], "type": r[2],
              "tags": json.loads(r[3]) if r[3] else [], "relation": r[4], "weight": r[5]}
@@ -147,15 +145,14 @@ class EpistemicGraph:
         conn = await self._cm.get("memory.db")
         sql = """
         WITH RECURSIVE path AS (
-            SELECT source_id, target_id, relation, weight, 1 as d, source_id || '->' || target_id as path_str
+            SELECT source_id, target_id, relation, weight, 1 as d
             FROM epi_edges WHERE source_id = ?
             UNION ALL
-            SELECT e.source_id, e.target_id, e.relation, e.weight, p.d + 1, p.path_str || '->' || e.target_id
+            SELECT e.source_id, e.target_id, e.relation, e.weight, p.d + 1
             FROM epi_edges e JOIN path p ON e.source_id = p.target_id
-            WHERE p.d < ? AND e.target_id NOT LIKE '%' || p.path_str || '%'
+            WHERE p.d < ?
         )
-        SELECT target_id, relation, weight, d FROM path WHERE target_id = ?
-        LIMIT 1
+        SELECT target_id, relation, weight, d FROM path WHERE target_id = ? LIMIT 1
         """
         cur = await conn.execute(sql, (source_id, max_depth, target_id))
         rows = await cur.fetchall()
@@ -164,16 +161,22 @@ class EpistemicGraph:
     async def count_nodes(self, user_id: str = None) -> int:
         conn = await self._cm.get("memory.db")
         if user_id:
-            cur = await conn.execute("SELECT COUNT(*) FROM epi_nodes WHERE user_id=?", (user_id,))
+            cur = await conn.execute(
+                "SELECT COUNT(*) FROM epi_nodes WHERE layer=? AND user_id=?",
+                (self.layer, user_id)
+            )
         else:
-            cur = await conn.execute("SELECT COUNT(*) FROM epi_nodes")
+            cur = await conn.execute(
+                "SELECT COUNT(*) FROM epi_nodes WHERE layer=?",
+                (self.layer,)
+            )
         row = await cur.fetchone()
         return row[0] if row else 0
 
     def _row_to_node(self, row) -> EpistemicNode:
-        import json
         return EpistemicNode(
-            node_id=row["node_id"], user_id=row["user_id"], content=row["content"],
+            node_id=row["node_id"], user_id=row["user_id"],
+            layer=row["layer"], content=row["content"],
             node_type=row["node_type"], tags=json.loads(row["tags"]) if row["tags"] else [],
             confidence=row["confidence"], created_at=row["created_at"]
         )
