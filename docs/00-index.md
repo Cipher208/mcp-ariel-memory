@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/ariel-memory/mcp-ariel-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/ariel-memory/mcp-ariel-memory/actions/workflows/ci.yml)
 
-Двухслойная универсальная память для AI-агентов. Реальный MCP Python SDK, async, **33 tools**, stdio + Streamable HTTP транспорты, dashboard с auth + rate limiting, метрики, автобэкапи с jitter, внешние папки wiki, read-only replica, OpenAPI spec. **Нативный async через aiosqlite** — без `asyncio.to_thread()` прослойки.
+Двухслойная универсальная память для AI-агентов. Реальный MCP Python SDK, async, **33 tools**, stdio + Streamable HTTP, dashboard, auth + rate limiting, метрики, автобэкапи с jitter, wiki с внешними папками, read-only replica, OpenAPI. **Один файл `memory.db`** (~25 таблиц), нативный async через aiosqlite, хуки интегрированы в tool-пайплайн.
 
 ---
 

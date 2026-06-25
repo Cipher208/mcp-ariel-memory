@@ -1,18 +1,19 @@
-# Граф знаний — graph/ (async)
+# Граф знаний — graph/ (async, layer-aware)
 
 ## EpistemicGraph (`graph/epistemic.py`)
+
+Layer-aware: `EpistemicGraph(layer="user")` и `EpistemicGraph(layer="agent")` работают с изолированными данными.
 
 ```python
 from graph.epistemic import EpistemicGraph
 
 g = EpistemicGraph(layer="user")
 n1 = await g.add_node("alice", "Prefers Python", "fact", ["fact_about_user"], 0.9)
-n2 = await g.add_node("alice", "Knows JavaScript", "fact", ["fact_about_user"], 0.7)
-await g.add_edge(n1, n2, "related_to", 0.8)
+# Автоматически сохраняется с layer="user"
 
-nodes = await g.query_by_tag("alice", "fact_about_user")
-neighbors = await g.get_neighbors(n1, depth=2)
-path = await g.find_path(n1, n2, max_depth=3)
+nodes = await g.query_by_tag("alice", "fact_about_user")  # только user layer
+nodes = await g.query_by_type("alice", "decision_log")    # только user layer
+count = await g.count_nodes("alice")                       # только user layer
 ```
 
 ### find_path — config vs code

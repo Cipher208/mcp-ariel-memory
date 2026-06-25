@@ -6,11 +6,12 @@
 |-----------|-----------|
 | MCP протокол | Python MCP SDK v1.28 (FastMCP) |
 | Транспорты | stdio + Streamable HTTP |
-| Хранилище | SQLite (WAL mode) |
-| Async DB | **aiosqlite** через AsyncConnectionManager |
-| Поиск | FTS5 + sqlite-vec (опционально) |
+| Хранилище | **Один файл `memory.db`** (~25 таблиц) |
+| Async DB | aiosqlite через AsyncConnectionManager |
+| Поиск | FTS5 + sqlite-vec (опционально) + RRF |
+| Хуки | 24 хука, интегрированы в tool-пайплайн |
 | Docker | Dockerfile + docker-compose |
-| Тесты | pytest + pytest-asyncio |
+| Тесты | pytest + pytest-asyncio (49 tests) |
 | CI/CD | GitHub Actions |
 
 ## Двухслойная модель

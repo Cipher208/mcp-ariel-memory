@@ -1,16 +1,30 @@
-# Хуки — hooks/ (24 хука)
+# Хуки — hooks/ (интегрированы в tool-пайплайн)
 
-## HookRegistry (`hooks/registry.py`)
+24 хука, активно вызываются из mcp_server.py при каждом tool-вызове.
 
-Центральный диспетчер хуков.
+## Интеграция в mcp_server.py
+
+### memory_user_remember — вызывает 2 хука:
 
 ```python
-from hooks.registry import HookRegistry
+# 1. importance_gate — фильтр шума
+gate = app.user_hooks._importance_gate({"text": value})
+if gate.get("bypass"):
+    return {"status": "skipped", "reason": "below_importance_threshold"}
 
-hr = HookRegistry()
-hr.register("my_hook", lambda ctx: {"ok": True})
-result = hr.fire("my_hook", "user", {"data": "value"})
-hr.list_hooks()
+# 2. emotion_trigger — эмоциональный анализ (RU + EN + emoji)
+should_save, reason, weight = app.emotion_trigger.should_save(value)
+if should_save:
+    await app.mm.user_memory(user_id).l3.save(...)
+```
+
+### memory_agent_remember — автоматически логирует в граф:
+
+```python
+if "error" in key:
+    app.agent_graph.add_node(..., "error_analysis", ["error_pattern"])
+elif "decision" in key:
+    app.agent_graph.add_node(..., "decision_log", ["decided_because"])
 ```
 
 ## UserHooks (12 хуков)

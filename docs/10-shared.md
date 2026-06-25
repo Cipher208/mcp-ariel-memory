@@ -2,32 +2,22 @@
 
 ## AsyncConnectionManager (`shared/connection.py`)
 
-Нативный async менеджер соединений SQLite. Один коннект на файл БД, WAL + busy_timeout, stale-check.
+Нативный async менеджер соединений SQLite. Один коннект к **`memory.db`** (~25 таблиц). WAL + busy_timeout, stale-check.
 
 ```python
 from shared.connection import AsyncConnectionManager, connection_manager
 
-# Получить соединение (создаётся или переиспользуется)
-conn = await connection_manager.get("core_memory.db")
+# Получить соединение
+conn = await connection_manager.get("memory.db")
 
 # Все операции — async
 cursor = await conn.execute("SELECT * FROM users WHERE id=?", (uid,))
 row = await cursor.fetchone()
 await conn.commit()
-
-# Хелперы
-await connection_manager.execute_script("db.sql", "CREATE TABLE ...")
-exists = await connection_manager.table_exists("db", "users")
-await connection_manager.vacuum("db")
-await connection_manager.close_all()
 ```
 
-**Преимущества:**
-- Нативный async (нет `asyncio.to_thread()`)
-- Один коннект на файл (не пул — антипаттерн для SQLite)
-- WAL + busy_timeout на каждом коннекте
-- Stale-connection check (SELECT 1 перед возвратом)
-- 23 модуля используют через `self._cm.get("db_name")`
+**Таблицы в memory.db:**
+core_memory, sessions, episodes, staging_memories, archived_memories, audit_log, rate_limits, embedding_cache, rag_pages, rag_chunks, rag_relations, rag_fts, epi_nodes, epi_edges, temporal_events, temporal_links, user_wiki, agent_wiki, user_wiki_fts, agent_wiki_fts, wiki_index, wiki_fts, memory_conflicts, migration_log
 
 ## MemoryCache (`shared/cache.py`)
 
