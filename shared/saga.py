@@ -350,8 +350,19 @@ async def _consolidation_promote(data: dict) -> dict:
 
 
 async def _consolidation_compensate(data: dict) -> None:
-    """Откат: ничего не делать (данные в RAM)."""
-    pass
+    """Откат: удалить продвинутые записи из core_memory."""
+    mm = data.get("_mm")
+    if not mm:
+        return
+    user_id = data.get("user_id", "default")
+    items = data.get("important_items", []) + data.get("staging_items", [])
+    for item in items:
+        content = item.get("content", "")
+        key = "auto_%s" % content[:20].replace(" ", "_").lower()
+        try:
+            await mm.user_memory(user_id).forget(key)
+        except Exception:
+            pass
 
 
 def create_consolidation_saga(user_id: str, mm=None) -> Saga:
