@@ -125,3 +125,84 @@ def test_saga_success_no_compensation():
         print("Success test PASSED: compensate not called")
 
     asyncio.run(test())
+
+
+def test_nested_saga():
+    """Verify nested sagas execute correctly and inner compensate works."""
+    from shared.saga import Saga
+
+    async def test():
+        executed = []
+
+        async def inner_action(data):
+            executed.append("inner")
+            return {"inner": True}
+
+        async def inner_compensate(data):
+            executed.append("inner_comp")
+
+        async def outer_action(data):
+            executed.append("outer")
+            return {"outer": True}
+
+        # Inner saga
+        inner = Saga("inner")
+        inner.add_step("inner_step", inner_action, inner_compensate)
+
+        # Outer saga with nested inner
+        outer = Saga("outer")
+        outer.add_step("outer_step", outer_action)
+        outer.add_step("inner_saga", inner)  # вложенная сага
+
+        result = await outer.execute({"x": 1})
+        assert result["inner"] == True
+        assert result["outer"] == True
+        assert "inner" in executed
+        assert "outer" in executed
+
+        print("Nested saga test PASSED: %s" % executed)
+
+    asyncio.run(test())
+
+
+def test_nested_saga_compensation():
+    """Verify inner saga compensate works when outer fails."""
+    from shared.saga import Saga
+
+    async def test():
+        executed = []
+
+        async def inner_action(data):
+            executed.append("inner")
+            return {"inner": True}
+
+        async def inner_compensate(data):
+            executed.append("inner_comp")
+
+        async def outer_action(data):
+            executed.append("outer")
+            return {"outer": True}
+
+        async def fail_step(data):
+            raise RuntimeError("Fail")
+
+        inner = Saga("inner")
+        inner.add_step("inner_step", inner_action, inner_compensate)
+
+        outer = Saga("outer")
+        outer.add_step("outer_step", outer_action)
+        outer.add_step("inner_saga", inner)
+        outer.add_step("fail", fail_step)
+
+        try:
+            await outer.execute()
+        except RuntimeError:
+            pass
+
+        # inner compensate should have been called
+        assert "inner_comp" in executed, "inner_comp should be in %s" % executed
+        assert "inner" in executed
+
+        print("Nested compensation test PASSED: %s" % executed)
+
+    asyncio.run(test())

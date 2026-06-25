@@ -123,13 +123,20 @@ class Saga:
                 self._save_state()
 
                 try:
-                    action_result = step.action(self._data)
-                    if hasattr(action_result, '__await__'):
+                    # Поддержка вложенных саг
+                    if isinstance(step.action, Saga):
+                        inner = step.action
                         step.result = await asyncio.wait_for(
-                            action_result, timeout=self.timeout_seconds
+                            inner.execute(self._data), timeout=self.timeout_seconds
                         )
                     else:
-                        step.result = action_result
+                        action_result = step.action(self._data)
+                        if hasattr(action_result, '__await__'):
+                            step.result = await asyncio.wait_for(
+                                action_result, timeout=self.timeout_seconds
+                            )
+                        else:
+                            step.result = action_result
                     self._data.update(step.result)
                     step.status = SagaStatus.COMPLETED
                     step.data = self._data.copy()
@@ -168,7 +175,21 @@ class Saga:
 
         for i in range(failed_step - 1, -1, -1):
             step = self._steps[i]
-            if step.status == SagaStatus.COMPLETED and step.compensation:
+            if step.status != SagaStatus.COMPLETED:
+                continue
+
+            # Вложенные саги: компенсируем все завершённые шаги внутренней саги
+            if isinstance(step.action, Saga):
+                inner = step.action
+                for j in range(len(inner._steps) - 1, -1, -1):
+                    inner_step = inner._steps[j]
+                    if inner_step.status == SagaStatus.COMPLETED and inner_step.compensation:
+                        try:
+                            await inner_step.compensation(inner_step.data)
+                            logger.info("Saga '%s' compensated inner step '%s'" % (self.name, inner_step.name))
+                        except Exception as e:
+                            logger.error("Saga '%s' inner compensation failed for '%s': %s" % (self.name, inner_step.name, e))
+            elif step.compensation:
                 try:
                     await step.compensation(step.data)
                     logger.info("Saga '%s' compensated step '%s'" % (self.name, step.name))
