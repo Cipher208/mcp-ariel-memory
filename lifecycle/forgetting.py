@@ -54,30 +54,27 @@ class ForgettingSystem:
             if not rows:
                 return 0
 
-            archive_file = ARCHIVE_DIR / f"archive_{time.strftime('%Y%m%d')}.json"
-            archive_data = []
+            # Используем ArchivedMemories вместо ручного JSON
+            from shared.archived_memories import ArchivedMemories
+            am = ArchivedMemories()
+            archived_count = 0
             for row in rows:
-                archive_data.append({
-                    "user_id": row["user_id"], "key": row["key"],
-                    "value": row["value"], "importance": row["importance"],
-                    "updated_at": row["updated_at"],
-                })
-
-            existing = []
-            if archive_file.exists():
-                try:
-                    existing = json.loads(archive_file.read_text(encoding="utf-8"))
-                except Exception:
-                    pass
-            existing.extend(archive_data)
-            archive_file.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+                await am.archive(
+                    user_id=row["user_id"],
+                    content="%s=%s" % (row["key"], row["value"]),
+                    memory_type="core_memory",
+                    importance=row["importance"],
+                    original_id=row["entry_id"],
+                    reason="inactive_%dd" % self.archive_days,
+                )
+                archived_count += 1
 
             ids = [row["entry_id"] for row in rows]
             placeholders = ",".join(["?"] * len(ids))
             await conn.execute("DELETE FROM core_memory WHERE entry_id IN (%s)" % placeholders, ids)
             await conn.commit()
-            logger.info("Archived %d entries" % len(rows))
-            return len(rows)
+            logger.info("Archived %d entries" % archived_count)
+            return archived_count
         except Exception as e:
             logger.error("Archive failed: %s" % e)
             return 0
