@@ -3,6 +3,7 @@ RAG Engine - FTS5 full-text + sqlite-vec vector search
 Adapted from ariel cognitive TabulaRasa
 """
 import hashlib
+import struct
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from config import config
@@ -99,10 +100,15 @@ class RAGEngine:
                     (page_id, filepath.stem, content, wiki_type or "")
                 )
             chunks = self._chunk_text(content)
-            for i, chunk in enumerate(chunks):
+            # Вычислить эмбеддинги для всех чанков пакетом
+            from shared.embeddings import embed_texts
+            embeddings = await embed_texts(chunks)
+            for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
+                import struct
+                blob = struct.pack("%df" % len(emb), *emb) if emb else None
                 await conn.execute(
-                    "INSERT INTO rag_chunks (page_id, chunk_index, content) VALUES (?, ?, ?)",
-                    (page_id, i, chunk)
+                    "INSERT INTO rag_chunks (page_id, chunk_index, content, embedding) VALUES (?, ?, ?, ?)",
+                    (page_id, i, chunk, blob)
                 )
             await conn.commit()
             return f"[OK] {filepath.name} ({len(chunks)} chunks)"
@@ -134,10 +140,15 @@ class RAGEngine:
                     (page_id, title, text, wiki_type or "")
                 )
             chunks = self._chunk_text(text)
-            for i, chunk in enumerate(chunks):
+            # Вычислить эмбеддинги для всех чанков пакетом
+            from shared.embeddings import embed_texts
+            embeddings = await embed_texts(chunks)
+            for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
+                import struct
+                blob = struct.pack("%df" % len(emb), *emb) if emb else None
                 await conn.execute(
-                    "INSERT INTO rag_chunks (page_id, chunk_index, content) VALUES (?, ?, ?)",
-                    (page_id, i, chunk)
+                    "INSERT INTO rag_chunks (page_id, chunk_index, content, embedding) VALUES (?, ?, ?, ?)",
+                    (page_id, i, chunk, blob)
                 )
             if relation_to is not None:
                 await conn.execute(
@@ -219,28 +230,29 @@ class RAGEngine:
             conn = await self._cm.get("memory.db")
             try:
                 cur = await conn.execute(
-                    "SELECT wc.page_id, wc.content FROM rag_chunks wc "
-                    "JOIN rag_pages wp ON wc.page_id = wp.id WHERE wp.user_id = ?",
+                    "SELECT wc.page_id, wc.embedding FROM rag_chunks wc "
+                    "JOIN rag_pages wp ON wc.page_id = wp.id WHERE wp.user_id = ? AND wc.embedding IS NOT NULL",
                     (user_id,)
                 )
                 rows = await cur.fetchall()
 
-                query_emb = embed_text(query)
-                vec_scores = {}
-                for r in rows:
-                    page_id = r[0]
-                    chunk_content = r[1]
-                    chunk_emb = embed_text(chunk_content)
-                    sim = similarity(query_emb, chunk_emb)
-                    if page_id not in vec_scores or sim > vec_scores[page_id]:
-                        vec_scores[page_id] = sim
+                if rows:
+                    from shared.embeddings import embed_text, similarity
+                    query_emb = embed_text(query)
+                    vec_scores = {}
+                    for r in rows:
+                        page_id = r[0]
+                        blob = r[1]
+                        chunk_emb = list(struct.unpack("%df" % (len(blob) // 4), blob))
+                        sim = similarity(query_emb, chunk_emb)
+                        if page_id not in vec_scores or sim > vec_scores[page_id]:
+                            vec_scores[page_id] = sim
 
-                vec_sorted = sorted(vec_scores.items(), key=lambda x: -x[1])
-                vec_ranks = {pid: rank for rank, (pid, _) in enumerate(vec_sorted[:limit * 2])}
+                    vec_sorted = sorted(vec_scores.items(), key=lambda x: -x[1])
+                    vec_ranks = {pid: rank for rank, (pid, _) in enumerate(vec_sorted[:limit * 2])}
             finally:
-                await self._cm.close_all()
+                pass
         except Exception:
-            # Fallback: vector search недоступен, используем только FTS5
             pass
 
         all_ids = set(fts_ranks.keys()) | set(vec_ranks.keys())
