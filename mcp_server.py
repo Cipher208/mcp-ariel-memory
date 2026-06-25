@@ -34,6 +34,9 @@ from features.import_export import ImportExport
 from features.auth import api_key_auth, bearer_auth
 from features.backup_cron import backup_cron
 from shared.cache import MemoryCache
+from hooks.registry import hook_registry
+from hooks.user_hooks import UserHooks
+from hooks.agent_hooks import AgentHooks
 from config import config
 
 
@@ -55,6 +58,8 @@ class AppContext:
         self.backup = BackupManager()
         self.import_export = ImportExport()
         self.cache = MemoryCache()
+        self.user_hooks = UserHooks()
+        self.agent_hooks = AgentHooks()
 
 
 @asynccontextmanager
@@ -101,7 +106,21 @@ async def memory_user_remember(
     app = _get_ctx(ctx)
     metrics.inc("tool_calls")
     metrics.inc("tool_user_remember")
+
+    # Hook: importance_gate — фильтр шума
+    gate = app.user_hooks._importance_gate({"text": value})
+    if gate.get("bypass"):
+        return {"status": "skipped", "reason": "below_importance_threshold"}
+
     entry_id = await app.mm.user_memory(user_id).remember(key, value, importance)
+
+    # Hook: emotion_trigger — эмоциональный анализ
+    should_save, emotion_reason, emotion_weight = app.emotion_trigger.should_save(value)
+    if should_save:
+        await app.mm.user_memory(user_id).l3.save(
+            user_id, "%s=%s" % (key, value[:50]), emotion_weight, [emotion_reason]
+        )
+
     return {"status": "ok", "entry_id": entry_id}
 
 
@@ -339,8 +358,17 @@ async def memory_agent_remember(
     app = _get_ctx(ctx)
     metrics.inc("tool_calls")
     metrics.inc("tool_agent_remember")
+
+    # Hook: error_occurred / decision_made — логирование в граф
+    if "error" in key.lower():
+        node_id = await app.agent_graph.add_node(user_id, value, "error_analysis", ["error_pattern"], importance)
+    elif "decision" in key.lower():
+        node_id = await app.agent_graph.add_node(user_id, value, "decision_log", ["decided_because"], importance)
+    else:
+        node_id = await app.agent_graph.add_node(user_id, value, "agent_fact", [], importance)
+
     entry_id = await app.mm.agent_memory(user_id).remember(key, value, importance)
-    return {"status": "ok", "entry_id": entry_id}
+    return {"status": "ok", "entry_id": entry_id, "graph_node_id": node_id}
 
 
 @mcp.tool()
