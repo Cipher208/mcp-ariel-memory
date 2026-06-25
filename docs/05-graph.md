@@ -2,19 +2,63 @@
 
 ## EpistemicGraph (`graph/epistemic.py`)
 
-Layer-aware: `EpistemicGraph(layer="user")` и `EpistemicGraph(layer="agent")` работают с изолированными данными.
+Layer-aware эпистемический граф с CTE WITH RECURSIVE для BFS-обхода в SQLite.
 
 ```python
 from graph.epistemic import EpistemicGraph
 
 g = EpistemicGraph(layer="user")
 n1 = await g.add_node("alice", "Prefers Python", "fact", ["fact_about_user"], 0.9)
-# Автоматически сохраняется с layer="user"
+n2 = await g.add_node("alice", "Knows JavaScript", "fact", ["fact_about_user"], 0.7)
+await g.add_edge(n1, n2, "related_to", 0.8)
 
-nodes = await g.query_by_tag("alice", "fact_about_user")  # только user layer
-nodes = await g.query_by_type("alice", "decision_log")    # только user layer
-count = await g.count_nodes("alice")                       # только user layer
+nodes = await g.query_by_tag("alice", "fact_about_user")
+count = await g.count_nodes("alice")
 ```
+
+### get_neighbors() — BFS через CTE WITH RECURSIVE
+
+Находит всех соседей на глубину `depth` без внешних БД. Рекурсивный CTE работает в SQLite:
+
+```python
+neighbors = await g.get_neighbors(n1, depth=2)
+# [{"id": 2, "content": "Knows JS", "type": "fact", "relation": "related_to", "weight": 0.8}]
+```
+
+**SQL (рекурсивный CTE):**
+```sql
+WITH RECURSIVE graph AS (
+    SELECT e.source_id, e.target_id, e.relation, e.weight, 1 as d
+    FROM epi_edges e WHERE e.source_id = ?
+    UNION ALL
+    SELECT e.source_id, e.target_id, e.relation, e.weight, g.d + 1
+    FROM epi_edges e JOIN graph g ON e.source_id = g.target_id WHERE g.d < ?
+)
+SELECT n.node_id, n.content, n.node_type, n.tags, g.relation, g.weight
+FROM graph g JOIN epi_nodes n ON g.target_id = n.node_id WHERE n.layer = ?
+```
+
+### find_path() — поиск пути между узлами
+
+```python
+path = await g.find_path(n1, n2, max_depth=3)
+# [{"target": 2, "relation": "related_to", "weight": 0.8, "depth": 1}]
+```
+
+**max_depth** берётся из `config.graph.max_depth` (default 3), переопределяется параметром.
+
+### Теги
+
+| User | Agent |
+|------|-------|
+| `fact_about_user` | `learned_from` |
+| `user_decision` | `decided_because` |
+| `user_preference` | `evolved_to` |
+| `user_emotion` | `felt_in_context` |
+| | `wiki_contains` |
+| | `error_pattern` |
+| | `correction_pattern` |
+| | `personality_trait` |
 
 ### find_path — config vs code
 
