@@ -59,7 +59,6 @@ class AppContext:
         self.rate_limiter = RateLimiter()
         self.backup = BackupManager()
         self.import_export = ImportExport()
-        self.cache = MemoryCache()
         self.user_hooks = UserHooks()
         self.agent_hooks = AgentHooks()
 

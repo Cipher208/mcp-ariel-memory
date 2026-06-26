@@ -178,11 +178,33 @@ await am.count("alice")
 
 ## ReadOnlyReplica (`shared/read_only.py`)
 
-Read-only копия БД для dashboard/metrics.
+Read-only копия БД для dashboard/metrics. Автоматически синхронизируется при старте.
 
 ```python
 from shared.read_only import read_only_replica
-read_only_replica.start_auto_sync(interval_seconds=300)
-read_only_replica.sync()  # {"core_memory.db": 1, ...}
-conn = read_only_replica.get_conn("core_memory.db")
+await asyncio.to_thread(read_only_replica.sync)  # при старте
+read_only_replica.sync()  # ручная синхронизация
+conn = read_only_replica.get_conn("memory.db")  # read-only URI
+read_only_replica.is_ready()
+```
+
+## MemoryCache (`shared/cache.py`)
+
+LRU кэш с TTL. Интегрирован с MemoryManager — `recall()` кэширует результаты.
+
+```python
+from shared.cache import MemoryCache
+
+cache = MemoryCache(max_size=1000, ttl=300)
+cache.set("user:alice:context", {"facts": [...]})
+cache.get("user:alice:context")
+cache.delete("user:alice:context")
+cache.clear()
+cache.size()
+```
+
+**Интеграция с MemoryManager:**
+```python
+mm = MemoryManager(cache=MemoryCache())
+# recall() автоматически кэширует результаты (TTL 300с)
 ```
