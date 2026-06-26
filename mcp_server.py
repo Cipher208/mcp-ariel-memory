@@ -34,6 +34,7 @@ from features.import_export import ImportExport
 from features.auth import api_key_auth, bearer_auth
 from features.backup_cron import backup_cron
 from shared.cache import MemoryCache
+from shared.read_only import read_only_replica
 from hooks.registry import hook_registry
 from hooks.user_hooks import UserHooks
 from hooks.agent_hooks import AgentHooks
@@ -64,13 +65,17 @@ class AppContext:
 
 @asynccontextmanager
 async def lifespan(server: FastMCP):
-    # 1. Запустить миграции (создать все таблицы в memory.db)
+    # 1. Запустить миграции
     from shared.migrations import migration_manager
     result = await migration_manager.migrate()
     import logging
     logging.getLogger(__name__).info("Migrations: %s" % result)
 
-    # 2. Инициализировать контекст
+    # 2. Синхронизировать read-only replica
+    from shared.read_only import read_only_replica
+    await asyncio.to_thread(read_only_replica.sync)
+
+    # 3. Инициализировать контекст
     ctx = AppContext()
     backup_cron.start()
     try:
@@ -722,6 +727,21 @@ async def memory_saga_backup(
     saga = create_backup_saga()
     result = await saga.execute()
     return {"status": saga.status.value, "result": result, "steps": saga.get_state()["steps"]}
+
+
+@mcp.tool()
+async def memory_sync_replica(
+    ctx: Context = None,
+) -> dict:
+    """Sync read-only replica for dashboard/metrics (no load on main DB).
+
+    Creates a read-only copy of memory.db for safe querying.
+    """
+    metrics.inc("tool_calls")
+    metrics.inc("tool_sync_replica")
+    from shared.read_only import read_only_replica
+    result = await asyncio.to_thread(read_only_replica.sync)
+    return {"synced": result, "ready": read_only_replica.is_ready()}
 
 
 @mcp.tool()
