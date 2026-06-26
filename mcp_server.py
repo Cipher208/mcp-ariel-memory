@@ -43,7 +43,8 @@ from config import config
 
 class AppContext:
     def __init__(self):
-        self.mm = memory_manager
+        self.cache = MemoryCache()
+        self.mm = MemoryManager(cache=self.cache)
         self.user_wiki = FileWiki(layer="user")
         self.agent_wiki = FileWiki(layer="agent")
         self.user_rag = RAGEngine(layer="user")
@@ -808,9 +809,8 @@ async def memory_lucidity_purge(
     cutoff = time.time() - (hours * 3600)
 
     # 1. Core memory — удалить записи за N часов
-    from core import memory_manager
-    mm = memory_manager
-    conn = mm.user_memory(user_id).l4._get_conn()
+    app = _get_ctx(ctx)
+    conn = await app.mm.user_memory(user_id).l4._get_conn()
     try:
         cursor = conn.execute("DELETE FROM core_memory WHERE user_id=? AND created_at > ?", (user_id, cutoff))
         results["core_memory"] = cursor.rowcount

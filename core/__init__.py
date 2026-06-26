@@ -15,10 +15,11 @@ class MemoryLayer:
     """Unified async memory layer for both user and agent."""
 
     def __init__(self, layer_type: str, user_id: str = "default",
-                 cm: Optional[AsyncConnectionManager] = None):
+                 cm: Optional[AsyncConnectionManager] = None, cache=None):
         self.layer_type = layer_type
         self.user_id = user_id
         self._cm = cm or connection_manager
+        self._cache = cache
         self.l1 = ReflexBuffer(max_size=config.get_limit("l1_buffer_size"))
         self.l2 = SessionStore(cm=self._cm)
         self.l3 = EpisodicMemory(cm=self._cm)
@@ -28,11 +29,21 @@ class MemoryLayer:
         return await self.l4.save(self.user_id, key, value, importance)
 
     async def recall(self, query: str, limit: int = 10) -> List[Dict]:
+        cache_key = "recall:%s:%s:%d" % (self.user_id, query, limit)
+        cached = self._cache.get(cache_key) if self._cache else None
+        if cached is not None:
+            return cached
+
         results = []
         results.extend(await self.l4.search(self.user_id, query, limit))
         episodes = await self.l3.search(self.user_id, query, limit)
         results.extend([{"summary": e.summary, "weight": e.emotional_weight} for e in episodes])
-        return results[:limit]
+        final = results[:limit]
+
+        if self._cache:
+            self._cache.set(cache_key, final)
+
+        return final
 
     async def forget(self, key: str) -> bool:
         return await self.l4.delete(self.user_id, key)
@@ -53,16 +64,15 @@ class MemoryLayer:
 
 
 class MemoryManager:
-    """Manages both user and agent memory layers."""
-
-    def __init__(self, cm: Optional[AsyncConnectionManager] = None):
+    def __init__(self, cm: Optional[AsyncConnectionManager] = None, cache=None):
         self._cm = cm or connection_manager
+        self._cache = cache
         self.layers: Dict[str, MemoryLayer] = {}
 
     def get_layer(self, layer_type: str, user_id: str = "default") -> MemoryLayer:
-        key = f"{layer_type}:{user_id}"
+        key = "%s:%s" % (layer_type, user_id)
         if key not in self.layers:
-            self.layers[key] = MemoryLayer(layer_type, user_id, cm=self._cm)
+            self.layers[key] = MemoryLayer(layer_type, user_id, cm=self._cm, cache=self._cache)
         return self.layers[key]
 
     def user_memory(self, user_id: str = "default") -> MemoryLayer:
@@ -78,5 +88,5 @@ class MemoryManager:
         return results
 
 
-# Global instance
+# Global instance (no cache — use MemoryManager(cache=MemoryCache()) for caching)
 memory_manager = MemoryManager()
