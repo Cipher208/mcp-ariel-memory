@@ -746,6 +746,54 @@ async def memory_sync_replica(
 
 
 @mcp.tool()
+async def memory_export(
+    user_id: str = "default",
+    ctx: Context = None,
+) -> dict:
+    """Export user memory to JSON file.
+
+    Args:
+        user_id: User to export
+    """
+    metrics.inc("tool_calls")
+    metrics.inc("tool_export")
+    app = _get_ctx(ctx)
+    path = await app.import_export.export_user(user_id)
+    return {"path": path}
+
+
+@mcp.tool()
+async def memory_import(
+    file_path: str = "",
+    target_user_id: str = "default",
+    ctx: Context = None,
+) -> dict:
+    """Import memory from JSON file.
+
+    Args:
+        file_path: Path to export file
+        target_user_id: Import as this user
+    """
+    metrics.inc("tool_calls")
+    metrics.inc("tool_import")
+    app = _get_ctx(ctx)
+    result = await app.import_export.import_user(file_path, target_user_id)
+    return result
+
+
+@mcp.tool()
+async def memory_list_exports(
+    ctx: Context = None,
+) -> dict:
+    """List available export files."""
+    metrics.inc("tool_calls")
+    metrics.inc("tool_list_exports")
+    app = _get_ctx(ctx)
+    exports = app.import_export.list_exports()
+    return {"exports": exports}
+
+
+@mcp.tool()
 async def memory_cleanup(
     user_id: str = "default",
     retention_days: int = 30,
