@@ -61,8 +61,7 @@ docker run -p 8000:8000 ariel-memory
 ## Статус
 
 - **MCP Tools:** 33
-- **pytest:** 49/49
-- **Integration:** 36/36
+- **pytest:** 56/56
 - **Файлов .py:** 50+
 - **Хуки:** 24
 - **Wiki типов:** 14
