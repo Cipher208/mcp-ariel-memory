@@ -111,7 +111,7 @@ result = router.route("How to configure Redis?")
 | `L1_BUFFER` | ✅ | Недавние контекстные вопросы | L1 буфер |
 | `SEMANTIC` | ✅ | Общие запросы | FTS5 + RRF |
 | `WIKI` | ✅ | Технические вопросы | Wiki + relations |
-| `GRAPH` | 🔲 Planned | Запросы к графу | EpistemicGraph (enum есть, route() не возвращает) |
+| `GRAPH` | ✅ | Запросы к графу (связи, паттерны, ошибки, решения) | EpistemicGraph |
 
 ## ConflictResolver (`rag/conflict.py`)
 

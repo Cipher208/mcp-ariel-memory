@@ -202,5 +202,6 @@ class MiddlewarePipeline:
 default_pipeline = MiddlewarePipeline()
 default_pipeline.add(ValidationMiddleware())
 default_pipeline.add(RateLimitMiddleware())
+default_pipeline.add(ImportanceGateMiddleware())
 default_pipeline.add(AuditMiddleware())
 default_pipeline.add(DedupMiddleware())
