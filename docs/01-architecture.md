@@ -41,10 +41,14 @@
 
 | Уровень | Назначение | Хранилище | Лимит |
 |---------|-----------|-----------|-------|
-| **L1 ReflexBuffer** | Последние сообщения (кольцевой буфер) | RAM + JSON | 50 |
-| **L2 SessionStore** | История сессий с индексами | SQLite | 100 |
-| **L3 EpisodicMemory** | Важные моменты с эмоциональным весом | SQLite | 1000 |
-| **L4 CoreMemory** | Ключ-значение факты с важностью | SQLite | 5000 |
+| **L1 ReflexBuffer** | Последние сообщения (кольцевой буфер) | RAM + JSON | 50 (hard) |
+| **L2 SessionStore** | История сессий с индексами | SQLite | 100 (soft) |
+| **L3 EpisodicMemory** | Важные моменты с эмоциональным весом | SQLite | 1000 (soft) |
+| **L4 CoreMemory** | Ключ-значение факты с важностью | SQLite | 5000 (soft) |
+
+**Hard vs Soft limits:**
+- **L1:** `ReflexBuffer(max_size=50)` — жёсткий, кольцевой буфер
+- **L2-L4:** лимиты в `config.yaml` используются как `LIMIT ?` в SELECT, но **не блокируют INSERT**. Для enforce нужен cron cleanup (via `forgetting.cleanup()`)
 
 ## Консолидация
 
