@@ -1393,3 +1393,77 @@ if read_only_replica.is_ready():
 ```python
 from shared.read_only import read_only_replica
 ```
+
+---
+
+## Security — Envelope Encryption (`features/secrets.py`)
+
+All sensitive data (API keys, bearer tokens, saga state) is encrypted at rest using libsodium secretbox (AES-256-GCM). Legacy plain JSON files are automatically rotated to encrypted format on first read.
+
+### Master Key Resolution
+
+The master key is resolved in order:
+
+1. `crypto.master_key_hex` in `config.yaml`
+2. OS keychain via `keyring` library
+3. `MCP_MASTER_KEY` environment variable (argon2id KDF)
+4. **Fail loud** if none available
+
+### API
+
+```python
+from features.secrets import encrypt_json, decrypt_json, is_encrypted_blob
+
+# Encrypt
+blob = encrypt_json({"api_key": "ak_abc123"})
+# Returns: nonce(24 bytes) || ciphertext
+
+# Decrypt
+data = decrypt_json(blob)
+# Returns: {"api_key": "ak_abc123"}
+
+# Check if file is encrypted
+if is_encrypted_blob(Path("~/.mcp-ariel-memory/api_keys.json")):
+    print("File is encrypted")
+```
+
+### What's Encrypted
+
+| File | Location | Encrypted |
+|------|----------|-----------|
+| API keys | `~/.mcp-ariel-memory/api_keys.json` | ✅ Yes |
+| Bearer token | `~/.mcp-ariel-memory/bearer_token.json` | ✅ Yes |
+| Saga state | `~/.mcp-ariel-memory/sagas/*.json` | ✅ Yes |
+| Config | `config.yaml` | ❌ No (settings only) |
+
+### Setup
+
+```bash
+# Option 1: Environment variable
+export MCP_MASTER_KEY="your-32-byte-hex-key"
+
+# Option 2: config.yaml
+crypto:
+  master_key_hex: "your-32-byte-hex-key"
+
+# Option 3: OS keychain (recommended for production)
+python -c "from features.secrets import install_master_key_to_keychain; install_master_key_to_keychain('your-key')"
+```
+
+### Legacy Migration
+
+If you have existing plain JSON files, they are automatically encrypted on first read:
+
+1. System detects plain JSON (starts with `{` or `[`)
+2. Reads the data
+3. Writes encrypted version
+4. Logs deprecation warning
+
+No manual migration needed — just set a master key and restart.
+
+### Dependencies
+
+```bash
+pip install pynacl  # Required for encryption
+pip install keyring  # Optional: OS keychain support
+```
