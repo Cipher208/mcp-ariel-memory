@@ -2,9 +2,13 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY pyproject.toml .
+# Copy everything needed for metadata
+COPY pyproject.toml README.md README_EN.md LICENSE ./
+
+# Install dependencies
 RUN pip install --no-cache-dir .
 
+# Copy the rest of the code
 COPY . .
 
 RUN mkdir -p /data
@@ -18,5 +22,5 @@ EXPOSE 8000
 # docker run -v $(pwd)/config.yaml:/app/config.yaml -p 8000:8000 ariel-memory
 # Or use docker-compose (see docker-compose.yml)
 
-ENTRYPOINT ["python", "-m", "mcp_ariel_memory"]
+ENTRYPOINT ["python", "-m", "mcp_server"]
 CMD ["--transport", "http", "--host", "0.0.0.0", "--port", "8000"]

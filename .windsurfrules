@@ -1,0 +1,88 @@
+# AI-Memory Integration Rules
+
+This project uses `ai-memory` for codebase context management.
+
+## Quick Commands
+
+```bash
+# Initialize (one-time per project)
+ai-memory init
+
+# Full scan (run after major changes)
+ai-memory scan
+
+# Watch mode (auto-update on file changes)
+ai-memory watch
+
+# Ask about the codebase (low-token context)
+ai-memory ask "<your question>"
+
+# Semantic search (run `ai-memory embed` first)
+ai-memory semantic "<query>"
+
+# Symbol context with call graph
+ai-memory context <symbol_name>
+
+# Reverse call graph — who calls this symbol
+ai-memory callers <symbol>
+
+# Full-text search over names/signatures/docstrings
+ai-memory search "<query>"
+
+# Detect circular dependencies
+ai-memory cycles
+
+# Full inheritance chain for a class
+ai-memory inherits <class_name>
+
+# Public API surface
+ai-memory api
+
+# See execution flows
+ai-memory flows
+
+# See code communities/modules
+ai-memory communities
+
+# Find dead/unused code
+ai-memory dead-code
+
+# Review changed files and impacted flows
+ai-memory review
+
+# Extract TODO/FIXME/HACK markers
+ai-memory todos
+
+# Map tests to implementation
+ai-memory test-map
+
+# Dependency manifests
+ai-memory deps
+
+# Load coverage data
+ai-memory coverage
+
+# Build semantic embeddings
+ai-memory embed
+
+# Incremental embeddings (only new/changed symbols)
+ai-memory embed --incremental
+```
+
+## Guidelines for AI Assistants
+
+1. **Before answering questions**, use `ai-memory ask` or `ai-memory semantic` to get pre-computed context.
+2. **When modifying code**, check `ai-memory review` to see which flows and communities are impacted.
+3. **For new features**, consult `ai-memory communities` to find the right module to extend.
+4. **For debugging**, use `ai-memory context <symbol>` to trace call chains from entry points.
+5. **To find where code is tested**, use `ai-memory test-map`.
+6. **To find public APIs**, use `ai-memory api`.
+7. **To search by keyword**, use `ai-memory search "auth middleware"`.
+
+## Project Structure (from ai-memory communities)
+
+Check `ai-memory communities` for the latest module boundaries.
+
+## Database Schemas
+
+Check `ai-memory schemas` for SQL/migration definitions.

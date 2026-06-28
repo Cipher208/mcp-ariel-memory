@@ -5,9 +5,15 @@ __pycache__
 .gitignore
 *.md
 !README.md
+!README_EN.md
 tests/
 docs/
 *.db
 *.json
 !pyproject.toml
 .mcp-ariel-memory/
+.ai-memory/
+.codegraph/
+.cursorrules
+.windsurfrules
+.github/
