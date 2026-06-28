@@ -76,15 +76,11 @@ class EpistemicGraph:
         )
         # Migration: add layer column if missing
         try:
-            await self._cm.execute_script(
-                "memory.db", "ALTER TABLE epi_nodes ADD COLUMN layer TEXT NOT NULL DEFAULT 'user'"
-            )
+            await self._cm.execute_script("memory.db", "ALTER TABLE epi_nodes ADD COLUMN layer TEXT NOT NULL DEFAULT 'user'")
         except Exception:
             pass
 
-    async def add_node(
-        self, user_id: str, content: str, node_type: str, tags: list[str] = None, confidence: float = 0.5
-    ) -> int:
+    async def add_node(self, user_id: str, content: str, node_type: str, tags: list[str] = None, confidence: float = 0.5) -> int:
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
             "INSERT INTO epi_nodes (layer, user_id, content, node_type, tags, confidence, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -175,9 +171,7 @@ class EpistemicGraph:
     async def count_nodes(self, user_id: str = None) -> int:
         conn = await self._cm.get("memory.db")
         if user_id:
-            cur = await conn.execute(
-                "SELECT COUNT(*) FROM epi_nodes WHERE layer=? AND user_id=?", (self.layer, user_id)
-            )
+            cur = await conn.execute("SELECT COUNT(*) FROM epi_nodes WHERE layer=? AND user_id=?", (self.layer, user_id))
         else:
             cur = await conn.execute("SELECT COUNT(*) FROM epi_nodes WHERE layer=?", (self.layer,))
         row = await cur.fetchone()

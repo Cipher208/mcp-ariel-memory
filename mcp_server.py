@@ -130,9 +130,7 @@ async def memory_user_remember(
     # Hook: emotion_trigger — emotional analysis
     should_save, emotion_reason, emotion_weight = app.emotion_trigger.should_save(value)
     if should_save:
-        await app.mm.user_memory(user_id).l3.save(
-            user_id, "%s=%s" % (key, value[:50]), emotion_weight, [emotion_reason]
-        )
+        await app.mm.user_memory(user_id).l3.save(user_id, "%s=%s" % (key, value[:50]), emotion_weight, [emotion_reason])
 
     return {"status": "ok", "entry_id": entry_id}
 

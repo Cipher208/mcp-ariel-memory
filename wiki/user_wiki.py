@@ -123,9 +123,7 @@ class UserWiki:
         await conn.commit()
         return entry_id
 
-    async def update(
-        self, entry_id: int, title: str = None, content: str = None, tags: list[str] = None, importance: float = None
-    ):
+    async def update(self, entry_id: int, title: str = None, content: str = None, tags: list[str] = None, importance: float = None):
         conn = await self._cm.get("memory.db")
         updates = ["updated_at=?"]
         params = [time.time()]
@@ -188,9 +186,7 @@ class UserWiki:
 
     async def list_all(self, user_id: str, limit: int = 50) -> list[WikiEntry]:
         conn = await self._cm.get("memory.db")
-        cur = await conn.execute(
-            "SELECT * FROM user_wiki WHERE user_id=? ORDER BY updated_at DESC LIMIT ?", (user_id, limit)
-        )
+        cur = await conn.execute("SELECT * FROM user_wiki WHERE user_id=? ORDER BY updated_at DESC LIMIT ?", (user_id, limit))
         rows = await cur.fetchall()
         return [self._row_to_entry(r) for r in rows]
 
@@ -239,9 +235,7 @@ class UserWiki:
                     if existing:
                         await self.update(existing, title=title, content=content)
                     else:
-                        await self.add(
-                            user_id, wiki_type, title, content, tags=[md_file.parent.name], source=str(md_file)
-                        )
+                        await self.add(user_id, wiki_type, title, content, tags=[md_file.parent.name], source=str(md_file))
                     results["imported"] += 1
                 except Exception:
                     results["errors"] += 1

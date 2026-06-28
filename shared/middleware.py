@@ -83,9 +83,7 @@ class ImportanceGateMiddleware(Middleware):
     """Noise filter — only passes important messages.
     Full version from agent_core/cognitive/importance_gate.py"""
 
-    def __init__(
-        self, min_length: int = 15, threshold: float = 0.3, technical_weight: float = 0.3, question_weight: float = 0.2
-    ):
+    def __init__(self, min_length: int = 15, threshold: float = 0.3, technical_weight: float = 0.3, question_weight: float = 0.2):
         self._min_length = min_length
         self._threshold = threshold
         self._technical_weight = technical_weight

@@ -93,9 +93,7 @@ class MemoryMCPServer:
 
     # === User Layer Tools ===
 
-    def user_remember(
-        self, user_id: str = "default", key: str = "", value: str = "", importance: float = 0.5, **kw
-    ) -> dict:
+    def user_remember(self, user_id: str = "default", key: str = "", value: str = "", importance: float = 0.5, **kw) -> dict:
         entry_id = self.mm.user_memory(user_id).remember(key, value, importance)
         return {"status": "ok", "entry_id": entry_id}
 
@@ -115,9 +113,7 @@ class MemoryMCPServer:
         self.mm.user_memory(user_id).l2.close_session(session_id, summary)
         return {"status": "ok"}
 
-    def user_episode_save(
-        self, user_id: str = "default", summary: str = "", weight: float = 0.5, tags: list = None, **kw
-    ) -> dict:
+    def user_episode_save(self, user_id: str = "default", summary: str = "", weight: float = 0.5, tags: list = None, **kw) -> dict:
         episode_id = self.mm.user_memory(user_id).l3.save(user_id, summary, weight, tags)
         return {"episode_id": episode_id}
 
@@ -126,19 +122,13 @@ class MemoryMCPServer:
             episodes = self.mm.user_memory(user_id).l3.search_by_tag(user_id, tag, limit)
         else:
             episodes = self.mm.user_memory(user_id).l3.get_episodes(user_id, limit)
-        return {
-            "episodes": [{"id": e.episode_id, "summary": e.summary, "weight": e.emotional_weight} for e in episodes]
-        }
+        return {"episodes": [{"id": e.episode_id, "summary": e.summary, "weight": e.emotional_weight} for e in episodes]}
 
-    def user_graph_add(
-        self, user_id: str = "default", content: str = "", node_type: str = "fact", tags: list = None, **kw
-    ) -> dict:
+    def user_graph_add(self, user_id: str = "default", content: str = "", node_type: str = "fact", tags: list = None, **kw) -> dict:
         node_id = self.user_graph.add_node(user_id, content, node_type, tags)
         return {"node_id": node_id}
 
-    def user_graph_query(
-        self, user_id: str = "default", tag: str = "", node_type: str = "", limit: int = 20, **kw
-    ) -> dict:
+    def user_graph_query(self, user_id: str = "default", tag: str = "", node_type: str = "", limit: int = 20, **kw) -> dict:
         if tag:
             nodes = self.user_graph.query_by_tag(user_id, tag, limit)
         elif node_type:
@@ -160,9 +150,7 @@ class MemoryMCPServer:
 
     # === Agent Layer Tools ===
 
-    def agent_remember(
-        self, user_id: str = "default", key: str = "", value: str = "", importance: float = 0.5, **kw
-    ) -> dict:
+    def agent_remember(self, user_id: str = "default", key: str = "", value: str = "", importance: float = 0.5, **kw) -> dict:
         entry_id = self.mm.agent_memory(user_id).remember(key, value, importance)
         return {"status": "ok", "entry_id": entry_id}
 
@@ -182,9 +170,7 @@ class MemoryMCPServer:
         self.mm.agent_memory(user_id).l2.close_session(session_id, summary)
         return {"status": "ok"}
 
-    def agent_episode_save(
-        self, user_id: str = "default", summary: str = "", weight: float = 0.5, tags: list = None, **kw
-    ) -> dict:
+    def agent_episode_save(self, user_id: str = "default", summary: str = "", weight: float = 0.5, tags: list = None, **kw) -> dict:
         episode_id = self.mm.agent_memory(user_id).l3.save(user_id, summary, weight, tags)
         return {"episode_id": episode_id}
 
@@ -193,19 +179,13 @@ class MemoryMCPServer:
             episodes = self.mm.agent_memory(user_id).l3.search_by_tag(user_id, tag, limit)
         else:
             episodes = self.mm.agent_memory(user_id).l3.get_episodes(user_id, limit)
-        return {
-            "episodes": [{"id": e.episode_id, "summary": e.summary, "weight": e.emotional_weight} for e in episodes]
-        }
+        return {"episodes": [{"id": e.episode_id, "summary": e.summary, "weight": e.emotional_weight} for e in episodes]}
 
-    def agent_graph_add(
-        self, user_id: str = "default", content: str = "", node_type: str = "decision_log", tags: list = None, **kw
-    ) -> dict:
+    def agent_graph_add(self, user_id: str = "default", content: str = "", node_type: str = "decision_log", tags: list = None, **kw) -> dict:
         node_id = self.agent_graph.add_node(user_id, content, node_type, tags)
         return {"node_id": node_id}
 
-    def agent_graph_query(
-        self, user_id: str = "default", tag: str = "", node_type: str = "", limit: int = 20, **kw
-    ) -> dict:
+    def agent_graph_query(self, user_id: str = "default", tag: str = "", node_type: str = "", limit: int = 20, **kw) -> dict:
         if tag:
             nodes = self.agent_graph.query_by_tag(user_id, tag, limit)
         elif node_type:

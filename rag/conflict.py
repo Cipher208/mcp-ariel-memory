@@ -36,8 +36,7 @@ class ConflictResolver:
         like_conditions = " OR ".join(["content LIKE ?" for _ in keywords])
         like_params = ["%%%s%%" % kw for kw in keywords]
         cur = await conn.execute(
-            "SELECT id, content, is_conflict, conflict_group_id FROM memory_conflicts WHERE user_id=? AND (%s) LIMIT 5"
-            % like_conditions,
+            "SELECT id, content, is_conflict, conflict_group_id FROM memory_conflicts WHERE user_id=? AND (%s) LIMIT 5" % like_conditions,
             (user_id, *like_params),
         )
         rows = await cur.fetchall()
@@ -48,9 +47,7 @@ class ConflictResolver:
             if similarity > min_similarity and existing_content != new_content:
                 gid = group_id or str(__import__("uuid").uuid4())
                 if not is_conflict:
-                    await conn.execute(
-                        "UPDATE memory_conflicts SET is_conflict=1, conflict_group_id=? WHERE id=?", (gid, existing_id)
-                    )
+                    await conn.execute("UPDATE memory_conflicts SET is_conflict=1, conflict_group_id=? WHERE id=?", (gid, existing_id))
                 await conn.commit()
                 return {
                     "content": new_content,
@@ -77,9 +74,7 @@ class ConflictResolver:
     async def resolve(self, conflict_group_id: str, keep_id: int) -> bool:
         await self._init_db()
         conn = await self._cm.get("memory.db")
-        await conn.execute(
-            "DELETE FROM memory_conflicts WHERE conflict_group_id=? AND id!=?", (conflict_group_id, keep_id)
-        )
+        await conn.execute("DELETE FROM memory_conflicts WHERE conflict_group_id=? AND id!=?", (conflict_group_id, keep_id))
         await conn.execute("UPDATE memory_conflicts SET is_conflict=0, conflict_group_id=NULL WHERE id=?", (keep_id,))
         await conn.commit()
         return True

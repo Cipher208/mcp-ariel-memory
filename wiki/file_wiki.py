@@ -102,9 +102,7 @@ class FileWiki:
         d.mkdir(parents=True, exist_ok=True)
         return d
 
-    async def add(
-        self, wiki_type: str, title: str, content: str, tags: list[str] = None, importance: float = 0.5
-    ) -> str:
+    async def add(self, wiki_type: str, title: str, content: str, tags: list[str] = None, importance: float = 0.5) -> str:
         """Create .md file and index it. Returns file path."""
         enabled = self._get_enabled_types()
         if enabled and wiki_type not in enabled:
@@ -119,9 +117,7 @@ class FileWiki:
         await self._index_file(file_path, wiki_type, title, content, tags, importance)
         return str(file_path)
 
-    async def update(
-        self, file_path: str, title: str = None, content: str = None, tags: list[str] = None, importance: float = None
-    ):
+    async def update(self, file_path: str, title: str = None, content: str = None, tags: list[str] = None, importance: float = None):
         """Update .md file and re-index."""
         p = Path(file_path)
         if not p.exists():
@@ -223,9 +219,7 @@ class FileWiki:
 
     async def list_all(self, limit: int = 50) -> list[WikiEntry]:
         conn = await self._cm.get("memory.db")
-        cur = await conn.execute(
-            "SELECT * FROM wiki_index WHERE layer=? ORDER BY updated_at DESC LIMIT ?", (self.layer, limit)
-        )
+        cur = await conn.execute("SELECT * FROM wiki_index WHERE layer=? ORDER BY updated_at DESC LIMIT ?", (self.layer, limit))
         rows = await cur.fetchall()
         entries = []
         for r in rows:
@@ -259,9 +253,7 @@ class FileWiki:
     async def count(self, wiki_type: str = None) -> int:
         conn = await self._cm.get("memory.db")
         if wiki_type:
-            cur = await conn.execute(
-                "SELECT COUNT(*) FROM wiki_index WHERE layer=? AND wiki_type=?", (self.layer, wiki_type)
-            )
+            cur = await conn.execute("SELECT COUNT(*) FROM wiki_index WHERE layer=? AND wiki_type=?", (self.layer, wiki_type))
         else:
             cur = await conn.execute("SELECT COUNT(*) FROM wiki_index WHERE layer=?", (self.layer,))
         row = await cur.fetchone()
@@ -284,9 +276,7 @@ class FileWiki:
             for md_file in wiki_type_dir.glob("*.md"):
                 try:
                     parsed = self._parse_md(md_file.read_text(encoding="utf-8"))
-                    await self._index_file(
-                        md_file, wiki_type, parsed["title"], parsed["content"], parsed["tags"], parsed["importance"]
-                    )
+                    await self._index_file(md_file, wiki_type, parsed["title"], parsed["content"], parsed["tags"], parsed["importance"])
                     result["indexed"] += 1
                 except Exception:
                     result["errors"] += 1
@@ -310,22 +300,16 @@ class FileWiki:
                         result["skipped"] += 1
                         continue
 
-                    safe_title = (
-                        "".join(c if c.isalnum() or c in " _-" else "_" for c in title).strip().replace(" ", "_")
-                    )
+                    safe_title = "".join(c if c.isalnum() or c in " _-" else "_" for c in title).strip().replace(" ", "_")
                     dest = self._type_dir(wiki_type) / f"{safe_title}.md"
                     dest.write_text(content, encoding="utf-8")
-                    await self._index_file(
-                        dest, wiki_type, title, parsed["content"], parsed["tags"], parsed["importance"]
-                    )
+                    await self._index_file(dest, wiki_type, title, parsed["content"], parsed["tags"], parsed["importance"])
                     result["imported"] += 1
                 except Exception:
                     result["errors"] += 1
         return result
 
-    async def _index_file(
-        self, file_path: Path, wiki_type: str, title: str, content: str, tags: list[str] = None, importance: float = 0.5
-    ):
+    async def _index_file(self, file_path: Path, wiki_type: str, title: str, content: str, tags: list[str] = None, importance: float = 0.5):
         """Index a single .md file into DB."""
         import hashlib
 

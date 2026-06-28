@@ -67,9 +67,7 @@ class Saga:
         compensation: Callable[[dict], Coroutine[Any, Any, None]] | None = None,
         timeout_seconds: int | None = None,
     ) -> "Saga":
-        self._steps.append(
-            SagaStep(name=name, action=action, compensation=compensation, timeout_seconds=timeout_seconds)
-        )
+        self._steps.append(SagaStep(name=name, action=action, compensation=compensation, timeout_seconds=timeout_seconds))
         return self
 
     def _save_state(self):
@@ -189,9 +187,7 @@ class Saga:
                             await inner_step.compensation(inner_step.data)
                             logger.info("Saga '%s' compensated inner step '%s'" % (self.name, inner_step.name))
                         except Exception as e:
-                            logger.error(
-                                "Saga '%s' inner compensation failed for '%s': %s" % (self.name, inner_step.name, e)
-                            )
+                            logger.error("Saga '%s' inner compensation failed for '%s': %s" % (self.name, inner_step.name, e))
             elif step.compensation:
                 try:
                     await step.compensation(step.data)

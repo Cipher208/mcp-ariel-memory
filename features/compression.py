@@ -44,9 +44,7 @@ class MemoryCompressor:
         stats = {}
         for name, db in [("core", "memory.db"), ("episodes", "memory.db"), ("sessions", "memory.db")]:
             conn = await self._cm.get(db)
-            tables = [
-                r[0] for r in await (await conn.execute("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()
-            ]
+            tables = [r[0] for r in await (await conn.execute("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()]
             total = 0
             for t in tables:
                 try:

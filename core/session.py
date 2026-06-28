@@ -55,9 +55,7 @@ class SessionStore:
         await conn.commit()
         return session_id
 
-    async def close_session(
-        self, session_id: str, summary: str = "", state_deltas: dict = None, topics: list[str] = None
-    ):
+    async def close_session(self, session_id: str, summary: str = "", state_deltas: dict = None, topics: list[str] = None):
         conn = await self._cm.get("memory.db")
         await conn.execute(
             "UPDATE sessions SET summary=?, state_deltas=?, topics=?, ended_at=? WHERE session_id=?",

@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "mcp-ariel-memory"
 version = "1.0.0"
 description = "Universal Two-Layer Memory MCP Server for AI agents"
-readme = "README_EN.md"
+readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [

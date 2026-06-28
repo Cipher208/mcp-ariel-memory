@@ -12,9 +12,7 @@ class ConsolidationEngine:
     def __init__(self, cm: AsyncConnectionManager = None):
         self._cm = cm or connection_manager
 
-    async def consolidate_staging(
-        self, user_id: str, staging_items: list[dict[str, Any]], min_importance: float = 0.7
-    ) -> dict[str, int]:
+    async def consolidate_staging(self, user_id: str, staging_items: list[dict[str, Any]], min_importance: float = 0.7) -> dict[str, int]:
         from core.memory import CoreMemory
 
         cm = CoreMemory(cm=self._cm)
@@ -58,12 +56,8 @@ class ConsolidationEngine:
         conn = await self._cm.get("memory.db")
         total_cursor = await conn.execute("SELECT COUNT(*) FROM core_memory WHERE user_id=?", (user_id,))
         total = (await total_cursor.fetchone())[0]
-        high_cursor = await conn.execute(
-            "SELECT COUNT(*) FROM core_memory WHERE user_id=? AND importance > 0.7", (user_id,)
-        )
+        high_cursor = await conn.execute("SELECT COUNT(*) FROM core_memory WHERE user_id=? AND importance > 0.7", (user_id,))
         high = (await high_cursor.fetchone())[0]
-        low_cursor = await conn.execute(
-            "SELECT COUNT(*) FROM core_memory WHERE user_id=? AND importance < 0.3", (user_id,)
-        )
+        low_cursor = await conn.execute("SELECT COUNT(*) FROM core_memory WHERE user_id=? AND importance < 0.3", (user_id,))
         low = (await low_cursor.fetchone())[0]
         return {"total": total, "high_importance": high, "low_importance": low}

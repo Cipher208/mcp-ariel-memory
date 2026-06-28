@@ -34,9 +34,7 @@ class ImportExport:
         cursor = await conn.execute("SELECT * FROM core_memory WHERE user_id=?", (user_id,))
         rows = await cursor.fetchall()
         for r in rows:
-            data["core_memory"].append(
-                {"key": r["key"], "value": r["value"], "importance": r["importance"], "created_at": r["created_at"]}
-            )
+            data["core_memory"].append({"key": r["key"], "value": r["value"], "importance": r["importance"], "created_at": r["created_at"]})
 
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute("SELECT * FROM episodes WHERE user_id=?", (user_id,))

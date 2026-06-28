@@ -50,9 +50,7 @@ class TemporalGraph:
         """,
         )
 
-    async def add_event(
-        self, user_id: str, event_type: str, content: str, importance: float = 0.5, metadata: dict = None
-    ) -> int:
+    async def add_event(self, user_id: str, event_type: str, content: str, importance: float = 0.5, metadata: dict = None) -> int:
         import json
 
         conn = await self._cm.get("memory.db")
@@ -93,9 +91,7 @@ class TemporalGraph:
             for r in rows
         ]
 
-    async def get_events_near(
-        self, user_id: str, timestamp: float, window_seconds: float = 3600, limit: int = 20
-    ) -> list[TemporalEvent]:
+    async def get_events_near(self, user_id: str, timestamp: float, window_seconds: float = 3600, limit: int = 20) -> list[TemporalEvent]:
         import json
 
         conn = await self._cm.get("memory.db")
@@ -117,9 +113,7 @@ class TemporalGraph:
             for r in rows
         ]
 
-    async def get_causal_chain(
-        self, event_id: int, direction: str = "forward", limit: int = 10
-    ) -> list[dict[str, Any]]:
+    async def get_causal_chain(self, event_id: int, direction: str = "forward", limit: int = 10) -> list[dict[str, Any]]:
         conn = await self._cm.get("memory.db")
         if direction == "forward":
             sql = "SELECT tl.to_event, te.event_type, te.content, te.timestamp FROM temporal_links tl JOIN temporal_events te ON tl.to_event = te.event_id WHERE tl.from_event = ? LIMIT ?"

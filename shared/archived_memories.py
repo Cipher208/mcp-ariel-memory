@@ -63,9 +63,7 @@ class ArchivedMemories:
 
     async def count(self, user_id: str = "default") -> int:
         conn = await self._cm.get("memory.db")
-        row = await (
-            await conn.execute("SELECT COUNT(*) FROM archived_memories WHERE user_id=?", (user_id,))
-        ).fetchone()
+        row = await (await conn.execute("SELECT COUNT(*) FROM archived_memories WHERE user_id=?", (user_id,))).fetchone()
         return row[0] if row else 0
 
     async def restore(self, archived_id: int) -> dict[str, Any] | None:

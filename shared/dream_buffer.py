@@ -71,9 +71,7 @@ class DreamBuffer:
     async def clear_staging(self, user_id: str = "default", session_id: str = None) -> int:
         conn = await self._cm.get("memory.db")
         if session_id:
-            cursor = await conn.execute(
-                "DELETE FROM staging_memories WHERE user_id=? AND session_id=?", (user_id, session_id)
-            )
+            cursor = await conn.execute("DELETE FROM staging_memories WHERE user_id=? AND session_id=?", (user_id, session_id))
         else:
             cursor = await conn.execute("DELETE FROM staging_memories WHERE user_id=?", (user_id,))
         await conn.commit()

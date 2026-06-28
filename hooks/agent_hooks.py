@@ -41,32 +41,24 @@ class AgentHooks:
     def _decision_made(self, ctx: dict[str, Any]) -> dict[str, Any]:
         decision = ctx.get("decision", "")
         rationale = ctx.get("rationale", "")
-        node_id = self.graph.add_node(
-            self.user_id, f"{decision}: {rationale}", "decision_log", ["decided_because"], 0.7
-        )
+        node_id = self.graph.add_node(self.user_id, f"{decision}: {rationale}", "decision_log", ["decided_because"], 0.7)
         return {"action": "decision_logged", "node_id": node_id}
 
     def _self_correction(self, ctx: dict[str, Any]) -> dict[str, Any]:
         error = ctx.get("error", "")
         fix = ctx.get("fix", "")
-        node_id = self.graph.add_node(
-            self.user_id, f"Error: {error} → Fix: {fix}", "correction", ["correction_pattern"], 0.6
-        )
+        node_id = self.graph.add_node(self.user_id, f"Error: {error} → Fix: {fix}", "correction", ["correction_pattern"], 0.6)
         return {"action": "correction_logged", "node_id": node_id}
 
     def _personality_shift(self, ctx: dict[str, Any]) -> dict[str, Any]:
         shift = ctx.get("shift", "")
-        node_id = self.graph.add_node(
-            self.user_id, shift, "personality_evolution", ["personality_trait", "evolved_to"], 0.9
-        )
+        node_id = self.graph.add_node(self.user_id, shift, "personality_evolution", ["personality_trait", "evolved_to"], 0.9)
         return {"action": "personality_evolved", "node_id": node_id}
 
     def _emotion_context(self, ctx: dict[str, Any]) -> dict[str, Any]:
         emotion = ctx.get("emotion", "")
         context = ctx.get("context", "")
-        node_id = self.graph.add_node(
-            self.user_id, f"{emotion} in: {context}", "emotional_context", ["felt_in_context"], 0.6
-        )
+        node_id = self.graph.add_node(self.user_id, f"{emotion} in: {context}", "emotional_context", ["felt_in_context"], 0.6)
         return {"action": "emotion_logged", "node_id": node_id}
 
     def _wiki_agent(self, ctx: dict[str, Any]) -> dict[str, Any]:

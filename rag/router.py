@@ -99,9 +99,7 @@ class RetrievalRouter:
             entity_results = []
             for entity in entities:
                 nodes = await graph.query_by_tag(self.user_id, entity, limit=3)
-                entity_results.extend(
-                    [{"title": n.content, "type": n.node_type, "tags": n.tags, "entity": entity} for n in nodes]
-                )
+                entity_results.extend([{"title": n.content, "type": n.node_type, "tags": n.tags, "entity": entity} for n in nodes])
             if entity_results:
                 return RouterResult(Strategy.GRAPH, entity_results, 0.85)
 

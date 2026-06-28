@@ -196,9 +196,7 @@ class RAGEngine:
             for r in rows
         ]
 
-    async def search_rrf(
-        self, query: str, user_id: str = "default", limit: int = 10, k: int = 60
-    ) -> list[dict[str, Any]]:
+    async def search_rrf(self, query: str, user_id: str = "default", limit: int = 10, k: int = 60) -> list[dict[str, Any]]:
         fts_results = await self.search(query, user_id, limit=limit * 2)
         fts_ranks = {doc["id"]: rank for rank, doc in enumerate(fts_results)}
 
@@ -241,9 +239,7 @@ class RAGEngine:
         conn = await self._cm.get("memory.db")
         results = []
         for doc_id in sorted_ids:
-            row = await (
-                await conn.execute("SELECT id, title, content, wiki_type FROM rag_pages WHERE id=?", (doc_id,))
-            ).fetchone()
+            row = await (await conn.execute("SELECT id, title, content, wiki_type FROM rag_pages WHERE id=?", (doc_id,))).fetchone()
             if row:
                 has_fts = doc_id in fts_ranks
                 has_vec = doc_id in vec_ranks
@@ -277,9 +273,7 @@ class RAGEngine:
         rows = await cur.fetchall()
         return [{"id": r[0], "title": r[1], "relation": r[2], "weight": r[3]} for r in rows]
 
-    async def add_relation(
-        self, source_id: int, target_id: int, relation_type: str = "elaborates", weight: float = 0.8
-    ):
+    async def add_relation(self, source_id: int, target_id: int, relation_type: str = "elaborates", weight: float = 0.8):
         conn = await self._cm.get("memory.db")
         await conn.execute(
             "INSERT OR REPLACE INTO rag_relations (source_id, target_id, relation_type, weight) VALUES (?, ?, ?, ?)",

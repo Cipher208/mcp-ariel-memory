@@ -75,9 +75,7 @@ class CoreMemory:
 
     async def get_all(self, user_id: str, limit: int = 50) -> list[CoreEntry]:
         conn = await self._cm.get("memory.db")
-        cursor = await conn.execute(
-            "SELECT * FROM core_memory WHERE user_id=? ORDER BY importance DESC LIMIT ?", (user_id, limit)
-        )
+        cursor = await conn.execute("SELECT * FROM core_memory WHERE user_id=? ORDER BY importance DESC LIMIT ?", (user_id, limit))
         rows = await cursor.fetchall()
         return [self._row_to_entry(r) for r in rows]
 

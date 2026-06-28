@@ -83,9 +83,7 @@ class ForgettingSystem:
     async def compress_duplicates(self) -> int:
         try:
             conn = await self._cm.get("memory.db")
-            cursor = await conn.execute(
-                "SELECT user_id, key, COUNT(*) as cnt FROM core_memory GROUP BY user_id, key HAVING cnt > 1"
-            )
+            cursor = await conn.execute("SELECT user_id, key, COUNT(*) as cnt FROM core_memory GROUP BY user_id, key HAVING cnt > 1")
             duplicates = await cursor.fetchall()
             removed = 0
             for dup in duplicates:

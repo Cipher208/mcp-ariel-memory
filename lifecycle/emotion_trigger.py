@@ -154,9 +154,7 @@ STATE_SHIFT_THRESHOLD = 0.15
 
 
 class EmotionTrigger:
-    def should_save(
-        self, message: str, emotional_state: dict = None, state_delta: dict = None
-    ) -> tuple[bool, str, float]:
+    def should_save(self, message: str, emotional_state: dict = None, state_delta: dict = None) -> tuple[bool, str, float]:
         msg_lower = message.lower()
 
         # 1. Phrase patterns (high priority)

@@ -41,9 +41,7 @@ class BackupCron:
                 pass
 
     def _save_state(self):
-        self._state_file.write_text(
-            json.dumps({"last_backup": self._last_backup, "last_wiki_sync": self._last_wiki_sync}), encoding="utf-8"
-        )
+        self._state_file.write_text(json.dumps({"last_backup": self._last_backup, "last_wiki_sync": self._last_wiki_sync}), encoding="utf-8")
 
     def start(self):
         if self._running:
