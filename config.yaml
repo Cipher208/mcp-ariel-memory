@@ -59,6 +59,13 @@ rag:
   chunk_size: 500
   search_limit: 10
 
+# === Binary Embeddings (MIB) ===
+binary:
+  enabled: true
+  mode: "naive"  # naive | supervised_path
+  dim: 384
+  thresholds_path: "~/.mcp-ariel-memory/thresholds.npy"  # only for supervised_path
+
 # === Embeddings ===
 embeddings:
   # Мультиязычная модель (100+ языков включая русский)

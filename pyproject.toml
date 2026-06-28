@@ -40,11 +40,17 @@ dev = [
 win = [
     "aiosqlite>=0.20",
 ]
+binary = [
+    "numpy>=1.24",
+]
 vec = [
     "sqlite-vec>=0.1",
 ]
+ann = [
+    "hnswlib>=0.7",
+]
 all = [
-    "mcp-ariel-memory[dev,win,vec]",
+    "mcp-ariel-memory[dev,win,binary,vec,ann]",
 ]
 
 [project.scripts]

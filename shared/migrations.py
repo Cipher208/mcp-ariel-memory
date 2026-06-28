@@ -195,6 +195,21 @@ def _get_migrations() -> list[Migration]:
 
     migrations.append(Migration(1, "init_unified_schema", v1_init))
 
+    async def v2_binary_embeddings(conn):
+        """Add binary embeddings column for MIB search."""
+        try:
+            await conn.execute("ALTER TABLE rag_chunks ADD COLUMN bin_embedding BLOB")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_rag_chunks_bin
+            ON rag_chunks(page_id, id)
+            WHERE bin_embedding IS NOT NULL
+        """)
+
+    migrations.append(Migration(2, "binary_embeddings", v2_binary_embeddings))
+
     return migrations
 
 
