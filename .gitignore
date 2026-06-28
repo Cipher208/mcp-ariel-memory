@@ -16,3 +16,5 @@ archives/
 .env
 .venv/
 venv/
+
+.ai-memory/

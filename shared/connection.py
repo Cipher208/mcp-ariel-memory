@@ -4,8 +4,8 @@ AsyncConnectionManager — unified SQLite connection manager.
 Rules:
 - One connection per DB file (no pool — connection pooling is an anti-pattern for SQLite)
 - WAL + busy_timeout for concurrency
-- Native async via aiosqlite (already in dependencies)
-- row_factory = aiosqlite.Row (compatible with sqlite3.Row)
+- Platform-aware: aiosqlite on Linux/macOS, sync sqlite3 + to_thread on Windows
+- row_factory = sqlite3.Row (compatible across all platforms)
 
 Usage:
     cm = AsyncConnectionManager()
@@ -15,11 +15,13 @@ Usage:
 """
 
 import os
+import sys
+import asyncio
+import sqlite3
 import logging
+import threading
 from pathlib import Path
-from typing import Optional
-
-import aiosqlite
+from typing import Optional, Any
 
 logger = logging.getLogger(__name__)
 
@@ -28,24 +30,99 @@ _DEFAULT_DIR = os.environ.get(
     str(Path.home() / ".mcp-ariel-memory"),
 )
 
+# Windows has aiosqlite threading bug — use sync sqlite3 + to_thread
+_USE_SYNC = sys.platform == "win32"
+
+
+class _SyncConnectionWrapper:
+    """Wrap sync sqlite3.Connection to look like aiosqlite for Windows fallback."""
+
+    def __init__(self, conn: sqlite3.Connection):
+        self._conn = conn
+        self.row_factory = conn.row_factory
+        self._lock = threading.Lock()
+
+    async def execute(self, sql: str, params: tuple = ()) -> "_SyncCursorWrapper":
+        def _do():
+            with self._lock:
+                return self._conn.execute(sql, params)
+        cursor = await asyncio.to_thread(_do)
+        return _SyncCursorWrapper(cursor)
+
+    async def executemany(self, sql: str, params_list: list) -> None:
+        def _do():
+            with self._lock:
+                self._conn.executemany(sql, params_list)
+        await asyncio.to_thread(_do)
+
+    async def executescript(self, sql: str) -> None:
+        def _do():
+            with self._lock:
+                self._conn.executescript(sql)
+        await asyncio.to_thread(_do)
+
+    async def commit(self) -> None:
+        def _do():
+            with self._lock:
+                self._conn.commit()
+        await asyncio.to_thread(_do)
+
+    async def rollback(self) -> None:
+        def _do():
+            with self._lock:
+                self._conn.rollback()
+        await asyncio.to_thread(_do)
+
+    async def close(self) -> None:
+        def _do():
+            with self._lock:
+                self._conn.close()
+        await asyncio.to_thread(_do)
+
+    def cursor(self) -> "_SyncCursorWrapper":
+        return _SyncCursorWrapper(self._conn.cursor())
+
+
+class _SyncCursorWrapper:
+    """Wrap sync cursor to provide async interface."""
+
+    def __init__(self, cursor: sqlite3.Cursor):
+        self._cursor = cursor
+
+    async def fetchone(self) -> Optional[Any]:
+        return await asyncio.to_thread(self._cursor.fetchone)
+
+    async def fetchall(self) -> list:
+        return await asyncio.to_thread(self._cursor.fetchall)
+
+    async def fetchmany(self, size: int) -> list:
+        return await asyncio.to_thread(self._cursor.fetchmany, size)
+
+    @property
+    def rowcount(self) -> int:
+        return self._cursor.rowcount
+
+    @property
+    def lastrowid(self) -> Optional[int]:
+        return self._cursor.lastrowid
+
 
 class AsyncConnectionManager:
-    """One connection per DB file. No pool — internal queue in aiosqlite."""
+    """One connection per DB file. Platform-aware async wrapper."""
 
     def __init__(self, base_dir: str = ""):
         self.base_dir = Path(base_dir or _DEFAULT_DIR)
         self.base_dir.mkdir(parents=True, exist_ok=True)
-        self._conns: dict[str, aiosqlite.Connection] = {}
+        self._conns: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
     # Core API
     # ------------------------------------------------------------------
 
-    async def get(self, db_name: str = "memory.db") -> aiosqlite.Connection:
+    async def get(self, db_name: str = "memory.db"):
         """Return (or create) a connection to `db_name`."""
         if db_name in self._conns:
             conn = self._conns[db_name]
-            # check if connection is alive
             try:
                 await conn.execute("SELECT 1")
                 return conn
@@ -54,17 +131,39 @@ class AsyncConnectionManager:
                 del self._conns[db_name]
 
         db_path = str(self.base_dir / db_name)
+
+        if _USE_SYNC:
+            conn = await self._get_sync_conn(db_path)
+        else:
+            conn = await self._get_aiosqlite_conn(db_path)
+
+        self._conns[db_name] = conn
+        logger.debug("opened connection %s (%s) [sync=%s]", db_name, db_path, _USE_SYNC)
+        return conn
+
+    async def _get_aiosqlite_conn(self, db_path: str):
+        """Create aiosqlite connection (Linux/macOS)."""
+        import aiosqlite
         conn = await aiosqlite.connect(db_path)
         conn.row_factory = aiosqlite.Row
         await conn.execute("PRAGMA journal_mode=WAL")
         await conn.execute("PRAGMA busy_timeout=5000")
         await conn.execute("PRAGMA synchronous=NORMAL")
-        # foreign keys for integrity
         await conn.execute("PRAGMA foreign_keys=ON")
-
-        self._conns[db_name] = conn
-        logger.debug("opened connection %s (%s)", db_name, db_path)
         return conn
+
+    async def _get_sync_conn(self, db_path: str) -> _SyncConnectionWrapper:
+        """Create sync sqlite3 connection wrapped for async (Windows)."""
+        def _connect():
+            conn = sqlite3.connect(db_path, check_same_thread=False)
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=5000")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.execute("PRAGMA foreign_keys=ON")
+            return conn
+        raw_conn = await asyncio.to_thread(_connect)
+        return _SyncConnectionWrapper(raw_conn)
 
     async def close_all(self):
         """Close all open connections (on shutdown)."""
@@ -80,6 +179,7 @@ class AsyncConnectionManager:
         return {
             "connections": len(self._conns),
             "dbs": list(self._conns.keys()),
+            "backend": "sync" if _USE_SYNC else "aiosqlite",
         }
 
     # ------------------------------------------------------------------
@@ -111,37 +211,3 @@ class AsyncConnectionManager:
 
 # Global instance — used by default
 connection_manager = AsyncConnectionManager()
-
-
-# ------------------------------------------------------------------
-# Example: how to migrate any module to AsyncConnectionManager
-# ------------------------------------------------------------------
-#
-# BEFORE:
-#
-#   class CoreMemory:
-#       def __init__(self, db_path=None):
-#           self.db_path = db_path or str(Path.home() / ".mcp-ariel-memory" / "memory.db")
-#           self._init_db()
-#
-#       def _get_conn(self):
-#           conn = sqlite3.connect(self.db_path)
-#           conn.row_factory = sqlite3.Row
-#           conn.execute("PRAGMA journal_mode=WAL")
-#           return conn
-#
-# AFTER:
-#
-#   class CoreMemory:
-#       def __init__(self, cm: AsyncConnectionManager = None):
-#           self._cm = cm or connection_manager
-#
-#       async def _init_db(self):
-#           await self._cm.execute_script("memory.db", """
-#               CREATE TABLE IF NOT EXISTS core_memory (...)
-#           """)
-#
-#       async def save(self, user_id, key, value, importance=0.5):
-#           conn = await self._cm.get("memory.db")
-#           await conn.execute("UPSERT ...", (user_id, key, value, importance))
-#           await conn.commit()

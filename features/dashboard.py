@@ -166,6 +166,7 @@ class Dashboard:
         sys.path.insert(0, str(Path(__file__).parent.parent))
         from core import memory_manager
         from wiki.file_wiki import FileWiki
+        from graph.epistemic import EpistemicGraph
 
         mm = memory_manager
         uw = FileWiki(layer="user")

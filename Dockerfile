@@ -14,9 +14,9 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 
-# config.yaml монтируется как volume при запуске:
+# Mount config.yaml as volume at runtime:
 # docker run -v $(pwd)/config.yaml:/app/config.yaml -p 8000:8000 ariel-memory
-# Или через docker-compose (см. docker-compose.yml)
+# Or use docker-compose (see docker-compose.yml)
 
 ENTRYPOINT ["python", "-m", "mcp_ariel_memory"]
 CMD ["--transport", "http", "--host", "0.0.0.0", "--port", "8000"]
