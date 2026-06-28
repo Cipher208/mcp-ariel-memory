@@ -344,23 +344,29 @@ chunks = await rag.count_chunks()
 def _chunk_text(self, text: str, max_size: int = 500, overlap: int = 100) -> List[str]
 ```
 
-Splits text into chunks by paragraph boundaries. Paragraphs exceeding `max_size` are split at word boundaries. The `overlap` parameter is defined but not currently used in the implementation.
+Splits text into chunks with sliding overlap for semantic continuity.
+
+**Rules**:
+1. Split on double newline (paragraph)
+2. When accumulated buffer reaches `max_size`, flush it. Last `overlap` chars carry over to next chunk
+3. Paragraphs longer than `max_size` are split by words (overlap only at paragraph boundaries)
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `text` | `str` | — | Input text to chunk |
 | `max_size` | `int` | `500` | Maximum character count per chunk |
-| `overlap` | `int` | `100` | Overlap between chunks (currently unused) |
+| `overlap` | `int` | `100` | Overlap between chunks (must be < max_size) |
 
-**Returns**: `List[str]` — List of text chunks.
+**Returns**: `List[str]` — List of text chunks with sliding overlap.
 
 ```python
 rag = RAGEngine(layer="user")
 chunks = rag._chunk_text("First paragraph.\n\nSecond paragraph.\n\nThird paragraph.")
 # ["First paragraph.", "Second paragraph.", "Third paragraph."]
 
-chunks = rag._chunk_text("A" * 1000, max_size=500)
-# ["A...A", "A...A"]  # split at word boundary
+# With overlap
+chunks = rag._chunk_text("A" * 1000, max_size=500, overlap=100)
+# ["A...A", "...A...A", "...A"]  # overlap between chunks
 ```
 
 ---
