@@ -17,7 +17,7 @@ os.environ.setdefault("MCP_MEMORY_DATA_DIR", _data_dir)
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from core import memory_manager
+from core import memory_manager, MemoryManager
 from rag.engine import RAGEngine
 from rag.router import RetrievalRouter
 from rag.conflict import ConflictResolver

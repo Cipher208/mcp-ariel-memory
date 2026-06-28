@@ -31,7 +31,17 @@ _DEFAULT_DIR = os.environ.get(
 )
 
 # Windows has aiosqlite threading bug — use sync sqlite3 + to_thread
+# On Linux/macOS, try aiosqlite first, fallback to sync if not installed
 _USE_SYNC = sys.platform == "win32"
+
+if not _USE_SYNC:
+    try:
+        import aiosqlite
+        _HAS_AIOSQLITE = True
+    except ImportError:
+        _HAS_AIOSQLITE = False
+        _USE_SYNC = True
+        logger.warning("aiosqlite not installed, falling back to sync sqlite3")
 
 
 class _SyncConnectionWrapper:
