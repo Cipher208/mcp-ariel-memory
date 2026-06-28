@@ -160,7 +160,7 @@ class Dashboard:
     def __init__(self, data_dir: str = None):
         self.data_dir = Path(data_dir or str(Path.home() / ".mcp-ariel-memory"))
 
-    def get_stats(self, user_id: str = "default") -> dict[str, Any]:
+    async def get_stats(self, user_id: str = "default") -> dict[str, Any]:
         import sys
 
         sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -178,47 +178,47 @@ class Dashboard:
 
         return {
             "l1_buffer": um.l1.size(),
-            "l2_sessions": um.l2.count_sessions(user_id),
-            "l3_episodes": len(um.l3.get_episodes(user_id, 1000)),
-            "l4_facts": um.l4.count(user_id),
-            "wiki_pages": uw.count(user_id),
-            "graph_nodes": ug.count_nodes(user_id),
+            "l2_sessions": await um.l2.count_sessions(user_id),
+            "l3_episodes": len(await um.l3.get_episodes(user_id, 1000)),
+            "l4_facts": await um.l4.count(user_id),
+            "wiki_pages": await uw.count(user_id),
+            "graph_nodes": await ug.count_nodes(user_id),
             "agent_l1": am.l1.size(),
-            "agent_l2": am.l2.count_sessions(user_id),
-            "agent_l3": len(am.l3.get_episodes(user_id, 1000)),
-            "agent_l4": am.l4.count(user_id),
-            "agent_wiki": aw.count(user_id),
+            "agent_l2": await am.l2.count_sessions(user_id),
+            "agent_l3": len(await am.l3.get_episodes(user_id, 1000)),
+            "agent_l4": await am.l4.count(user_id),
+            "agent_wiki": await aw.count(user_id),
         }
 
-    def get_user_facts(self, user_id: str = "default") -> list:
+    async def get_user_facts(self, user_id: str = "default") -> list:
         from core import memory_manager
 
-        facts = memory_manager.user_memory(user_id).l4.get_all(user_id, limit=50)
+        facts = await memory_manager.user_memory(user_id).l4.get_all(user_id, limit=50)
         return [{"key": f.key, "value": f.value, "importance": f.importance} for f in facts]
 
-    def get_agent_facts(self, user_id: str = "default") -> list:
+    async def get_agent_facts(self, user_id: str = "default") -> list:
         from core import memory_manager
 
-        facts = memory_manager.agent_memory(user_id).l4.get_all(user_id, limit=50)
+        facts = await memory_manager.agent_memory(user_id).l4.get_all(user_id, limit=50)
         return [{"key": f.key, "value": f.value, "importance": f.importance} for f in facts]
 
-    def get_user_episodes(self, user_id: str = "default") -> list:
+    async def get_user_episodes(self, user_id: str = "default") -> list:
         from core import memory_manager
 
-        eps = memory_manager.user_memory(user_id).l3.get_episodes(user_id, limit=20)
+        eps = await memory_manager.user_memory(user_id).l3.get_episodes(user_id, limit=20)
         return [{"summary": e.summary, "weight": e.emotional_weight, "tags": e.tags} for e in eps]
 
-    def get_agent_episodes(self, user_id: str = "default") -> list:
+    async def get_agent_episodes(self, user_id: str = "default") -> list:
         from core import memory_manager
 
-        eps = memory_manager.agent_memory(user_id).l3.get_episodes(user_id, limit=20)
+        eps = await memory_manager.agent_memory(user_id).l3.get_episodes(user_id, limit=20)
         return [{"summary": e.summary, "weight": e.emotional_weight, "tags": e.tags} for e in eps]
 
-    def get_audit(self, limit: int = 20) -> list:
+    async def get_audit(self, limit: int = 20) -> list:
         from features.audit_trail import AuditTrail
 
         at = AuditTrail()
-        return at.get_history("default", limit=limit)
+        return await at.get_history("default", limit=limit)
 
     def render_html(self) -> str:
         return DASHBOARD_HTML

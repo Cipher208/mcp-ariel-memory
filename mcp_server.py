@@ -1122,12 +1122,6 @@ def _run_with_dashboard(host: str, port: int):
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
         if not check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
-
-    async def auth_create(request):
-        if not check_auth(request):
-            return JSONResponse({"error": "Unauthorized"}, status_code=401)
-        if not check_rate_limit(request):
-            return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         from features.auth import api_key_auth
 
         body = await request.json()
