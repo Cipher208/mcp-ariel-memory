@@ -1,6 +1,7 @@
 """
 Saga — pattern for multi-step operations with compensation (rollback).
 Includes watchdog for detecting stuck sagas and persistence for recovery.
+State files are encrypted at rest using envelope encryption.
 """
 
 import asyncio
@@ -17,6 +18,12 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 SAGA_DIR = Path.home() / ".mcp-ariel-memory" / "sagas"
+
+try:
+    from features.secrets import encrypt_json, decrypt_json, is_encrypted_blob
+    _HAS_ENCRYPTION = True
+except ImportError:
+    _HAS_ENCRYPTION = False
 
 
 class SagaStatus(str, Enum):
@@ -71,7 +78,7 @@ class Saga:
         return self
 
     def _save_state(self):
-        """Save state to disk for crash recovery."""
+        """Save state to disk for crash recovery (encrypted if available)."""
         state_file = SAGA_DIR / (self._saga_id + ".json")
         state = {
             "name": self.name,
@@ -83,16 +90,25 @@ class Saga:
             "steps": [{"name": s.name, "status": s.status.value, "result": s.result} for s in self._steps],
         }
         try:
-            state_file.write_text(json.dumps(state, indent=2, default=str), encoding="utf-8")
+            SAGA_DIR.mkdir(parents=True, exist_ok=True)
+            if _HAS_ENCRYPTION:
+                blob = encrypt_json(state)
+                state_file.write_bytes(blob)
+            else:
+                state_file.write_text(json.dumps(state, indent=2, default=str), encoding="utf-8")
         except Exception as e:
             logger.error("Failed to save saga state: %s" % e)
 
     def _load_state(self, saga_id: str) -> dict | None:
-        """Load state from disk."""
+        """Load state from disk (supports encrypted and legacy plain JSON)."""
         state_file = SAGA_DIR / (saga_id + ".json")
         if state_file.exists():
             try:
-                return json.loads(state_file.read_text(encoding="utf-8"))
+                blob = state_file.read_bytes()
+                if _HAS_ENCRYPTION and is_encrypted_blob(state_file):
+                    return decrypt_json(blob)
+                # Legacy plain JSON
+                return json.loads(blob.decode("utf-8"))
             except Exception:
                 pass
         return None
