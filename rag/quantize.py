@@ -11,6 +11,7 @@ from typing import Iterable, Optional, Sequence
 
 try:
     import numpy as np
+
     _HAS_NUMPY = True
 except ImportError:
     _HAS_NUMPY = False

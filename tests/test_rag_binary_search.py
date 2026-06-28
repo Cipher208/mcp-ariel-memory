@@ -1,7 +1,6 @@
 """Integration tests for RAGEngine.search_binary via aiosqlite."""
+
 import pytest
-import numpy as np
-from pathlib import Path
 
 from rag.engine import RAGEngine
 from shared.connection import AsyncConnectionManager
@@ -60,9 +59,7 @@ async def test_ingest_stores_both_embeddings(rag):
     """Verify both float and binary embeddings are stored."""
     page_id = await rag.ingest_text("test", "Test content for embedding storage", user_id="charlie")
     conn = await rag._cm.get("memory.db")
-    row = await (await conn.execute(
-        "SELECT embedding, bin_embedding FROM rag_chunks WHERE page_id=?", (page_id,)
-    )).fetchone()
+    row = await (await conn.execute("SELECT embedding, bin_embedding FROM rag_chunks WHERE page_id=?", (page_id,))).fetchone()
     # At least one embedding should be present
     assert row["embedding"] is not None or row["bin_embedding"] is not None
 

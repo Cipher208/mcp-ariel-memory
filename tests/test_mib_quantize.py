@@ -1,10 +1,9 @@
 """Unit tests for rag/quantize. Pure numpy, no DB."""
+
 import pytest
 
 from rag.quantize import (
-    DEFAULT_DIM,
     binary_batch,
-    binary_from_threshold_array,
     embed_to_binary,
     hamming_distance,
     hamming_to_score,
@@ -45,7 +44,6 @@ def test_hamming_to_score():
 
 
 def test_binary_batch_consistent_with_single():
-    import numpy as np
     embs = [
         [0.1, -0.2, 0.3, -0.4, 0.5, -0.6, 0.7, -0.8],
         [-0.1, 0.2, -0.3, 0.4, -0.5, 0.6, -0.7, 0.8],
@@ -58,6 +56,7 @@ def test_binary_batch_consistent_with_single():
 def test_supervised_threshold_separates_pos_neg():
     """Supervised threshold should find optimal separation point."""
     import numpy as np
+
     # Create pairs with clear separation
     pos_pairs = [([0.8, 0.2] * 192, [0.9, 0.3] * 192)]  # dim=384
     thr = supervised_threshold(pos_pairs, dim=384, n_candidates=10)
@@ -72,6 +71,7 @@ def test_supervised_threshold_separates_pos_neg():
 def test_binary_pipeline_roundtrip():
     """Generate → binarize → compute distance — idempotent for identical."""
     import numpy as np
+
     rng = np.random.default_rng(42)
     a = rng.normal(0, 1, size=384).tolist()
     b = a[:]  # copy
@@ -94,7 +94,6 @@ def test_hamming_distance_length_mismatch():
 
 
 def test_binary_batch_invalid_shape():
-    import numpy as np
     embs = [[0.1, 0.2]]  # dim=2, not 8
     with pytest.raises(ValueError):
         binary_batch(embs, dim=8)

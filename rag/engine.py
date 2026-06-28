@@ -11,8 +11,8 @@ from typing import Any, Optional
 from shared.connection import AsyncConnectionManager, connection_manager
 
 try:
-    from rag.quantize import embed_to_binary, hamming_distance, hamming_to_score, binary_from_threshold_array
-    import numpy as np
+    from rag.quantize import embed_to_binary, hamming_distance, hamming_to_score
+
     _HAS_BINARY = True
 except ImportError:
     _HAS_BINARY = False
@@ -45,6 +45,7 @@ class RAGEngine:
             return None
         try:
             import numpy as np
+
             self._thresholds_cache = np.load(self.binary_thresholds_path)
         except (FileNotFoundError, Exception):
             return None
@@ -57,6 +58,7 @@ class RAGEngine:
         thr = self._load_thresholds()
         if thr is not None:
             from rag.quantize import binary_from_threshold_array
+
             return binary_from_threshold_array(emb, thr)
         return embed_to_binary(emb, threshold=0.0, dim=len(emb))
 
@@ -257,14 +259,16 @@ class RAGEngine:
             return []
 
         from shared.embeddings import embed_text
+
         q_emb = await embed_text(query)
         q_bin = self._binary_for(q_emb)
         if q_bin is None:
             return []
 
         conn = await self._cm.get("memory.db")
-        rows = await (await conn.execute(
-            """
+        rows = await (
+            await conn.execute(
+                """
             SELECT c.id, c.page_id, c.content, c.bin_embedding,
                    p.title, p.wiki_type
             FROM rag_chunks c
@@ -272,21 +276,24 @@ class RAGEngine:
             WHERE p.user_id = ?
               AND c.bin_embedding IS NOT NULL
             """,
-            (user_id,),
-        )).fetchall()
+                (user_id,),
+            )
+        ).fetchall()
 
         scored = []
         for r in rows:
             d = hamming_distance(q_bin, r["bin_embedding"])
-            scored.append({
-                "id": r["id"],
-                "page_id": r["page_id"],
-                "title": r["title"],
-                "content": r["content"][:1024],
-                "wiki_type": r["wiki_type"],
-                "score": hamming_to_score(d, self.binary_dim),
-                "source": "mib",
-            })
+            scored.append(
+                {
+                    "id": r["id"],
+                    "page_id": r["page_id"],
+                    "title": r["title"],
+                    "content": r["content"][:1024],
+                    "wiki_type": r["wiki_type"],
+                    "score": hamming_to_score(d, self.binary_dim),
+                    "source": "mib",
+                }
+            )
         scored.sort(key=lambda x: (-x["score"], x["id"]))
         return scored[:limit]
 
