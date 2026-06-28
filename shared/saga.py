@@ -1,6 +1,6 @@
 """
-Saga — паттерн для многошаговых операций с компенсацией (откат).
-Включает watchdog для обнаружения зависших саг и persistence для восстановления.
+Saga — pattern for multi-step operations with compensation (rollback).
+Includes watchdog for detecting stuck sagas and persistence for recovery.
 """
 import asyncio
 import json
@@ -24,7 +24,7 @@ class SagaStatus(str, Enum):
     FAILED = "failed"
     COMPENSATING = "compensating"
     COMPENSATED = "compensated"
-    STUCK = "stuck"  # обнаружен watchdog'ом
+    STUCK = "stuck"  # detected by watchdog
 
 
 @dataclass
@@ -32,7 +32,7 @@ class SagaStep:
     name: str
     action: Callable[[dict], Coroutine[Any, Any, dict]]
     compensation: Optional[Callable[[dict], Coroutine[Any, Any, None]]] = None
-    timeout_seconds: Optional[int] = None  # таймаут шага (None = использовать таймаут саги)
+    timeout_seconds: Optional[int] = None  # step timeout (None = use saga timeout)
     status: SagaStatus = SagaStatus.PENDING
     result: dict = field(default_factory=dict)
     data: dict = field(default_factory=dict)
@@ -70,7 +70,7 @@ class Saga:
         return self
 
     def _save_state(self):
-        """Сохранить состояние на диск для восстановления после крэша."""
+        """Save state to disk for crash recovery."""
         state_file = SAGA_DIR / (self._saga_id + ".json")
         state = {
             "name": self.name,
@@ -90,7 +90,7 @@ class Saga:
             logger.error("Failed to save saga state: %s" % e)
 
     def _load_state(self, saga_id: str) -> Optional[dict]:
-        """Загрузить состояние с диска."""
+        """Load state from disk."""
         state_file = SAGA_DIR / (saga_id + ".json")
         if state_file.exists():
             try:
@@ -100,7 +100,7 @@ class Saga:
         return None
 
     def _cleanup_state(self):
-        """Удалить файл состояния после завершения."""
+        """Delete state file after completion."""
         state_file = SAGA_DIR / (self._saga_id + ".json")
         if state_file.exists():
             try:
@@ -126,7 +126,7 @@ class Saga:
                 self._save_state()
 
                 try:
-                    # Поддержка вложенных саг
+                    # Support for nested sagas
                     step_timeout = step.timeout_seconds or self.timeout_seconds
                     if isinstance(step.action, Saga):
                         inner = step.action
@@ -182,7 +182,7 @@ class Saga:
             if step.status != SagaStatus.COMPLETED:
                 continue
 
-            # Вложенные саги: компенсируем все завершённые шаги внутренней саги
+            # Nested sagas: compensate all completed steps of the inner saga
             if isinstance(step.action, Saga):
                 inner = step.action
                 for j in range(len(inner._steps) - 1, -1, -1):
@@ -218,7 +218,7 @@ class Saga:
 
 
 class SagaWatchdog:
-    """Обнаружение зависших саг и восстановление после крэша."""
+    """Detect stuck sagas and recover from crashes."""
 
     def __init__(self, check_interval: int = 60, max_age_seconds: int = 600):
         self.check_interval = check_interval
@@ -249,7 +249,7 @@ class SagaWatchdog:
                 time.sleep(30)
 
     def _check_stuck_sagas(self):
-        """Найти и пометить зависшие саги."""
+        """Find and mark stuck sagas."""
         SAGA_DIR.mkdir(parents=True, exist_ok=True)
         now = time.time()
 
@@ -272,7 +272,7 @@ class SagaWatchdog:
                 logger.error("Error checking saga %s: %s" % (state_file.name, e))
 
     def get_stuck_sagas(self) -> List[Dict[str, Any]]:
-        """Получить список зависших саг."""
+        """Get list of stuck sagas."""
         stuck = []
         SAGA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -294,7 +294,7 @@ class SagaWatchdog:
         return stuck
 
     def recover_saga(self, saga_id: str) -> Optional[Dict[str, Any]]:
-        """Попытаться восстановить зависшую сагу."""
+        """Attempt to recover a stuck saga."""
         state_file = SAGA_DIR / (saga_id + ".json")
         if not state_file.exists():
             return None
@@ -304,7 +304,7 @@ class SagaWatchdog:
             if state.get("status") != "stuck":
                 return {"error": "Saga is not stuck, status: %s" % state.get("status")}
 
-            # Пометить как требующее ручного вмешательства
+            # Mark as requiring manual intervention
             state["status"] = "manual_review_required"
             state["recovered_at"] = time.time()
             state_file.write_text(json.dumps(state, indent=2, default=str), encoding="utf-8")
@@ -314,7 +314,7 @@ class SagaWatchdog:
             return {"error": str(e)}
 
     def cleanup_completed(self) -> int:
-        """Удалить завершённые саги старше 1 часа."""
+        """Delete completed sagas older than 1 hour."""
         cutoff = time.time() - 3600
         removed = 0
         SAGA_DIR.mkdir(parents=True, exist_ok=True)
@@ -336,10 +336,10 @@ class SagaWatchdog:
 saga_watchdog = SagaWatchdog()
 
 
-# === Готовые саги для mcp-ariel-memory ===
+# === Ready-made sagas for mcp-ariel-memory ===
 
 async def _consolidation_gather(data: dict) -> dict:
-    """Собрать staging memories."""
+    """Gather staging memories."""
     mm = data.get("_mm")
     if not mm:
         return {"staging_count": 0}
@@ -351,7 +351,7 @@ async def _consolidation_gather(data: dict) -> dict:
 
 
 async def _consolidation_distill(data: dict) -> dict:
-    """Отфильтровать неважное."""
+    """Filter out unimportant items."""
     items = data.get("staging_items", [])
     important = [i for i in items if i.get("importance", 0) > 0.3]
     data["important_items"] = important
@@ -359,7 +359,7 @@ async def _consolidation_distill(data: dict) -> dict:
 
 
 async def _consolidation_promote(data: dict) -> dict:
-    """Продвинуть важное в L4."""
+    """Promote important items to L4."""
     mm = data.get("_mm")
     if not mm:
         return {"promoted": 0}
@@ -375,7 +375,7 @@ async def _consolidation_promote(data: dict) -> dict:
 
 
 async def _consolidation_compensate(data: dict) -> None:
-    """Откат: удалить продвинутые записи из core_memory."""
+    """Rollback: delete promoted entries from core_memory."""
     mm = data.get("_mm")
     if not mm:
         return
@@ -391,8 +391,8 @@ async def _consolidation_compensate(data: dict) -> None:
 
 
 def create_consolidation_saga(user_id: str, mm=None) -> Saga:
-    """Сага консолидации: gather → distill → promote.
-    Принимает mm (memory_manager) для избежания циркулярного импорта.
+    """Consolidation saga: gather → distill → promote.
+    Takes mm (memory_manager) to avoid circular imports.
     """
     saga = Saga("consolidation_%s" % user_id)
     saga.add_step("gather", _consolidation_gather, _consolidation_compensate)
@@ -402,7 +402,7 @@ def create_consolidation_saga(user_id: str, mm=None) -> Saga:
 
 
 async def _backup_copy_db(data: dict) -> dict:
-    """Скопировать БД."""
+    """Copy the database."""
     import shutil
     from pathlib import Path
     base = Path.home() / ".mcp-ariel-memory"
@@ -416,7 +416,7 @@ async def _backup_copy_db(data: dict) -> dict:
 
 
 async def _backup_verify(data: dict) -> dict:
-    """Проверить целостность бэкапа."""
+    """Verify backup integrity."""
     from pathlib import Path
     backup_path = Path(data.get("backup_path", ""))
     files = list(backup_path.glob("*.db")) if backup_path.exists() else []
@@ -424,7 +424,7 @@ async def _backup_verify(data: dict) -> dict:
 
 
 async def _backup_compensate(data: dict) -> None:
-    """Откат: удалить неудачный бэкап."""
+    """Rollback: delete failed backup."""
     import shutil
     from pathlib import Path
     backup_path = Path(data.get("backup_path", ""))
@@ -433,49 +433,9 @@ async def _backup_compensate(data: dict) -> None:
 
 
 def create_backup_saga() -> Saga:
-    """Сага бэкапа: copy → verify."""
+    """Backup saga: copy → verify."""
     saga = Saga("backup")
     saga.add_step("copy", _backup_copy_db, _backup_compensate)
     saga.add_step("verify", _backup_verify)
     return saga
 
-
-async def _backup_copy_db(data: dict) -> dict:
-    """Скопировать БД."""
-    import shutil
-    from pathlib import Path
-    import time
-    base = Path.home() / ".mcp-ariel-memory"
-    backup_dir = base / "backups" / ("saga_%d" % int(time.time()))
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    for db in ["memory.db", "memory.db", "memory.db", "memory.db", "memory.db", "memory.db"]:
-        src = base / db
-        if src.exists():
-            shutil.copy2(src, backup_dir / db)
-    data["backup_path"] = str(backup_dir)
-    return {"backup_path": str(backup_dir)}
-
-
-async def _backup_verify(data: dict) -> dict:
-    """Проверить целостность бэкапа."""
-    from pathlib import Path
-    backup_path = Path(data.get("backup_path", ""))
-    files = list(backup_path.glob("*.db")) if backup_path.exists() else []
-    return {"verified_files": len(files)}
-
-
-async def _backup_compensate(data: dict) -> None:
-    """Откат: удалить неудачный бэкап."""
-    import shutil
-    from pathlib import Path
-    backup_path = Path(data.get("backup_path", ""))
-    if backup_path.exists():
-        shutil.rmtree(backup_path)
-
-
-def create_backup_saga() -> Saga:
-    """Сага бэкапа: copy → verify."""
-    saga = Saga("backup")
-    saga.add_step("copy", _backup_copy_db, _backup_compensate)
-    saga.add_step("verify", _backup_verify)
-    return saga

@@ -1,15 +1,15 @@
 """
-Legacy MemoryMCPServer — обратная совместимость.
+Legacy MemoryMCPServer — backward compatibility.
 
-Этот модуль НЕ используется для MCP протокола.
-Основной MCP сервер: mcp_server.py (FastMCP, async, 33 tools).
+This module is NOT used for MCP protocol.
+Main MCP server: mcp_server.py (FastMCP, async, 37 tools).
 
-Legacy сервер нужен для:
-- Тестов (test_backward_compat)
-- Прямых Python вызовов без MCP протокола
-- Обратной совместимости со старым кодом
+Legacy server is needed for:
+- Tests (test_backward_compat)
+- Direct Python calls without MCP protocol
+- Backward compatibility with old code
 
-Если пишешь новый код — используй mcp_server.py или вызывай модули напрямую.
+If writing new code — use mcp_server.py or import modules directly.
 """
 import asyncio
 import json
@@ -76,8 +76,8 @@ class MemoryMCPServer:
         }
 
     def call(self, tool_name: str, **kwargs) -> Dict[str, Any]:
-        """Legacy sync call — для обратной совместимости.
-        Оборачивает async методы через asyncio.run().
+        """Legacy sync call — for backward compatibility.
+        Wraps async methods via asyncio.run().
         """
         tool = self._tools.get(tool_name)
         if not tool:

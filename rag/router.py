@@ -40,11 +40,11 @@ class RetrievalRouter:
         }
         # Entity patterns (Russian + English)
         self._entity_patterns = [
-            r"\b([А-ЯЁ][а-яё]+)\b",           # Русские имена
+            r"\b([А-ЯЁ][а-яё]+)\b",           # Russian names
             r"\b([A-Z][a-z]+)\b",              # English names
-            r"\b(\w+)\.(py|js|ts|go|rs)\b",    # Файлы
-            r"\b(redis|sqlite|postgres|mysql|mongo)\b",  # Технологии
-            r"\b(python|javascript|typescript|go|rust)\b",  # Языки
+            r"\b(\w+)\.(py|js|ts|go|rs)\b",    # Files
+            r"\b(redis|sqlite|postgres|mysql|mongo)\b",  # Technologies
+            r"\b(python|javascript|typescript|go|rust)\b",  # Languages
         ]
 
     async def route(self, query: str, recent_context: List[Dict] = None) -> RouterResult:
@@ -105,12 +105,12 @@ class RetrievalRouter:
         return RouterResult(Strategy.SEMANTIC, [], 0.0)
 
     def _extract_entities(self, query: str) -> Set[str]:
-        """Извлечь именованные сущности из запроса (NER-lite)."""
+        """Extract named entities from the query (NER-lite)."""
         entities = set()
         for pattern in self._entity_patterns:
             for match in re.finditer(pattern, query, re.IGNORECASE):
                 entity = match.group(1).lower()
-                if len(entity) > 2:  # пропускаем слишком короткие
+                if len(entity) > 2:  # skip too-short matches
                     entities.add(entity)
         return entities
 

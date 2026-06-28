@@ -74,7 +74,7 @@ class EpisodicMemory:
         return [self._row_to_episode(r) for r in rows]
 
     async def archive_old(self, user_id: str, days: int = 90) -> int:
-        """Архивировать старые эпизоды в ArchivedMemories, затем удалить."""
+        """Archive old episodes into ArchivedMemories, then delete them."""
         conn = await self._cm.get("memory.db")
         cutoff = time.time() - (days * 86400)
         cursor = await conn.execute(

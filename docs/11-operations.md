@@ -1,6 +1,6 @@
-# Операции
+# Operations
 
-## Транспорты
+## Transports
 
 ### stdio
 
@@ -8,13 +8,13 @@
 python -m mcp_ariel_memory --transport stdio
 ```
 
-### Streamable HTTP (рекомендуется)
+### Streamable HTTP (recommended)
 
 ```bash
 python -m mcp_ariel_memory --transport http --port 8000
 ```
 
-> **Streamable HTTP** — новый MCP SDK v1.28 (не SSE). POST/DELETE для запросов, GET для SSE stream. Stateless mode, load balancer friendly.
+> **Streamable HTTP** — new in MCP SDK v1.28 (not SSE). POST/DELETE for requests, GET for SSE stream. Stateless mode, load balancer friendly.
 
 ### HTTP + Dashboard + Metrics
 
@@ -24,7 +24,7 @@ python -m mcp_ariel_memory --transport http --port 8000 --dashboard
 
 ## Dashboard + Auth + Rate Limiting
 
-**Все эндпоинты защищены:** auth (Bearer token) + rate limit (100 req/min) + WS connection limit (5 per user, 100 total).
+**All endpoints are protected:** auth (Bearer token) + rate limit (100 req/min) + WS connection limit (5 per user, 100 total).
 
 | Endpoint | Auth | Rate Limit |
 |----------|------|------------|
@@ -45,14 +45,14 @@ python -m mcp_ariel_memory --transport http --port 8000 --dashboard
 
 ## OpenAPI
 
-Спецификация: `openapi.yaml` (OpenAPI 3.1.0).
+Specification: `openapi.yaml` (OpenAPI 3.1.0).
 
 ```bash
-# Просмотр в Swagger UI
+# View in Swagger UI
 npx swagger-ui-serve openapi.yaml
 ```
 
-## Конфигурация (config.yaml)
+## Configuration (config.yaml)
 
 ```yaml
 layers:

@@ -54,7 +54,7 @@ class ForgettingSystem:
             if not rows:
                 return 0
 
-            # Используем ArchivedMemories вместо ручного JSON
+            # Use ArchivedMemories instead of manual JSON
             from shared.archived_memories import ArchivedMemories
             am = ArchivedMemories()
             archived_count = 0

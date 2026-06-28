@@ -1,6 +1,6 @@
 """
 Authentication — API key + persistent Bearer token.
-Bearer token сохраняется в файл, переживает рестарт.
+Bearer token is saved to file, survives server restarts.
 """
 import os
 import json
@@ -74,19 +74,19 @@ class APIKeyAuth:
 
 
 class BearerAuth:
-    """Bearer token authentication — persistent (сохраняется в файл)."""
+    """Bearer token authentication — persistent (saved to file)."""
 
     def __init__(self, token_file: str = None):
         self.token_file = Path(token_file or str(Path.home() / ".mcp-ariel-memory" / "bearer_token.json"))
         self._token = self._load_or_create()
 
     def _load_or_create(self) -> str:
-        # 1. Из env переменной
+        # 1. From env variable
         env_token = os.environ.get("MCP_AUTH_TOKEN", "")
         if env_token:
             return env_token
 
-        # 2. Из файла
+        # 2. From file
         if self.token_file.exists():
             try:
                 data = json.loads(self.token_file.read_text(encoding="utf-8"))
@@ -95,7 +95,7 @@ class BearerAuth:
             except Exception:
                 pass
 
-        # 3. Создать новый и сохранить
+        # 3. Create new and save
         token = f"mt_{secrets.token_hex(32)}"
         self._save(token)
         return token
@@ -105,7 +105,7 @@ class BearerAuth:
         self.token_file.write_text(json.dumps({
             "token": token,
             "created_at": time.time(),
-            "note": "Не удалять! Токен переживает рестарт сервера."
+            "note": "Do not delete! Token survives server restarts."
         }, indent=2), encoding="utf-8")
 
     def verify(self, auth_header: str) -> bool:
@@ -120,7 +120,7 @@ class BearerAuth:
         return self._token
 
     def rotate(self) -> str:
-        """Создать новый токен (старый перестаёт работать)."""
+        """Create a new token (the old one stops working)."""
         import secrets
         self._token = f"mt_{secrets.token_hex(32)}"
         self._save(self._token)

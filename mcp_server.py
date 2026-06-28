@@ -65,17 +65,17 @@ class AppContext:
 
 @asynccontextmanager
 async def lifespan(server: FastMCP):
-    # 1. Запустить миграции
+    # 1. Run migrations
     from shared.migrations import migration_manager
     result = await migration_manager.migrate()
     import logging
     logging.getLogger(__name__).info("Migrations: %s" % result)
 
-    # 2. Синхронизировать read-only replica
+    # 2. Sync read-only replica
     from shared.read_only import read_only_replica
     await asyncio.to_thread(read_only_replica.sync)
 
-    # 3. Инициализировать контекст
+    # 3. Initialize context
     ctx = AppContext()
     backup_cron.start()
     try:
@@ -119,14 +119,14 @@ async def memory_user_remember(
     metrics.inc("tool_calls")
     metrics.inc("tool_user_remember")
 
-    # Hook: importance_gate — фильтр шума
+    # Hook: importance_gate — noise filter
     gate = app.user_hooks._importance_gate({"text": value})
     if gate.get("bypass"):
         return {"status": "skipped", "reason": "below_importance_threshold"}
 
     entry_id = await app.mm.user_memory(user_id).remember(key, value, importance)
 
-    # Hook: emotion_trigger — эмоциональный анализ
+    # Hook: emotion_trigger — emotional analysis
     should_save, emotion_reason, emotion_weight = app.emotion_trigger.should_save(value)
     if should_save:
         await app.mm.user_memory(user_id).l3.save(
@@ -371,7 +371,7 @@ async def memory_agent_remember(
     metrics.inc("tool_calls")
     metrics.inc("tool_agent_remember")
 
-    # Hook: error_occurred / decision_made — логирование в граф
+    # Hook: error_occurred / decision_made — log to graph
     if "error" in key.lower():
         node_id = await app.agent_graph.add_node(user_id, value, "error_analysis", ["error_pattern"], importance)
     elif "decision" in key.lower():
@@ -844,7 +844,7 @@ async def memory_lucidity_purge(
     hours: int = 24,
     ctx: Context = None,
 ) -> dict:
-    """Emergency purge: удалить все данные за последние N часов (при утечке данных).
+    """Emergency purge: delete all data from the last N hours (data leak scenario).
 
     Args:
         user_id: User identifier
@@ -855,7 +855,7 @@ async def memory_lucidity_purge(
     results = {}
     cutoff = time.time() - (hours * 3600)
 
-    # 1. Core memory — удалить записи за N часов
+    # 1. Core memory — delete records from last N hours
     app = _get_ctx(ctx)
     conn = await app.mm.user_memory(user_id).l4._get_conn()
     try:
@@ -865,7 +865,7 @@ async def memory_lucidity_purge(
     finally:
         conn.close()
 
-    # 2. Episodes — удалить за N часов
+    # 2. Episodes — delete from last N hours
     conn = mm.user_memory(user_id).l3._get_conn()
     try:
         cursor = conn.execute("DELETE FROM episodes WHERE user_id=? AND created_at > ?", (user_id, cutoff))
@@ -874,12 +874,12 @@ async def memory_lucidity_purge(
     finally:
         conn.close()
 
-    # 3. DreamBuffer — очистить staging
+    # 3. DreamBuffer — clear staging
     from shared.dream_buffer import DreamBuffer
     db = DreamBuffer()
     results["staging"] = db.clear_staging(user_id)
 
-    # 4. Audit trail — удалить за N часов
+    # 4. Audit trail — delete from last N hours
     from features.audit_trail import AuditTrail
     at = AuditTrail()
     conn = at._get_conn()
@@ -890,7 +890,7 @@ async def memory_lucidity_purge(
     finally:
         conn.close()
 
-    # 5. Graph nodes за N часов (эпистемический)
+    # 5. Graph nodes from last N hours (epistemic)
     from graph.epistemic import EpistemicGraph
     eg = EpistemicGraph(layer="user")
     conn = eg._get_conn()
@@ -910,7 +910,7 @@ async def memory_user_context_inject(
     user_id: str = "default",
     ctx: Context = None,
 ) -> dict:
-    """Вернуть сжатую сводку для вставки в промпт (L4 top-10 + L3 top-3).
+    """Return compressed summary for prompt injection (L4 top-10 + L3 top-3).
 
     Args:
         user_id: User identifier
@@ -919,23 +919,23 @@ async def memory_user_context_inject(
     metrics.inc("tool_context_inject")
     app = _get_ctx(ctx)
 
-    # L4: top-10 фактов по важности
+    # L4: top-10 facts by importance
     l4_facts = await app.mm.user_memory(user_id).l4.get_all(user_id, 10)
     facts_text = "; ".join(["%s=%s" % (f.key, f.value[:30]) for f in l4_facts])
 
-    # L3: top-3 эпизода
+    # L3: top-3 episodes
     l3_episodes = await app.mm.user_memory(user_id).l3.get_episodes(user_id, 3)
     episodes_text = "; ".join(["%s" % e.summary[:50] for e in l3_episodes])
 
-    # L1: последние 5 сообщений
+    # L1: last 5 messages
     l1_recent = app.mm.user_memory(user_id).l1.get_recent(5)
     recent_text = "; ".join(["%s: %s" % (r.role, r.content[:50]) for r in l1_recent])
 
-    # Wiki: последние 3 записи
+    # Wiki: last 3 entries
     wiki_entries = await app.user_wiki.list_all(3)
     wiki_text = "; ".join(["[%s] %s" % (w.wiki_type, w.title) for w in wiki_entries])
 
-    # Собрать в одну строку
+    # Collect into single string
     context_parts = []
     if facts_text:
         context_parts.append("FACTS: " + facts_text)
@@ -1018,7 +1018,7 @@ def _run_with_dashboard(host: str, port: int):
     ws_limiter = ConnectionLimiter()
 
     def check_auth(request) -> bool:
-        """Проверка Bearer token. Возвращает True если авторизован."""
+        """Check Bearer token. Returns True if authorized."""
         auth_enabled = config.get("auth", "bearer_token_enabled", default=True)
         if not auth_enabled:
             return True
@@ -1028,7 +1028,7 @@ def _run_with_dashboard(host: str, port: int):
         return bearer_auth.verify(auth)
 
     def get_user_from_token(request) -> str:
-        """Извлечь user_id из Bearer token или IP."""
+        """Extract user_id from Bearer token or IP."""
         auth = request.headers.get("Authorization", "")
         if auth.startswith("Bearer "):
             token = auth[7:]
@@ -1038,7 +1038,7 @@ def _run_with_dashboard(host: str, port: int):
         return request.client.host if request.client else "unknown"
 
     def check_rate_limit(request) -> bool:
-        """Проверка rate limit для API endpoints."""
+        """Check rate limit for API endpoints."""
         rate_enabled = config.get("features", "rate_limiting", default=True)
         if not rate_enabled:
             return True
@@ -1186,9 +1186,9 @@ def _run_with_dashboard(host: str, port: int):
             return await call_next(request)
 
     class WSConnectionMiddleware(BaseHTTPMiddleware):
-        """Ограничение одновременных WebSocket/SSE соединений."""
+        """Limit concurrent WebSocket/SSE connections."""
         async def dispatch(self, request, call_next):
-            # Проверяем только для /mcp endpoint (SSE/WebSocket)
+            # Only check for /mcp endpoint (SSE/WebSocket)
             if request.url.path == "/mcp" and request.headers.get("upgrade", "").lower() == "websocket":
                 user = request.headers.get("X-User-ID", request.client.host if request.client else "unknown")
                 conn_id = "%s_%s" % (user, int(time.time() * 1000))

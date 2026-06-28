@@ -64,7 +64,7 @@ class BackupCron:
             try:
                 now = time.time()
 
-                # Backup с jitter
+                # Backup with jitter
                 next_backup = self._last_backup + self.interval_hours * 3600
                 if now >= next_backup:
                     jitter = random.randint(0, self.jitter_seconds) if self.jitter_seconds else 0
@@ -101,7 +101,7 @@ class BackupCron:
                 shutil.copy2(src, dest / db_file)
                 backed_up.append(db_file)
 
-        # Бэкап .md файлов wiki
+        # Backup wiki .md files
         wiki_dir = self.base_dir / "wiki"
         if wiki_dir.exists():
             shutil.copytree(wiki_dir, dest / "wiki", dirs_exist_ok=True)
@@ -127,7 +127,7 @@ class BackupCron:
             logger.info("Cleaned up %d old backups" % removed)
 
     def _sync_wiki(self):
-        """Синхронизация wiki файлов с disk."""
+        """Synchronize wiki files with disk."""
         try:
             from wiki.file_wiki import FileWiki
             for layer in ["user", "agent"]:
@@ -158,7 +158,7 @@ class BackupCron:
         restored = []
         for db_file in manifest.get("files", []):
             if db_file.endswith("/"):
-                # Восстановить wiki директорию
+                # Restore wiki directory
                 src_wiki = src / db_file
                 dest_wiki = self.base_dir / db_file
                 if src_wiki.exists():

@@ -1,6 +1,6 @@
 """
-File-based Wiki — .md файлы как source of truth + SQLite индекс для поиска.
-Архитектура: файлы на диске = основа, DB = индекс/кэш.
+File-based Wiki — .md files as source of truth + SQLite index for search.
+Architecture: files on disk = primary, DB = index/cache.
 """
 import time
 import json

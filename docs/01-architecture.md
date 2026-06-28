@@ -1,28 +1,28 @@
-# Архитектура
+# Architecture
 
-## Стек
+## Tech Stack
 
-| Компонент | Технология |
+| Component | Technology |
 |-----------|-----------|
-| MCP протокол | Python MCP SDK v1.28 (FastMCP) |
-| Транспорты | stdio + Streamable HTTP |
-| Хранилище | **Один файл `memory.db`** (~25 таблиц) |
-| Async DB | aiosqlite через AsyncConnectionManager |
-| Поиск | FTS5 + sqlite-vec (опционально) + RRF |
-| Хуки | 24 хука, интегрированы в tool-пайплайн |
+| MCP protocol | Python MCP SDK v1.28 (FastMCP) |
+| Transports | stdio + Streamable HTTP |
+| Storage | **Single `memory.db` file** (~21 tables) |
+| Async DB | asyncio + sqlite3 via to_thread |
+| Search | FTS5 + sqlite-vec (optional) + RRF |
+| Hooks | 24 hooks, integrated into tool pipeline |
 | Docker | Dockerfile + docker-compose |
-| Тесты | pytest + pytest-asyncio (49 tests) |
+| Tests | pytest + pytest-asyncio (56 tests) |
 | CI/CD | GitHub Actions |
 
-## Двухслойная модель
+## Two-Layer Model
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│               MCP Server (31 async tools)            │
+│               MCP Server (37 async tools)            │
 │  FastMCP + stdio/HTTP transports + auth              │
 ├──────────────────────┬──────────────────────────────┤
 │   Layer 1: User      │   Layer 2: Agent             │
-│   Факты о пользователе│   Личность агента           │
+│   User facts         │   Agent identity             │
 ├──────────────────────┼──────────────────────────────┤
 │ L1 ReflexBuffer      │ L1 AgentBuffer               │
 │ L2 SessionStore      │ L2 AgentSession              │
@@ -33,52 +33,52 @@
 │ Hooks (user events)  │ Hooks (agent events)         │
 ├──────────────────────┴──────────────────────────────┤
 │ Features: Auth | Backup | Dashboard | Metrics       │
-│ Shared: Cache | Saga | Middleware | Embeddings       │
+│ Shared: Cache | DB Pool | Embeddings                │
 └─────────────────────────────────────────────────────┘
 ```
 
-## Иерархия L1 → L4
+## Memory Hierarchy L1 → L4
 
-| Уровень | Назначение | Хранилище | Лимит |
-|---------|-----------|-----------|-------|
-| **L1 ReflexBuffer** | Последние сообщения (кольцевой буфер) | RAM + JSON | 50 (hard) |
-| **L2 SessionStore** | История сессий с индексами | SQLite | 100 (soft) |
-| **L3 EpisodicMemory** | Важные моменты с эмоциональным весом | SQLite | 1000 (soft) |
-| **L4 CoreMemory** | Ключ-значение факты с важностью | SQLite | 5000 (soft) |
+| Level | Purpose | Storage | Limit |
+|-------|---------|---------|-------|
+| **L1 ReflexBuffer** | Recent messages (ring buffer) | RAM + JSON | 50 |
+| **L2 SessionStore** | Session history with indexes | SQLite | 100 |
+| **L3 EpisodicMemory** | Important moments with emotional weight | SQLite | 1000 |
+| **L4 CoreMemory** | Key-value facts with importance | SQLite | 5000 |
 
-**Hard vs Soft limits:**
-- **L1:** `ReflexBuffer(max_size=50)` — жёсткий, кольцевой буфер
-- **L2-L4:** лимиты в `config.yaml` используются как `LIMIT ?` в SELECT, но **не блокируют INSERT**. Для enforce нужен cron cleanup (via `forgetting.cleanup()`)
-
-## Консолидация
+## Consolidation
 
 ```
-Сообщение → L1 (буфер)
-           → ImportanceGate (фильтр шума, порог 0.3)
-           → L2 (сессия)
-           → EmotionTrigger (эмоциональный анализ)
-           → L3 (эпизоды, если важность > 0.7)
-           → L4 (консолидация, если вес > 0.7)
+Message → L1 (buffer)
+         → ImportanceGate (noise filter, threshold 0.3)
+         → L2 (session)
+         → EmotionTrigger (emotional analysis)
+         → L3 (episodes, if importance > 0.7)
+         → L4 (consolidation, if weight > 0.7)
 ```
 
-## Директория хранения
+## Database Tables (21)
 
-```
-~/.mcp-ariel-memory/
-├── core_memory.db      # L4: ключ-значение факты
-├── episodic.db         # L3: эпизоды
-├── sessions.db         # L2: сессии
-├── rag.db              # RAG: wiki + FTS5
-├── graph.db            # Граф: эпистемический + временной
-├── wiki_index.db       # Wiki: индекс .md файлов
-├── cognitive.db        # DreamBuffer + ArchivedMemories
-├── embedding_cache.db  # Кэш эмбеддингов
-├── audit.db            # Аудит
-├── wiki/               # .md файлы wiki (source of truth)
-│   ├── user/           # User wiki
-│   └── agent/          # Agent wiki
-├── sagas/              # Состояние саг (persistence)
-├── backups/            # Бэкапы
-├── archives/           # Архив аудита
-└── exports/            # Экспорт данных
-```
+| Table | Module | Purpose |
+|-------|--------|---------|
+| `core_memory` | core/memory.py | L4 key-value facts |
+| `sessions` | core/session.py | L2 session history |
+| `episodes` | core/episodic.py | L3 episodic memories |
+| `staging_memories` | shared/dream_buffer.py | Temporary staging |
+| `archived_memories` | shared/archived_memories.py | Archived memories |
+| `audit_log` | features/audit_trail.py | Audit trail |
+| `rate_limits` | features/rate_limiting.py | Rate limiting |
+| `embedding_cache` | shared/embeddings.py | Cached embeddings |
+| `rag_pages` | rag/engine.py | RAG document pages |
+| `rag_chunks` | rag/engine.py | RAG document chunks |
+| `rag_relations` | rag/engine.py | RAG relations |
+| `epi_nodes` | graph/epistemic.py | Epistemic graph nodes |
+| `epi_edges` | graph/epistemic.py | Epistemic graph edges |
+| `temporal_events` | graph/temporal.py | Temporal events |
+| `temporal_links` | graph/temporal.py | Temporal links |
+| `user_wiki` | wiki/user_wiki.py | User wiki entries |
+| `agent_wiki` | wiki/agent_wiki.py | Agent wiki entries |
+| `wiki_index` | wiki/file_wiki.py | Wiki FTS5 index |
+| `memory_conflicts` | rag/conflict.py | Memory conflicts |
+| `migration_log` | shared/migrations.py | Migration history |
+| `api_keys` | features/auth.py | API keys |

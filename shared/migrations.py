@@ -1,6 +1,6 @@
 """
 DB Migrations — async, unified memory.db
-Все таблицы в одном файле. wiki/graph/audit можно вынести позже при нагрузке.
+All tables in one file. wiki/graph/audit can be split out later under load.
 """
 import sqlite3
 import logging
@@ -25,7 +25,7 @@ def _get_migrations() -> List[Migration]:
     migrations = []
 
     async def v1_init(conn):
-        """Все таблицы в одном memory.db."""
+        """All tables in a single memory.db."""
         await conn.executescript("""
             -- === L2-L4 Core ===
             CREATE TABLE IF NOT EXISTS core_memory (

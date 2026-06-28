@@ -2,7 +2,7 @@
 
 **Universal Two-Layer Memory MCP Server**
 
-A two-layer universal memory system for AI agents. Real MCP Python SDK, async, 27 tools, stdio + HTTP transports, dashboard, metrics, authentication, automatic backups, external wiki folders.
+A two-layer universal memory system for AI agents. Real MCP Python SDK, async, **37 tools**, stdio + HTTP transports, dashboard, metrics, authentication, automatic backups, external wiki folders.
 
 ---
 
@@ -83,7 +83,7 @@ Windows:
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│               MCP Server (31 async tools)            │
+│               MCP Server (37 async tools)            │
 │  FastMCP + stdio/HTTP transports + auth              │
 ├──────────────────────┬──────────────────────────────┤
 │   Layer 1: User      │   Layer 2: Agent             │
@@ -279,6 +279,45 @@ Same as user tools but for agent identity.
 | `memory_backup_list` | — | `{"backups": [...]}` |
 | `memory_backup_restore` | `backup_name` | `{"restored": [...]}` |
 | `memory_backup_status` | — | `{"running": true, ...}` |
+
+### Saga (2 tools)
+
+| Tool | Parameters | Response |
+|------|-----------|----------|
+| `memory_saga_consolidate` | `user_id` | Runs consolidation saga with compensation |
+| `memory_saga_backup` | — | Runs backup saga with watchdog |
+
+### Replica (1 tool)
+
+| Tool | Parameters | Response |
+|------|-----------|----------|
+| `memory_sync_replica` | `replica_path` | Syncs read-only replica |
+
+### Import/Export (3 tools)
+
+| Tool | Parameters | Response |
+|------|-----------|----------|
+| `memory_export` | `user_id`, `format` | Exports memory to JSON/JSONL |
+| `memory_import` | `user_id`, `data`, `format` | Imports memory from JSON/JSONL |
+| `memory_list_exports` | — | Lists available exports |
+
+### Maintenance (1 tool)
+
+| Tool | Parameters | Response |
+|------|-----------|----------|
+| `memory_cleanup` | `user_id`, `older_than_days` | Cleans up old memories and archives them |
+
+### Emergency (1 tool)
+
+| Tool | Parameters | Response |
+|------|-----------|----------|
+| `memory_lucidity_purge` | `user_id`, `confirm` | Emergency purge of all user data (requires confirmation) |
+
+### Search (1 tool)
+
+| Tool | Parameters | Response |
+|------|-----------|----------|
+| `memory_search_rrf` | `query`, `user_id`, `limit` | Hybrid search using Reciprocal Rank Fusion (FTS5 + vector) |
 
 ---
 
@@ -530,7 +569,7 @@ python -m pytest tests/ -v
 uv run mcp dev mcp_server.py  # MCP Inspector
 ```
 
-**Status:** 10/10 pytest + 31/31 MCP tools.
+**Status:** 56/56 pytest + 37/37 MCP tools.
 
 ---
 
@@ -542,7 +581,7 @@ mcp-ariel-memory/
 ├── Dockerfile / docker-compose.yml
 ├── .github/workflows/ci.yml
 ├── config.yaml / config.py
-├── mcp_server.py              # MCP SDK (31 async tools)
+├── mcp_server.py              # MCP SDK (37 async tools)
 ├── server.py                  # Legacy (backward compat)
 ├── tests/test_all.py
 ├── core/                      # L1-L4
@@ -564,4 +603,4 @@ mcp-ariel-memory/
     ├── cache.py, db_pool.py, embeddings.py, metrics.py
 ```
 
-**Total:** 50+ files, 31 MCP tools (async, MCP SDK), 24 hooks, 14 wiki types, external folders, RRF, saga+watchdog, middleware, dashboard+auth, metrics, backup cron, DreamBuffer TTL, AuditTrail rotation, memory_cleanup, Docker, CI/CD, pytest.
+**Total:** 70 files, 37 MCP tools (async, MCP SDK), 21 DB tables, 24 hooks, 14 wiki types, external folders, RRF, saga+watchdog, middleware, dashboard+auth, metrics, backup cron, DreamBuffer TTL, AuditTrail rotation, memory_cleanup, Docker, CI/CD, pytest.

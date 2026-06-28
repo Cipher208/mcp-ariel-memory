@@ -1,20 +1,20 @@
-# Тестирование и структура проекта
+# Testing and Project Structure
 
-## Тестирование
+## Testing
 
 ```bash
-# Все тесты (49 tests, async)
+# All tests (56 tests, async)
 python -m pytest tests/ -v
 
 # MCP Inspector
 uv run mcp dev mcp_server.py
 ```
 
-**Статус:** 56/56 pytest + 33/33 MCP tools. Один файл `memory.db`. Async в шагах саги.
+**Status:** 56/56 pytest + 37/37 MCP tools. Single `memory.db` file. Async in saga steps.
 
-## Тесты — async
+## Tests — async
 
-Все тесты используют `asyncio.run()` для вызова async методов:
+All tests use `asyncio.run()` to call async methods:
 
 ```python
 def test_user_remember():
@@ -26,7 +26,7 @@ def test_user_remember():
     asyncio.run(t())
 ```
 
-## Структура проекта
+## Project Structure
 
 ```
 mcp-ariel-memory/
@@ -35,10 +35,10 @@ mcp-ariel-memory/
 ├── openapi.yaml
 ├── .github/workflows/ci.yml
 ├── config.yaml / config.py
-├── mcp_server.py              # MCP SDK (33 async tools)
+├── mcp_server.py              # MCP SDK (37 async tools)
 ├── server.py                  # Legacy sync wrapper
-├── docs/                      # 13 документов
-├── tests/                     # 49 async pytest tests
+├── docs/                      # 13 documents
+├── tests/                     # 56 async pytest tests
 ├── core/                      # L1-L4 (async via AsyncConnectionManager)
 ├── rag/                       # FTS5 + RRF (async)
 ├── graph/                     # Epistemic + Temporal (async)

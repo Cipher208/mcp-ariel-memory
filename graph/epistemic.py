@@ -21,21 +21,21 @@ class EpistemicNode:
 
 
 USER_TAGS = {
-    "fact_about_user": "Факт о пользователе",
-    "user_decision": "Решение пользователя",
-    "user_preference": "Предпочтение пользователя",
-    "user_emotion": "Эмоция пользователя",
+    "fact_about_user": "Fact about user",
+    "user_decision": "User decision",
+    "user_preference": "User preference",
+    "user_emotion": "User emotion",
 }
 
 AGENT_TAGS = {
-    "learned_from": "Агент узнал из ошибки",
-    "decided_because": "Агент принял решение",
-    "evolved_to": "Личность изменилась",
-    "felt_in_context": "Эмоция в контексте",
-    "wiki_contains": "Вторая кора мозга",
-    "error_pattern": "Паттерн ошибки",
-    "correction_pattern": "Паттерн исправления",
-    "personality_trait": "Черта личности",
+    "learned_from": "Learned from error",
+    "decided_because": "Agent decision",
+    "evolved_to": "Personality evolved",
+    "felt_in_context": "Emotion in context",
+    "wiki_contains": "Second brain",
+    "error_pattern": "Error pattern",
+    "correction_pattern": "Correction pattern",
+    "personality_trait": "Personality trait",
 }
 
 

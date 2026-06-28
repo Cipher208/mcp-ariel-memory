@@ -152,7 +152,7 @@ def test_nested_saga():
         # Outer saga with nested inner
         outer = Saga("outer")
         outer.add_step("outer_step", outer_action)
-        outer.add_step("inner_saga", inner)  # вложенная сага
+        outer.add_step("inner_saga", inner)  # nested saga
 
         result = await outer.execute({"x": 1})
         assert result["inner"] == True

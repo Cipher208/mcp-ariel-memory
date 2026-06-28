@@ -1,131 +1,667 @@
-# Поиск (RAG) — rag/ (async, embeddings в БД)
+# RAG Module — rag/
 
-## RAGEngine (`rag/engine.py`)
+Hybrid search (FTS5 + vector embeddings) with entity routing, conflict detection, and graph-based retrieval. All database operations use `AsyncConnectionManager` (aiosqlite) with WAL journal mode.
 
-FTS5 + RRF + fallback на LIKE. Эмбеддинги записываются при ingest и читаются из БД при поиске.
+---
 
-### SHA256 дедупликация
+## Table of Contents
 
-Файл с тем же SHA256 хешем пропускается при ingest:
+- [RAGEngine](#ragengine)
+- [Strategy (Enum)](#strategy)
+- [RouterResult](#routerresult)
+- [RetrievalRouter](#retrievalrouter)
+- [ConflictResolver](#conflictresolver)
+
+---
+
+## RAGEngine
+
+`rag/engine.py` — FTS5 + sqlite-vec hybrid search engine. Embeddings are computed once at ingest time and stored in `rag_chunks.embedding` as packed float32 blobs.
+
+### Constructor
 
 ```python
-text_hash = hashlib.sha256(text.encode()).hexdigest()
-existing = await conn.execute(
-    "SELECT id FROM rag_pages WHERE sha256_hash = ? AND user_id = ?",
-    (text_hash, user_id)).fetchone()
-if existing:
-    return existing[0]  # skip — уже индексировано
+RAGEngine(cm: Optional[AsyncConnectionManager] = None, layer: str = "user")
 ```
 
-### WAL journal mode
-
-Все SQLite соединения используют WAL для конкурентного чтения. Настроено в `AsyncConnectionManager`:
-
-```python
-await conn.execute("PRAGMA journal_mode=WAL")
-await conn.execute("PRAGMA busy_timeout=5000")
-await conn.execute("PRAGMA synchronous=NORMAL")
-```
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `cm` | `AsyncConnectionManager` | `None` (uses global `connection_manager`) | Database connection manager |
+| `layer` | `str` | `"user"` | Memory layer (e.g., `"user"`, `"session"`) |
 
 ```python
 from rag.engine import RAGEngine
 
 rag = RAGEngine(layer="user")
+rag = RAGEngine(cm=my_cm, layer="session")
+```
 
-# Индексация (эмбеддинги вычисляются и сохраняются в rag_chunks.embedding)
-await rag.ingest_text("Architecture", "Two-layer memory", user_id="alice")
-await rag.ingest_file(Path("docs/design.md"), user_id="alice")
+### `init_db()`
 
-# Поиск (эмбеддинги читаются из БД, не вычисляются заново)
+```python
+async def init_db(self) -> None
+```
+
+Creates the `rag_pages`, `rag_chunks`, `rag_relations` tables and the `rag_fts` FTS5 virtual table (if FTS5 is available in the SQLite build). Checks `PRAGMA compile_options` to determine FTS5 support.
+
+```python
+rag = RAGEngine(layer="user")
+await rag.init_db()
+# Tables created: rag_pages, rag_chunks, rag_relations, rag_fts (if available)
+```
+
+### `ingest_file()`
+
+```python
+async def ingest_file(self, filepath: Path, user_id: str = "default", wiki_type: str = None) -> str
+```
+
+Ingests a file from disk. Computes SHA256 hash for deduplication — files with an existing hash are skipped. Chunks the content, generates embeddings, and stores them.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `filepath` | `Path` | — | Path to the file to ingest |
+| `user_id` | `str` | `"default"` | Owner user ID |
+| `wiki_type` | `str` | `None` | Optional categorization tag |
+
+**Returns**: `str` — `"[OK] filename (N chunks)"` on success, `"[SKIP] filename (already ingested)"` if duplicate.
+
+```python
+from pathlib import Path
+
+rag = RAGEngine(layer="user")
+await rag.init_db()
+
+result = await rag.ingest_file(Path("docs/architecture.md"), user_id="alice", wiki_type="docs")
+# "[OK] architecture.md (4 chunks)"
+
+result = await rag.ingest_file(Path("docs/architecture.md"), user_id="alice")
+# "[SKIP] architecture.md (already ingested)"
+```
+
+### `ingest_text()`
+
+```python
+async def ingest_text(self, title: str, text: str, user_id: str = "default",
+                      wiki_type: str = None, path: str = "",
+                      relation_to: int = None, relation_type: str = "elaborates") -> int
+```
+
+Ingests raw text content. SHA256 deduplication. Optionally creates a relation to an existing page.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `title` | `str` | — | Page title |
+| `text` | `str` | — | Content to ingest |
+| `user_id` | `str` | `"default"` | Owner user ID |
+| `wiki_type` | `str` | `None` | Optional categorization tag |
+| `path` | `str` | `""` | Optional file path reference |
+| `relation_to` | `int` | `None` | Target page ID to create a relation from this page |
+| `relation_type` | `str` | `"elaborates"` | Relation type (default: `"elaborates"`) |
+
+**Returns**: `int` — The page ID. Returns existing page ID if already ingested.
+
+```python
+rag = RAGEngine(layer="user")
+await rag.init_db()
+
+page_id = await rag.ingest_text("Architecture", "Two-layer memory system", user_id="alice")
+# 1
+
+page_id2 = await rag.ingest_text("Details", "Deep dive into the layers", user_id="alice", relation_to=page_id)
+# 2 (also creates a relation: page_id2 -> page_id)
+```
+
+### `search()`
+
+```python
+async def search(self, query: str, user_id: str = "default", limit: int = 10) -> List[Dict[str, Any]]
+```
+
+Full-text search via FTS5 with LIKE fallback. Returns results ranked by FTS5 rank (or flat 0.5 for LIKE fallback).
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `query` | `str` | — | Search query |
+| `user_id` | `str` | `"default"` | Filter by owner |
+| `limit` | `int` | `10` | Maximum results |
+
+**Returns**: `List[Dict[str, Any]]` — Each dict contains:
+- `id` (int): Page ID
+- `title` (str): Page title
+- `content` (str): Content (truncated to 500 chars)
+- `wiki_type` (str or None): Wiki category
+- `score` (float): Relevance score
+- `source` (str): `"fts5"` or `"like"`
+
+```python
+rag = RAGEngine(layer="user")
 results = await rag.search("memory architecture", user_id="alice", limit=5)
+# [{"id": 1, "title": "Architecture", "content": "...", "score": 0.85, "source": "fts5"}]
+```
+
+### `search_rrf()`
+
+```python
+async def search_rrf(self, query: str, user_id: str = "default", limit: int = 10, k: int = 60) -> List[Dict[str, Any]]
+```
+
+Reciprocal Rank Fusion (RRF) hybrid search combining FTS5 full-text and vector similarity scores.
+
+**Formula**: `score = Σ 1 / (k + rank_i)` for each source (FTS5, vector). `k=60` is the standard RRF constant.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `query` | `str` | — | Search query |
+| `user_id` | `str` | `"default"` | Filter by owner |
+| `limit` | `int` | `10` | Maximum results |
+| `k` | `int` | `60` | RRF constant (higher = less weight on rank) |
+
+**Returns**: `List[Dict[str, Any]]` — Each dict contains:
+- `id` (int): Page ID
+- `title` (str): Page title
+- `content` (str): Content (truncated to 500 chars)
+- `wiki_type` (str or None): Wiki category
+- `score` (float): RRF fusion score
+- `source` (str): `"rrf(fts+vec)"`, `"fts5"`, or `"vec"`
+
+```python
+rag = RAGEngine(layer="user")
 results = await rag.search_rrf("memory architecture", user_id="alice", limit=5)
-
-# RRF результаты:
-# [{"title": "...", "score": 0.0325, "source": "rrf(fts+vec)"}]
-# source: "fts5", "vec", или "rrf(fts+vec)"
-```
-
-**Архитектура поиска:**
-- `search()` — FTS5 полнотекстовый (fallback на LIKE)
-- `search_rrf()` — Reciprocal Rank Fusion: FTS5 + vector similarity
-- Эмбеддинги: вычисляются 1 раз при ingest, хранятся в `rag_chunks.embedding`
-- При поиске: читаются из БД → O(1) вместо O(N)
-
-## RetrievalRouter (`rag/router.py`)
-
-```python
-from rag.router import RetrievalRouter
-
-router = RetrievalRouter(user_id="alice")
-result = await router.route("How to configure Redis?")
-# result.strategy, result.context, result.confidence
-```
-rag.ingest_file(Path("docs/design.md"), user_id="alice")
-
-# Обычный FTS5 поиск
-results = rag.search("memory architecture", user_id="alice", limit=5)
-
-# RRF — гибридный поиск (FTS5 + vector similarity)
-results = rag.search_rrf("memory architecture", user_id="alice", limit=5)
 # [{"id": 1, "title": "Architecture", "content": "...", "score": 0.0325, "source": "rrf(fts+vec)"}]
-
-rag.add_relation(page1_id, page2_id, "elaborates", weight=0.8)
-rag.get_relations(page1_id, depth=2)
-rag.count_pages("alice")
-rag.count_chunks()
 ```
 
-### RRF (Reciprocal Rank Fusion)
+**Fallback**: If vector search is unavailable, falls back to pure FTS5.
 
-Комбинирует два источника:
-- FTS5 (полнотекстовый поиск)
-- Vector similarity (embedding cosine similarity)
+### `get_relations()`
 
-Формула: `score = sum(1 / (k + rank_i))` где k=60
+```python
+async def get_relations(self, page_id: int, depth: int = 1) -> List[Dict[str, Any]]
+```
 
-**Источники в ответе:**
-- `fts5` — только FTS5 результат
-- `vec` — только vector результат
-- `rrf(fts+vec)` — комбинированный
+Retrieves graph relations from a page using recursive CTE traversal. Follows `rag_relations` edges up to `depth` hops.
 
-**Fallback:** если vector search недоступен, используется чистый FTS5.
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `page_id` | `int` | — | Source page ID |
+| `depth` | `int` | `1` | Maximum traversal depth (hops) |
 
-## RetrievalRouter (`rag/router.py`)
+**Returns**: `List[Dict[str, Any]]` — Each dict contains:
+- `id` (int): Target page ID
+- `title` (str): Target page title
+- `relation` (str): Relation type (e.g., `"elaborates"`)
+- `weight` (float): Relation weight
 
-Роутер запросов: определяет стратегию поиска.
+```python
+rag = RAGEngine(layer="user")
+relations = await rag.get_relations(page_id=1, depth=1)
+# [{"id": 2, "title": "Details", "relation": "elaborates", "weight": 0.8}]
+
+relations = await rag.get_relations(page_id=1, depth=2)
+# Returns relations up to 2 hops deep
+```
+
+### `add_relation()`
+
+```python
+async def add_relation(self, source_id: int, target_id: int,
+                       relation_type: str = "elaborates", weight: float = 0.8) -> None
+```
+
+Creates or updates a relation between two pages. Uses `INSERT OR REPLACE` (upsert).
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `source_id` | `int` | — | Source page ID |
+| `target_id` | `int` | — | Target page ID |
+| `relation_type` | `str` | `"elaborates"` | Relation type string |
+| `weight` | `float` | `0.8` | Relation weight (0.0–1.0) |
+
+```python
+rag = RAGEngine(layer="user")
+await rag.add_relation(1, 2, "depends_on", weight=0.9)
+await rag.add_relation(1, 3, "elaborates")
+```
+
+### `count_pages()`
+
+```python
+async def count_pages(self, user_id: str = None) -> int
+```
+
+Counts indexed pages. Optionally filters by user.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `user_id` | `str` | `None` | If provided, count only this user's pages |
+
+**Returns**: `int` — Number of pages.
+
+```python
+rag = RAGEngine(layer="user")
+total = await rag.count_pages()
+# 42
+
+alice_count = await rag.count_pages(user_id="alice")
+# 15
+```
+
+### `count_chunks()`
+
+```python
+async def count_chunks(self) -> int
+```
+
+**Returns**: `int` — Total number of chunks across all pages.
+
+```python
+rag = RAGEngine(layer="user")
+chunks = await rag.count_chunks()
+# 168
+```
+
+### `_chunk_text()`
+
+```python
+def _chunk_text(self, text: str, max_size: int = 500, overlap: int = 100) -> List[str]
+```
+
+Splits text into chunks by paragraph boundaries. Paragraphs exceeding `max_size` are split at word boundaries. The `overlap` parameter is defined but not currently used in the implementation.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `text` | `str` | — | Input text to chunk |
+| `max_size` | `int` | `500` | Maximum character count per chunk |
+| `overlap` | `int` | `100` | Overlap between chunks (currently unused) |
+
+**Returns**: `List[str]` — List of text chunks.
+
+```python
+rag = RAGEngine(layer="user")
+chunks = rag._chunk_text("First paragraph.\n\nSecond paragraph.\n\nThird paragraph.")
+# ["First paragraph.", "Second paragraph.", "Third paragraph."]
+
+chunks = rag._chunk_text("A" * 1000, max_size=500)
+# ["A...A", "A...A"]  # split at word boundary
+```
+
+---
+
+## Strategy
+
+`rag/router.py` — Enum defining retrieval strategies.
+
+```python
+class Strategy(str, Enum):
+    L1_BUFFER = "l1_buffer"    # Recent context / short-term memory
+    SEMANTIC = "semantic"       # FTS5 + vector search (RRF)
+    GRAPH = "graph"             # Epistemic graph (nodes, tags, relations)
+    WIKI = "wiki"               # Wiki pages + relations via RRF
+```
+
+| Value | Description | When Used |
+|-------|-------------|-----------|
+| `L1_BUFFER` | Returns recent context from the in-memory buffer | Query is short (<60 chars) and contains recent-context keywords |
+| `SEMANTIC` | FTS5 + vector RRF search | Default fallback for general queries |
+| `GRAPH` | EpistemicGraph tag/type queries | Query contains graph-related keywords or extracted entities |
+| `WIKI` | Wiki pages with relation expansion | Query contains documentation/config/architecture keywords |
+
+---
+
+## RouterResult
+
+`rag/router.py` — Container for route decisions.
+
+```python
+class RouterResult:
+    def __init__(self, strategy: Strategy, context: List[Dict[str, Any]], confidence: float)
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `strategy` | `Strategy` | Which retrieval strategy was selected |
+| `context` | `List[Dict[str, Any]]` | Retrieved context items (title, content, score, etc.) |
+| `confidence` | `float` | Routing confidence (0.0–1.0) |
+
+```python
+from rag.router import Strategy, RouterResult
+
+result = RouterResult(strategy=Strategy.WIKI, context=[...], confidence=0.95)
+print(result.strategy)     # Strategy.WIKI
+print(result.confidence)   # 0.95
+print(len(result.context)) # number of context items
+```
+
+---
+
+## RetrievalRouter
+
+`rag/router.py` — Multi-signal query router. Analyzes the query against keyword sets and entity patterns to select the best retrieval strategy.
+
+### Constructor
+
+```python
+RetrievalRouter(layer: str = "user", user_id: str = "default")
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `layer` | `str` | `"user"` | Memory layer |
+| `user_id` | `str` | `"default"` | Owner user ID |
 
 ```python
 from rag.router import RetrievalRouter
 
 router = RetrievalRouter(user_id="alice")
-result = router.route("How to configure Redis?")
+router = RetrievalRouter(layer="session", user_id="bob")
+```
+
+### `route()`
+
+```python
+async def route(self, query: str, recent_context: List[Dict] = None) -> RouterResult
+```
+
+Main entry point. Routes a query through a priority cascade:
+
+1. **L1 Buffer**: If query is short + contains recent keywords AND `recent_context` is provided → returns buffer
+2. **Wiki**: If query matches wiki keywords → RRF search + relation expansion
+3. **Graph (entity)**: If entities are extracted → EpistemicGraph tag query
+4. **Graph (keyword)**: If query matches graph keywords → EpistemicGraph tag/type query
+5. **Semantic**: Default fallback → RRF search
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `query` | `str` | — | User query |
+| `recent_context` | `List[Dict]` | `None` | Recent conversation context for L1 buffer |
+
+**Returns**: `RouterResult`
+
+```python
+router = RetrievalRouter(user_id="alice")
+
+# Wiki query
+result = await router.route("How to configure Redis?")
 # result.strategy = Strategy.WIKI
 # result.context = [{"title": "...", "content": "...", "score": 0.95}]
 # result.confidence = 0.95
+
+# Graph query
+result = await router.route("What error patterns did we see?")
+# result.strategy = Strategy.GRAPH
+# result.context = [{"title": "...", "type": "error_analysis", "tags": [...]}]
+
+# Semantic fallback
+result = await router.route("general question about the project")
+# result.strategy = Strategy.SEMANTIC
+# result.context = [{"id": 1, "title": "...", "score": 0.8}]
+
+# L1 buffer
+result = await router.route("как это работает", recent_context=[{"role": "assistant", "content": "..."}])
+# result.strategy = Strategy.L1_BUFFER
+# result.confidence = 0.9
 ```
 
-**Стратегии:**
+### `_extract_entities()`
 
-| Стратегия | Статус | Когда | Источник |
-|-----------|--------|-------|----------|
-| `L1_BUFFER` | ✅ | Недавние контекстные вопросы | L1 буфер |
-| `SEMANTIC` | ✅ | Общие запросы | FTS5 + RRF |
-| `WIKI` | ✅ | Технические вопросы | Wiki + relations |
-| `GRAPH` | ✅ | Запросы к графу (связи, паттерны, ошибки, решения) | EpistemicGraph |
+```python
+def _extract_entities(self, query: str) -> Set[str]
+```
 
-## ConflictResolver (`rag/conflict.py`)
+NER-lite entity extraction using regex patterns. Matches Russian/English names, file paths, technologies, and programming languages. Entities shorter than 3 characters are filtered.
 
-Обнаружение конфликтующих записей.
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `query` | `str` | Input query |
+
+**Returns**: `Set[str]` — Lowercase entity strings.
+
+**Patterns matched**:
+- `r"\b([А-ЯЁ][а-яё]+)\b"` — Russian names
+- `r"\b([A-Z][a-z]+)\b"` — English names
+- `r"\b(\w+)\.(py|js|ts|go|rs)\b"` — File paths
+- `r"\b(redis|sqlite|postgres|mysql|mongo)\b"` — Technologies
+- `r"\b(python|javascript|typescript|go|rust)\b"` — Languages
+
+```python
+router = RetrievalRouter(user_id="alice")
+entities = router._extract_entities("Как настроить Redis в Python?")
+# {"redis", "python"}
+
+entities = router._extract_entities("Что думает Мария о PostgreSQL?")
+# {"мария", "postgresql"}
+```
+
+### `_is_recent_query()`
+
+```python
+def _is_recent_query(self, query: str) -> bool
+```
+
+Returns `True` if the query is short (<60 chars) AND contains a recent-context keyword.
+
+**Keywords**: `{"это", "почему", "как", "только что", "ранее"}`
+
+```python
+router = RetrievalRouter(user_id="alice")
+router._is_recent_query("как это работает")
+# True (short + contains "как" and "это")
+
+router._is_recent_query("Как настроить Redis в Docker контейнере с кластеризацией?")
+# False (too long, >60 chars)
+```
+
+### `_is_wiki_query()`
+
+```python
+def _is_wiki_query(self, query: str) -> bool
+```
+
+Returns `True` if the query contains any wiki/documentation keyword.
+
+**Keywords**: `{"документация", "настроить", "архитектура", "баг", "конфиг", "функция", "класс", "модуль", "сервис", "api", "handler"}`
+
+```python
+router = RetrievalRouter(user_id="alice")
+router._is_wiki_query("Как настроить Redis?")
+# True (contains "настроить")
+
+router._is_wiki_query("What's the weather?")
+# False
+```
+
+### `_is_graph_query()`
+
+```python
+def _is_graph_query(self, query: str) -> bool
+```
+
+Returns `True` if the query contains any graph/relations keyword.
+
+**Keywords**: `{"связи", "связано", "relation", "graph", "граф", "паттерн", "ошибка", "решение", "почему выбрал", "error_pattern", "decision", "learned"}`
+
+```python
+router = RetrievalRouter(user_id="alice")
+router._is_graph_query("Какие связи между модулями?")
+# True (contains "связи")
+
+router._is_graph_query("What decisions did we make?")
+# True (contains "decision")
+```
+
+---
+
+## ConflictResolver
+
+`rag/conflict.py` — Detects conflicting memory entries using keyword-based similarity.
+
+### Constructor
+
+```python
+ConflictResolver(cm: Optional[AsyncConnectionManager] = None)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `cm` | `AsyncConnectionManager` | `None` (uses global `connection_manager`) | Database connection manager |
 
 ```python
 from rag.conflict import ConflictResolver
 
 cr = ConflictResolver()
-result = cr.check("alice", "Python is the best language")
-# {"is_conflict": False}
-
-result2 = cr.check("alice", "Python is best for coding")
-# {"is_conflict": True, "conflict_group_id": "abc-123", "similarity": 0.6}
-
-cr.resolve("abc-123", keep_id=1)
+cr = ConflictResolver(cm=my_cm)
 ```
+
+### `_init_db()`
+
+```python
+async def _init_db(self) -> None
+```
+
+Creates the `memory_conflicts` table and indexes. Called automatically by `check()`.
+
+### `check()`
+
+```python
+async def check(self, user_id: str, new_content: str, min_similarity: float = 0.3) -> Dict[str, Any]
+```
+
+Checks if `new_content` conflicts with existing entries. Extracts top-5 keywords (>3 chars), runs LIKE search, then calculates word-level Jaccard similarity.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `user_id` | `str` | — | Owner user ID |
+| `new_content` | `str` | — | Content to check for conflicts |
+| `min_similarity` | `float` | `0.3` | Minimum similarity threshold |
+
+**Returns**: `Dict[str, Any]`:
+- If no conflict: `{"content": ..., "is_conflict": False}`
+- If conflict: `{"content": ..., "is_conflict": True, "conflict_group_id": "...", "conflicts_with_id": int, "similarity": float}`
+
+```python
+cr = ConflictResolver()
+
+result = await cr.check("alice", "Python is the best language")
+# {"content": "Python is the best language", "is_conflict": False}
+
+result2 = await cr.check("alice", "Python is best for coding")
+# {"content": "Python is best for coding", "is_conflict": True,
+#  "conflict_group_id": "abc-123", "conflicts_with_id": 1, "similarity": 0.6}
+```
+
+### `get_conflicts()`
+
+```python
+async def get_conflicts(self, conflict_group_id: str) -> List[Dict[str, Any]]
+```
+
+Retrieves all entries in a conflict group, ordered by creation time (newest first).
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `conflict_group_id` | `str` | UUID of the conflict group |
+
+**Returns**: `List[Dict[str, Any]]` — Each dict contains:
+- `id` (int): Entry ID
+- `content` (str): Entry content
+- `created_at` (str): Timestamp
+
+```python
+cr = ConflictResolver()
+conflicts = await cr.get_conflicts("abc-123")
+# [{"id": 2, "content": "Python is best for coding", "created_at": "2024-01-15..."},
+#  {"id": 1, "content": "Python is the best language", "created_at": "2024-01-14..."}]
+```
+
+### `resolve()`
+
+```python
+async def resolve(self, conflict_group_id: str, keep_id: int) -> bool
+```
+
+Resolves a conflict by keeping one entry and deleting the rest. Clears the conflict flags on the kept entry.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `conflict_group_id` | `str` | UUID of the conflict group |
+| `keep_id` | `int` | ID of the entry to keep |
+
+**Returns**: `bool` — Always `True`.
+
+```python
+cr = ConflictResolver()
+await cr.resolve("abc-123", keep_id=1)
+# Entry 1 kept, entry 2 deleted, conflict flags cleared
+```
+
+### `_calculate_similarity()`
+
+```python
+def _calculate_similarity(self, text1: str, text2: str) -> float
+```
+
+Calculates word-level Jaccard similarity between two texts.
+
+**Formula**: `|words1 ∩ words2| / |words1 ∪ words2|`
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `text1` | `str` | First text |
+| `text2` | `str` | Second text |
+
+**Returns**: `float` — Similarity score (0.0–1.0).
+
+```python
+cr = ConflictResolver()
+sim = cr._calculate_similarity("Python is the best", "Python is best for coding")
+# 0.6 (3 shared words / 5 total unique words)
+```
+
+---
+
+## Database Schema
+
+### rag_pages
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INTEGER PK | Auto-increment page ID |
+| `layer` | TEXT | Memory layer |
+| `user_id` | TEXT | Owner |
+| `title` | TEXT | Page title |
+| `path` | TEXT | File path (optional) |
+| `content` | TEXT | Full content |
+| `sha256_hash` | TEXT | Dedup hash |
+| `wiki_type` | TEXT | Category tag |
+| `created_at` | REAL | Unix timestamp |
+| `updated_at` | REAL | Unix timestamp |
+
+### rag_chunks
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INTEGER PK | Chunk ID |
+| `page_id` | INTEGER FK | Parent page |
+| `chunk_index` | INTEGER | Chunk position |
+| `content` | TEXT | Chunk text |
+| `embedding` | BLOB | Packed float32 vector |
+
+### rag_relations
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `source_id` | INTEGER PK | Source page ID |
+| `target_id` | INTEGER PK | Target page ID |
+| `relation_type` | TEXT PK | Relation type |
+| `weight` | REAL | Weight (default 0.8) |
+
+### memory_conflicts
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INTEGER PK | Entry ID |
+| `user_id` | TEXT | Owner |
+| `content` | TEXT | Entry content |
+| `is_conflict` | INTEGER | 0 or 1 |
+| `conflict_group_id` | TEXT | UUID group |
+| `created_at` | DATETIME | Timestamp |

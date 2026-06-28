@@ -1,13 +1,13 @@
 """
-AsyncConnectionManager — единый менеджер соединений SQLite.
+AsyncConnectionManager — unified SQLite connection manager.
 
-Правила:
-- Один коннект на файл БД (не пул — пул для SQLite антипаттерн)
-- WAL + busy_timeout для конкурентности
-- Нативный async через aiosqlite (уже в зависимостях)
-- row_factory = aiosqlite.Row (совместим с sqlite3.Row)
+Rules:
+- One connection per DB file (no pool — connection pooling is an anti-pattern for SQLite)
+- WAL + busy_timeout for concurrency
+- Native async via aiosqlite (already in dependencies)
+- row_factory = aiosqlite.Row (compatible with sqlite3.Row)
 
-Использование:
+Usage:
     cm = AsyncConnectionManager()
     conn = await cm.get("memory.db")
     cur = await conn.execute("SELECT * FROM users WHERE id=?", (uid,))
@@ -30,7 +30,7 @@ _DEFAULT_DIR = os.environ.get(
 
 
 class AsyncConnectionManager:
-    """Один коннект на файл БД. Без пула — с очередью внутри aiosqlite."""
+    """One connection per DB file. No pool — internal queue in aiosqlite."""
 
     def __init__(self, base_dir: str = ""):
         self.base_dir = Path(base_dir or _DEFAULT_DIR)
@@ -38,14 +38,14 @@ class AsyncConnectionManager:
         self._conns: dict[str, aiosqlite.Connection] = {}
 
     # ------------------------------------------------------------------
-    # Основное API
+    # Core API
     # ------------------------------------------------------------------
 
     async def get(self, db_name: str = "memory.db") -> aiosqlite.Connection:
-        """Вернуть (или создать) коннект к `db_name`."""
+        """Return (or create) a connection to `db_name`."""
         if db_name in self._conns:
             conn = self._conns[db_name]
-            # проверить что коннект жив
+            # check if connection is alive
             try:
                 await conn.execute("SELECT 1")
                 return conn
@@ -59,7 +59,7 @@ class AsyncConnectionManager:
         await conn.execute("PRAGMA journal_mode=WAL")
         await conn.execute("PRAGMA busy_timeout=5000")
         await conn.execute("PRAGMA synchronous=NORMAL")
-        # внешние ключи для целостности
+        # foreign keys for integrity
         await conn.execute("PRAGMA foreign_keys=ON")
 
         self._conns[db_name] = conn
@@ -67,7 +67,7 @@ class AsyncConnectionManager:
         return conn
 
     async def close_all(self):
-        """Закрыть все открытые коннекты (при shutdown)."""
+        """Close all open connections (on shutdown)."""
         for name, conn in self._conns.items():
             try:
                 await conn.close()
@@ -83,17 +83,17 @@ class AsyncConnectionManager:
         }
 
     # ------------------------------------------------------------------
-    # Хелперы для миграций и init-db
+    # Helpers for migrations and init-db
     # ------------------------------------------------------------------
 
     async def execute_script(self, db_name: str, script: str):
-        """Выполнить SQL-скрипт (например CREATE TABLE) и закоммитить."""
+        """Execute a SQL script (e.g. CREATE TABLE) and commit."""
         conn = await self.get(db_name)
         await conn.executescript(script)
         await conn.commit()
 
     async def table_exists(self, db_name: str, table: str) -> bool:
-        """Проверить, существует ли таблица."""
+        """Check whether a table exists."""
         conn = await self.get(db_name)
         cur = await conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
@@ -103,21 +103,21 @@ class AsyncConnectionManager:
         return row is not None
 
     async def vacuum(self, db_name: str):
-        """VACUUM — освободить место после массовых удалений."""
+        """VACUUM — reclaim space after bulk deletions."""
         conn = await self.get(db_name)
         await conn.execute("VACUUM")
         await conn.commit()
 
 
-# Глобальный экземпляр — используется по умолчанию
+# Global instance — used by default
 connection_manager = AsyncConnectionManager()
 
 
 # ------------------------------------------------------------------
-# Пример: как перевести любой модуль на AsyncConnectionManager
+# Example: how to migrate any module to AsyncConnectionManager
 # ------------------------------------------------------------------
 #
-# ДО (было):
+# BEFORE:
 #
 #   class CoreMemory:
 #       def __init__(self, db_path=None):
@@ -130,7 +130,7 @@ connection_manager = AsyncConnectionManager()
 #           conn.execute("PRAGMA journal_mode=WAL")
 #           return conn
 #
-# ПОСЛЕ (стало):
+# AFTER:
 #
 #   class CoreMemory:
 #       def __init__(self, cm: AsyncConnectionManager = None):

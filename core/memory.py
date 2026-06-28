@@ -58,14 +58,14 @@ class CoreMemory:
         return entry_id
 
     async def get(self, user_id: str, key: str) -> Optional[CoreEntry]:
-        """Получить факт по ключу. Возвращает None если не найден."""
+        """Get a fact by key. Returns None if not found."""
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute("SELECT * FROM core_memory WHERE user_id=? AND key=?", (user_id, key))
         row = await cursor.fetchone()
         return self._row_to_entry(row) if row else None
 
     async def get_or_default(self, user_id: str, key: str, default: str = "") -> str:
-        """Получить значение или вернуть default (никогда не возвращает None)."""
+        """Get value or return default (never returns None)."""
         entry = await self.get(user_id, key)
         return entry.value if entry else default
 

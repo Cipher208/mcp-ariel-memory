@@ -1,11 +1,10 @@
 """
-Emotion Trigger — определение важных моментов по эмоциональным маркерам.
-Поддержка русского + английского языков. Rule-based + pattern detection.
+Emotion Trigger — detecting important moments by emotional markers.
+Supports Russian + English. Rule-based + pattern detection.
 """
 import re
 from typing import Tuple
 
-# Маркеры эмоций (русский + английский)
 EMOTION_MARKERS = {
     "love": [
         "люблю", "обожаю", "адорю", "влюблён", "дорогой", "родной",
@@ -44,7 +43,6 @@ EMOTION_MARKERS = {
     ],
 }
 
-# Паттерны фраз (русский)
 PHRASE_PATTERNS = [
     (r"я тебя (люблю|обожаю)", "love", 0.8),
     (r"мне (нравится|нравишься)", "love", 0.6),
@@ -58,7 +56,6 @@ PHRASE_PATTERNS = [
     (r"как (неожиданно|удивительно)", "surprise", 0.5),
 ]
 
-# Паттерны фраз (английский)
 PHRASE_PATTERNS_EN = [
     (r"i (love|adore) you", "love", 0.8),
     (r"i (really |so )?(like|enjoy)", "love", 0.6),
@@ -72,7 +69,6 @@ PHRASE_PATTERNS_EN = [
     (r"(wow|oh my god|no way)", "surprise", 0.5),
 ]
 
-# Эмодзи-маркер
 EMOJI_MARKERS = {
     "love": ["❤️", "😍", "🥰", "💕", "❤"],
     "fear": ["😨", "😱", "😰", "😥"],
@@ -90,27 +86,27 @@ class EmotionTrigger:
                     state_delta: dict = None) -> Tuple[bool, str, float]:
         msg_lower = message.lower()
 
-        # 1. Паттерны фраз (высокий приоритет)
+        # 1. Phrase patterns (high priority)
         all_patterns = PHRASE_PATTERNS + PHRASE_PATTERNS_EN
         for pattern, emotion, weight in all_patterns:
             if re.search(pattern, msg_lower):
                 return True, f"emotion_{emotion}", weight
 
-        # 2. Маркеры эмоций
+        # 2. Emotion markers
         for emotion, markers in EMOTION_MARKERS.items():
             for marker in markers:
                 if marker in msg_lower:
                     weight = 0.7 if emotion in ("love", "fear", "anger") else 0.5
                     return True, f"emotion_{emotion}", weight
 
-        # 3. Эмодзи
+        # 3. Emoji
         for emotion, emojis in EMOJI_MARKERS.items():
             for emoji in emojis:
                 if emoji in message:
                     weight = 0.7 if emotion in ("love", "fear", "anger") else 0.5
                     return True, f"emotion_{emotion}", weight
 
-        # 4. Эмоциональное состояние из контекста
+        # 4. Emotional state from context
         if emotional_state:
             if emotional_state.get("joy", 0) > 0.8 or emotional_state.get("interest", 0) > 0.8:
                 return True, "high_emotion", 0.6
@@ -121,15 +117,15 @@ class EmotionTrigger:
                 if abs(delta) > STATE_SHIFT_THRESHOLD:
                     return True, f"state_shift_{key}", 0.4
 
-        # 6. Длинное сообщение
+        # 6. Long message
         if len(message) > 300:
             return True, "long_message", 0.3
 
-        # 7. Много вопросов
+        # 7. Multiple questions
         if message.count("?") >= 3:
             return True, "complex_question", 0.4
 
-        # 8. Восклицательные знаки
+        # 8. Exclamation marks
         if message.count("!") >= 2:
             return True, "exclamation", 0.3
 

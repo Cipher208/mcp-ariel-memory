@@ -1,33 +1,33 @@
-# mcp-ariel-memory — Документация
+# mcp-ariel-memory — Documentation
 
 **Universal Two-Layer Memory MCP Server**
 
 [![CI](https://github.com/ariel-memory/mcp-ariel-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/ariel-memory/mcp-ariel-memory/actions/workflows/ci.yml)
 
-Двухслойная универсальная память для AI-агентов. Реальный MCP Python SDK, async, **33 tools**, stdio + Streamable HTTP, dashboard, auth + rate limiting, метрики, автобэкапи с jitter, wiki с внешними папками, read-only replica, OpenAPI. **Один файл `memory.db`** (~25 таблиц), нативный async через aiosqlite, хуки интегрированы в tool-пайплайн.
+Two-layer universal memory for AI agents. Real MCP Python SDK, async, **37 tools**, stdio + Streamable HTTP, dashboard, auth + rate limiting, metrics, auto-backups with jitter, wiki with external folders, read-only replica, OpenAPI. **Single `memory.db` file** (~21 tables), native async via asyncio+sqlite3, hooks integrated into tool pipeline.
 
 ---
 
-## Оглавление
+## Table of Contents
 
-| # | Документ | Описание |
-|---|----------|----------|
-| 01 | [Архитектура](01-architecture.md) | Стек, двухслойная модель, L1-L4, консолидация |
-| 02 | [MCP Tools](02-mcp-tools.md) | Все 33 tools с параметрами и примерами |
-| 03 | [Ядро памяти](03-core.md) | ReflexBuffer, SessionStore, EpisodicMemory, CoreMemory |
-| 04 | [Поиск (RAG)](04-rag.md) | FTS5 + fallback, RRF, RetrievalRouter, ConflictResolver |
-| 05 | [Граф знаний](05-graph.md) | EpistemicGraph, TemporalGraph |
-| 06 | [Жизненный цикл](06-lifecycle.md) | Forgetting, EmotionTrigger (RU+EN), Consolidation |
-| 07 | [Хуки](07-hooks.md) | 24 хука (12 user + 12 agent) |
+| # | Document | Description |
+|---|----------|-------------|
+| 01 | [Architecture](01-architecture.md) | Stack, two-layer model, L1-L4, consolidation |
+| 02 | [MCP Tools](02-mcp-tools.md) | All 37 tools with parameters and examples |
+| 03 | [Core Memory](03-core.md) | ReflexBuffer, SessionStore, EpisodicMemory, CoreMemory |
+| 04 | [Search (RAG)](04-rag.md) | FTS5 + fallback, RRF, RetrievalRouter, ConflictResolver |
+| 05 | [Knowledge Graph](05-graph.md) | EpistemicGraph, TemporalGraph |
+| 06 | [Lifecycle](06-lifecycle.md) | Forgetting, EmotionTrigger, Consolidation |
+| 07 | [Hooks](07-hooks.md) | 24 hooks (12 user + 12 agent) |
 | 08 | [Wiki](08-wiki.md) | FileWiki (.md files + FTS5) |
-| 09 | [Фичи](09-features.md) | Auth (persistent), Backup (jitter), Dashboard, Audit, RateLimit (HTTP + WS) |
-| 10 | [Общие компоненты](10-shared.md) | Cache, Saga+Watchdog, Middleware, Embeddings (multilingual), Metrics, DreamBuffer, Archive, Migrations, Read-only replica |
-| 11 | [Операции](11-operations.md) | Транспорты, Dashboard, Auth, Backup, Конфигурация, OpenAPI |
-| 12 | [Тестирование](12-testing.md) | pytest, структура, статус |
+| 09 | [Features](09-features.md) | Auth, Backup, Dashboard, Audit, RateLimit |
+| 10 | [Shared](10-shared.md) | Cache, Saga+Watchdog, Middleware, Embeddings, Metrics, DreamBuffer, Archive, Migrations, Read-only replica |
+| 11 | [Operations](11-operations.md) | Transports, Dashboard, Auth, Backup, Configuration |
+| 12 | [Testing](12-testing.md) | pytest, project structure |
 
 ---
 
-## Быстрый старт
+## Quick Start
 
 ```bash
 git clone <repo> && cd mcp-ariel-memory
@@ -40,7 +40,7 @@ python -m mcp_ariel_memory --transport stdio
 ```bash
 docker build -t ariel-memory .
 docker run -v $(pwd)/config.yaml:/app/config.yaml:ro -p 8000:8000 ariel-memory
-# Или docker-compose (автоматически монтирует config.yaml)
+# Or docker-compose (auto-mounts config.yaml)
 docker-compose up
 ```
 

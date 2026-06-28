@@ -23,6 +23,7 @@ class ConflictResolver:
         """)
 
     async def check(self, user_id: str, new_content: str, min_similarity: float = 0.3) -> Dict[str, Any]:
+        await self._init_db()
         conn = await self._cm.get("memory.db")
         keywords = [w for w in new_content.split() if len(w) > 3][:5]
         if not keywords:
@@ -51,6 +52,7 @@ class ConflictResolver:
         return {"content": new_content, "is_conflict": False}
 
     async def get_conflicts(self, conflict_group_id: str) -> List[Dict[str, Any]]:
+        await self._init_db()
         conn = await self._cm.get("memory.db")
         cur = await conn.execute(
             "SELECT id, content, created_at FROM memory_conflicts WHERE conflict_group_id=? ORDER BY created_at DESC",
@@ -59,6 +61,7 @@ class ConflictResolver:
         return [{"id": r[0], "content": r[1], "created_at": r[2]} for r in rows]
 
     async def resolve(self, conflict_group_id: str, keep_id: int) -> bool:
+        await self._init_db()
         conn = await self._cm.get("memory.db")
         await conn.execute("DELETE FROM memory_conflicts WHERE conflict_group_id=? AND id!=?", (conflict_group_id, keep_id))
         await conn.execute("UPDATE memory_conflicts SET is_conflict=0, conflict_group_id=NULL WHERE id=?", (keep_id,))

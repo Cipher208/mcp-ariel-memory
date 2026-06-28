@@ -1,6 +1,6 @@
 """
-Middleware Pipeline — цепочка обработчиков для перехвата и модификации запросов.
-Аналог middleware_pipeline.py из ariel.
+Middleware Pipeline — chain of handlers for intercepting and modifying requests.
+Analogous to middleware_pipeline.py from ariel.
 """
 import logging
 import time
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class MiddlewareContext:
-    """Контекст, передаваемый через pipeline."""
+    """Context passed through the pipeline."""
     tool_name: str = ""
     user_id: str = "default"
     args: Dict = field(default_factory=dict)
@@ -27,7 +27,7 @@ MiddlewareNext = Callable[[MiddlewareContext], Any]
 
 
 class Middleware:
-    """Базовый класс middleware."""
+    """Base middleware class."""
     name: str = "base"
 
     async def process(self, ctx: MiddlewareContext, next: MiddlewareNext) -> Any:
@@ -35,7 +35,7 @@ class Middleware:
 
 
 class RateLimitMiddleware(Middleware):
-    """Ограничение частоты запросов."""
+    """Rate limiting for requests."""
     name = "rate_limit"
 
     def __init__(self, max_per_minute: int = 100):
@@ -58,7 +58,7 @@ class RateLimitMiddleware(Middleware):
 
 
 class AuditMiddleware(Middleware):
-    """Логирование всех вызовов."""
+    """Audit logging for all calls."""
     name = "audit"
 
     async def process(self, ctx: MiddlewareContext, next: MiddlewareNext) -> Any:
@@ -74,8 +74,8 @@ class AuditMiddleware(Middleware):
 
 
 class ImportanceGateMiddleware(Middleware):
-    """Фильтр шума — пропускает только важные сообщения.
-    Полная версия из agent_core/cognitive/importance_gate.py"""
+    """Noise filter — only passes important messages.
+    Full version from agent_core/cognitive/importance_gate.py"""
 
     def __init__(self, min_length: int = 15, threshold: float = 0.3,
                  technical_weight: float = 0.3, question_weight: float = 0.2):
@@ -112,7 +112,7 @@ class ImportanceGateMiddleware(Middleware):
         return await next(ctx)
 
     def calculate_score(self, text: str) -> float:
-        """Полный расчёт importance из оригинала."""
+        """Full importance calculation from the original."""
         if not text:
             return 0.0
         if self._noise_pattern.match(text):
@@ -135,7 +135,7 @@ class ImportanceGateMiddleware(Middleware):
 
 
 class ValidationMiddleware(Middleware):
-    """Валидация параметров."""
+    """Parameter validation."""
     name = "validation"
 
     async def process(self, ctx: MiddlewareContext, next: MiddlewareNext) -> Any:
@@ -154,7 +154,7 @@ class ValidationMiddleware(Middleware):
 
 
 class DedupMiddleware(Middleware):
-    """Дедупликация запросов."""
+    """Request deduplication."""
     name = "dedup"
 
     def __init__(self, window_seconds: int = 5):
@@ -174,7 +174,7 @@ class DedupMiddleware(Middleware):
 
 
 class MiddlewarePipeline:
-    """Цепочка middleware."""
+    """Middleware chain."""
 
     def __init__(self):
         self._middlewares: List[Middleware] = []
