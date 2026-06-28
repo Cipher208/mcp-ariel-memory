@@ -9,7 +9,7 @@ import secrets
 import time
 import warnings
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from features.secrets import encrypt_json, decrypt_json, is_encrypted_blob
 

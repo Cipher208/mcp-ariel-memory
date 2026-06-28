@@ -1,8 +1,6 @@
 """End-to-end tests for auth with encryption."""
 import json
 import os
-import time
-from pathlib import Path
 
 import pytest
 

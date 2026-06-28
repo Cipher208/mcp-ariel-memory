@@ -1,7 +1,5 @@
 """Round-trip and backward-compat tests for envelope encryption."""
-import json
 import os
-import time
 from pathlib import Path
 
 import pytest
