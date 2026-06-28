@@ -2,6 +2,7 @@
 Agent Layer Hooks - 12 hooks for agent identity events
 """
 
+import asyncio
 from typing import Any
 
 from graph.epistemic import EpistemicGraph
@@ -11,6 +12,23 @@ from rag.conflict import ConflictResolver
 from rag.router import RetrievalRouter
 
 from .registry import hook_registry
+
+
+def _run_async(coro):
+    """Run async coroutine from sync context, handling running event loops."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            future = pool.submit(asyncio.run, coro)
+            return future.result()
+    else:
+        return asyncio.run(coro)
 
 
 class AgentHooks:
@@ -35,30 +53,30 @@ class AgentHooks:
 
     def _error_occurred(self, ctx: dict[str, Any]) -> dict[str, Any]:
         error = ctx.get("error", "")
-        node_id = self.graph.add_node(self.user_id, error, "error_analysis", ["error_pattern"], 0.8)
+        node_id = _run_async(self.graph.add_node(self.user_id, error, "error_analysis", ["error_pattern"], 0.8))
         return {"action": "error_analyzed", "node_id": node_id}
 
     def _decision_made(self, ctx: dict[str, Any]) -> dict[str, Any]:
         decision = ctx.get("decision", "")
         rationale = ctx.get("rationale", "")
-        node_id = self.graph.add_node(self.user_id, f"{decision}: {rationale}", "decision_log", ["decided_because"], 0.7)
+        node_id = _run_async(self.graph.add_node(self.user_id, f"{decision}: {rationale}", "decision_log", ["decided_because"], 0.7))
         return {"action": "decision_logged", "node_id": node_id}
 
     def _self_correction(self, ctx: dict[str, Any]) -> dict[str, Any]:
         error = ctx.get("error", "")
         fix = ctx.get("fix", "")
-        node_id = self.graph.add_node(self.user_id, f"Error: {error} → Fix: {fix}", "correction", ["correction_pattern"], 0.6)
+        node_id = _run_async(self.graph.add_node(self.user_id, f"Error: {error} → Fix: {fix}", "correction", ["correction_pattern"], 0.6))
         return {"action": "correction_logged", "node_id": node_id}
 
     def _personality_shift(self, ctx: dict[str, Any]) -> dict[str, Any]:
         shift = ctx.get("shift", "")
-        node_id = self.graph.add_node(self.user_id, shift, "personality_evolution", ["personality_trait", "evolved_to"], 0.9)
+        node_id = _run_async(self.graph.add_node(self.user_id, shift, "personality_evolution", ["personality_trait", "evolved_to"], 0.9))
         return {"action": "personality_evolved", "node_id": node_id}
 
     def _emotion_context(self, ctx: dict[str, Any]) -> dict[str, Any]:
         emotion = ctx.get("emotion", "")
         context = ctx.get("context", "")
-        node_id = self.graph.add_node(self.user_id, f"{emotion} in: {context}", "emotional_context", ["felt_in_context"], 0.6)
+        node_id = _run_async(self.graph.add_node(self.user_id, f"{emotion} in: {context}", "emotional_context", ["felt_in_context"], 0.6))
         return {"action": "emotion_logged", "node_id": node_id}
 
     def _wiki_agent(self, ctx: dict[str, Any]) -> dict[str, Any]:
@@ -93,5 +111,5 @@ class AgentHooks:
 
     def _emotion(self, ctx: dict[str, Any]) -> dict[str, Any]:
         emotion = ctx.get("emotion", "")
-        node_id = self.graph.add_node(self.user_id, emotion, "emotional_context", ["felt_in_context"], 0.5)
+        node_id = _run_async(self.graph.add_node(self.user_id, emotion, "emotional_context", ["felt_in_context"], 0.5))
         return {"action": "emotion_recorded", "node_id": node_id}
