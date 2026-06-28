@@ -2,9 +2,11 @@
 Retrieval Router — async routes queries to the right memory strategy
 Multi-signal: FTS5 + Vector + Entity/NER extraction
 """
+
 import re
 from enum import Enum
-from typing import Any, Dict, List, Set
+from typing import Any
+
 from .engine import RAGEngine
 
 
@@ -16,7 +18,7 @@ class Strategy(str, Enum):
 
 
 class RouterResult:
-    def __init__(self, strategy: Strategy, context: List[Dict[str, Any]], confidence: float):
+    def __init__(self, strategy: Strategy, context: list[dict[str, Any]], confidence: float):
         self.strategy = strategy
         self.context = context
         self.confidence = confidence
@@ -30,24 +32,42 @@ class RetrievalRouter:
         self._persona_keywords = {"кто ты", "расскажи о себе", "как тебя зовут"}
         self._recent_keywords = {"это", "почему", "как", "только что", "ранее"}
         self._wiki_keywords = {
-            "документация", "настроить", "архитектура", "баг", "конфиг",
-            "функция", "класс", "модуль", "сервис", "api", "handler",
+            "документация",
+            "настроить",
+            "архитектура",
+            "баг",
+            "конфиг",
+            "функция",
+            "класс",
+            "модуль",
+            "сервис",
+            "api",
+            "handler",
         }
         self._graph_keywords = {
-            "связи", "связано", "relation", "graph", "граф",
-            "паттерн", "ошибка", "решение", "почему выбрал",
-            "error_pattern", "decision", "learned",
+            "связи",
+            "связано",
+            "relation",
+            "graph",
+            "граф",
+            "паттерн",
+            "ошибка",
+            "решение",
+            "почему выбрал",
+            "error_pattern",
+            "decision",
+            "learned",
         }
         # Entity patterns (Russian + English)
         self._entity_patterns = [
-            r"\b([А-ЯЁ][а-яё]+)\b",           # Russian names
-            r"\b([A-Z][a-z]+)\b",              # English names
-            r"\b(\w+)\.(py|js|ts|go|rs)\b",    # Files
+            r"\b([А-ЯЁ][а-яё]+)\b",  # Russian names
+            r"\b([A-Z][a-z]+)\b",  # English names
+            r"\b(\w+)\.(py|js|ts|go|rs)\b",  # Files
             r"\b(redis|sqlite|postgres|mysql|mongo)\b",  # Technologies
             r"\b(python|javascript|typescript|go|rust)\b",  # Languages
         ]
 
-    async def route(self, query: str, recent_context: List[Dict] = None) -> RouterResult:
+    async def route(self, query: str, recent_context: list[dict] = None) -> RouterResult:
         q = query.lower()
 
         # Signal 1: L1 buffer (recent context)
@@ -61,28 +81,34 @@ class RetrievalRouter:
                 page_id = results[0]["id"]
                 relations = await self._rag.get_relations(page_id, depth=1)
                 if relations:
-                    results.append({
-                        "title": "Relations",
-                        "content": "\n".join([f"- {r['title']} [{r['relation']}]" for r in relations]),
-                        "score": 0.7,
-                    })
+                    results.append(
+                        {
+                            "title": "Relations",
+                            "content": "\n".join([f"- {r['title']} [{r['relation']}]" for r in relations]),
+                            "score": 0.7,
+                        }
+                    )
                 return RouterResult(Strategy.WIKI, results, 0.95)
 
         # Signal 2b: Entity/NER extraction
         entities = self._extract_entities(query)
         if entities:
             from graph.epistemic import EpistemicGraph
+
             graph = EpistemicGraph(layer=self.layer)
             entity_results = []
             for entity in entities:
                 nodes = await graph.query_by_tag(self.user_id, entity, limit=3)
-                entity_results.extend([{"title": n.content, "type": n.node_type, "tags": n.tags, "entity": entity} for n in nodes])
+                entity_results.extend(
+                    [{"title": n.content, "type": n.node_type, "tags": n.tags, "entity": entity} for n in nodes]
+                )
             if entity_results:
                 return RouterResult(Strategy.GRAPH, entity_results, 0.85)
 
         # Signal 2c: Graph keywords
         if self._is_graph_query(q):
             from graph.epistemic import EpistemicGraph
+
             graph = EpistemicGraph(layer=self.layer)
             for tag in self._graph_keywords:
                 if tag in q:
@@ -104,7 +130,7 @@ class RetrievalRouter:
 
         return RouterResult(Strategy.SEMANTIC, [], 0.0)
 
-    def _extract_entities(self, query: str) -> Set[str]:
+    def _extract_entities(self, query: str) -> set[str]:
         """Extract named entities from the query (NER-lite)."""
         entities = set()
         for pattern in self._entity_patterns:

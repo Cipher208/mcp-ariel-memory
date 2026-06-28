@@ -1,10 +1,9 @@
 """
 Dashboard — HTML dashboard for memory visualization
 """
-import json
-from pathlib import Path
-from typing import Dict, Any
 
+from pathlib import Path
+from typing import Any
 
 DASHBOARD_HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -161,12 +160,13 @@ class Dashboard:
     def __init__(self, data_dir: str = None):
         self.data_dir = Path(data_dir or str(Path.home() / ".mcp-ariel-memory"))
 
-    def get_stats(self, user_id: str = "default") -> Dict[str, Any]:
+    def get_stats(self, user_id: str = "default") -> dict[str, Any]:
         import sys
+
         sys.path.insert(0, str(Path(__file__).parent.parent))
         from core import memory_manager
-        from wiki.file_wiki import FileWiki
         from graph.epistemic import EpistemicGraph
+        from wiki.file_wiki import FileWiki
 
         mm = memory_manager
         uw = FileWiki(layer="user")
@@ -192,26 +192,31 @@ class Dashboard:
 
     def get_user_facts(self, user_id: str = "default") -> list:
         from core import memory_manager
+
         facts = memory_manager.user_memory(user_id).l4.get_all(user_id, limit=50)
         return [{"key": f.key, "value": f.value, "importance": f.importance} for f in facts]
 
     def get_agent_facts(self, user_id: str = "default") -> list:
         from core import memory_manager
+
         facts = memory_manager.agent_memory(user_id).l4.get_all(user_id, limit=50)
         return [{"key": f.key, "value": f.value, "importance": f.importance} for f in facts]
 
     def get_user_episodes(self, user_id: str = "default") -> list:
         from core import memory_manager
+
         eps = memory_manager.user_memory(user_id).l3.get_episodes(user_id, limit=20)
         return [{"summary": e.summary, "weight": e.emotional_weight, "tags": e.tags} for e in eps]
 
     def get_agent_episodes(self, user_id: str = "default") -> list:
         from core import memory_manager
+
         eps = memory_manager.agent_memory(user_id).l3.get_episodes(user_id, limit=20)
         return [{"summary": e.summary, "weight": e.emotional_weight, "tags": e.tags} for e in eps]
 
     def get_audit(self, limit: int = 20) -> list:
         from features.audit_trail import AuditTrail
+
         at = AuditTrail()
         return at.get_history("default", limit=limit)
 

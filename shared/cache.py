@@ -1,10 +1,11 @@
 """
 Memory Cache - LRU cache for hot data
 """
-import time
+
 import threading
+import time
 from collections import OrderedDict
-from typing import Any, Optional
+from typing import Any
 
 
 class MemoryCache:
@@ -15,7 +16,7 @@ class MemoryCache:
         self._timestamps: dict = {}
         self._lock = threading.Lock()
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         with self._lock:
             if key not in self._cache:
                 return None

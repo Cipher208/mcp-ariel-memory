@@ -1,14 +1,15 @@
 """
 Backup Cron — automatic scheduled backups with jitter + wiki sync.
 """
-import os
-import time
+
 import json
+import logging
 import random
 import threading
-import logging
+import time
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Any
+
 from config import config
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ class BackupCron:
         self.jitter_seconds = config.get("backup", "jitter_seconds") or 3600
         self.wiki_sync_interval = config.get("backup", "wiki_sync_interval_minutes") or 30
         self._running = False
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._last_backup = 0.0
         self._last_wiki_sync = 0.0
         self._state_file = self.base_dir / ".backup_cron_state.json"
@@ -41,8 +42,7 @@ class BackupCron:
 
     def _save_state(self):
         self._state_file.write_text(
-            json.dumps({"last_backup": self._last_backup, "last_wiki_sync": self._last_wiki_sync}),
-            encoding="utf-8"
+            json.dumps({"last_backup": self._last_backup, "last_wiki_sync": self._last_wiki_sync}), encoding="utf-8"
         )
 
     def start(self):
@@ -86,14 +86,24 @@ class BackupCron:
     def _do_backup(self) -> str:
         import shutil
         import uuid
+
         timestamp = int(time.time())
         name = "auto_%d_%s" % (timestamp, uuid.uuid4().hex[:6])
         dest = self.backup_dir / name
         dest.mkdir(parents=True, exist_ok=True)
 
-        db_files = ["memory.db", "memory.db", "memory.db", "memory.db",
-                     "memory.db", "memory.db", "memory.db", "memory.db",
-                     "memory.db", "memory.db"]
+        db_files = [
+            "memory.db",
+            "memory.db",
+            "memory.db",
+            "memory.db",
+            "memory.db",
+            "memory.db",
+            "memory.db",
+            "memory.db",
+            "memory.db",
+            "memory.db",
+        ]
         backed_up = []
         for db_file in db_files:
             src = self.base_dir / db_file
@@ -117,6 +127,7 @@ class BackupCron:
 
     def _cleanup_old(self):
         import shutil
+
         cutoff = time.time() - (self.retention_days * 86400)
         removed = 0
         for d in self.backup_dir.iterdir():
@@ -130,6 +141,7 @@ class BackupCron:
         """Synchronize wiki files with disk."""
         try:
             from wiki.file_wiki import FileWiki
+
             for layer in ["user", "agent"]:
                 fw = FileWiki(layer=layer)
                 result = fw.reindex_all()
@@ -143,8 +155,9 @@ class BackupCron:
     def backup_now(self) -> str:
         return self._do_backup()
 
-    def restore(self, backup_name: str) -> Dict[str, Any]:
+    def restore(self, backup_name: str) -> dict[str, Any]:
         import shutil
+
         src = self.backup_dir / backup_name
         if not src.exists():
             return {"error": "Backup not found: %s" % backup_name}
@@ -186,7 +199,7 @@ class BackupCron:
                 backups.append(info)
         return backups
 
-    def status(self) -> Dict[str, Any]:
+    def status(self) -> dict[str, Any]:
         return {
             "running": self._running,
             "interval_hours": self.interval_hours,

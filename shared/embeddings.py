@@ -1,10 +1,12 @@
 """
 Embeddings — async SQLite cache with multilingual model
 """
+
 import hashlib
 import re
 import struct
-from typing import List, Optional
+from typing import Optional
+
 from shared.connection import AsyncConnectionManager, connection_manager
 
 DEFAULT_MODEL = "intfloat/multilingual-e5-small"
@@ -18,6 +20,7 @@ def _get_model(model_name: str = None):
     if _model is None or _model_name != target:
         try:
             from sentence_transformers import SentenceTransformer
+
             _model = SentenceTransformer(target)
             _model_name = target
         except ImportError:
@@ -32,25 +35,28 @@ class EmbeddingCache:
         self._dimension = 384
 
     async def _init_db(self):
-        await self._cm.execute_script("memory.db", """
+        await self._cm.execute_script(
+            "memory.db",
+            """
             CREATE TABLE IF NOT EXISTS embedding_cache (
                 text_hash TEXT PRIMARY KEY,
                 embedding BLOB NOT NULL,
                 model_name TEXT NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
-        """)
+        """,
+        )
 
     def _normalize_text(self, text: str) -> str:
         text = text.lower().strip()
-        text = re.sub(r'[^\w\s]', '', text)
-        text = re.sub(r'\s+', ' ', text)
+        text = re.sub(r"[^\w\s]", "", text)
+        text = re.sub(r"\s+", " ", text)
         return text
 
     def _hash_text(self, text: str) -> str:
         return hashlib.sha256(self._normalize_text(text).encode("utf-8")).hexdigest()
 
-    async def _get_cached(self, text: str) -> Optional[List[float]]:
+    async def _get_cached(self, text: str) -> list[float] | None:
         text_hash = self._hash_text(text)
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
@@ -62,10 +68,11 @@ class EmbeddingCache:
             blob = row[0]
             raw = list(struct.unpack("%df" % (len(blob) // 4), blob))
             import math
+
             return [v if math.isfinite(v) else 0.0 for v in raw]
         return None
 
-    async def _cache(self, text: str, embedding: List[float]):
+    async def _cache(self, text: str, embedding: list[float]):
         text_hash = self._hash_text(text)
         blob = struct.pack("%df" % len(embedding), *embedding)
         conn = await self._cm.get("memory.db")
@@ -75,7 +82,7 @@ class EmbeddingCache:
         )
         await conn.commit()
 
-    async def embed(self, texts: List[str]) -> List[List[float]]:
+    async def embed(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
         model = _get_model()
@@ -100,7 +107,7 @@ class EmbeddingCache:
                 await self._cache(text, emb)
         return [r if r is not None else [0.0] * self._dimension for r in results]
 
-    async def embed_single(self, text: str) -> List[float]:
+    async def embed_single(self, text: str) -> list[float]:
         return (await self.embed([text]))[0]
 
     async def count(self) -> int:
@@ -109,16 +116,17 @@ class EmbeddingCache:
         return row[0] if row else 0
 
 
-async def embed_text(text: str) -> List[float]:
+async def embed_text(text: str) -> list[float]:
     return await EmbeddingCache().embed_single(text)
 
 
-async def embed_texts(texts: List[str]) -> List[List[float]]:
+async def embed_texts(texts: list[str]) -> list[list[float]]:
     return await EmbeddingCache().embed(texts)
 
 
-def similarity(a: List[float], b: List[float]) -> float:
+def similarity(a: list[float], b: list[float]) -> float:
     import math
+
     dot = sum(x * y for x, y in zip(a, b))
     na = sum(x * x for x in a) ** 0.5
     nb = sum(x * x for x in b) ** 0.5
@@ -127,14 +135,15 @@ def similarity(a: List[float], b: List[float]) -> float:
     return dot / (na * nb)
 
 
-def _hash_embedding(text: str, dim: int = 384) -> List[float]:
+def _hash_embedding(text: str, dim: int = 384) -> list[float]:
     import math
+
     h = hashlib.sha512(text.lower().encode()).digest()
     floats = []
     for i in range(0, len(h) - 3, 4):
         if len(floats) >= dim:
             break
-        val = struct.unpack("f", h[i:i + 4])[0]
+        val = struct.unpack("f", h[i : i + 4])[0]
         if math.isfinite(val):
             floats.append(val)
     while len(floats) < dim:

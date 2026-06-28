@@ -1,9 +1,11 @@
 """
 AuditTrail — async, SQLite-based audit logging with rotation
 """
+
 import json
 import time
-from typing import List, Dict, Any, Optional
+from typing import Any, Optional
+
 from shared.connection import AsyncConnectionManager, connection_manager
 
 
@@ -12,7 +14,9 @@ class AuditTrail:
         self._cm = cm or connection_manager
 
     async def _init_db(self):
-        await self._cm.execute_script("memory.db", """
+        await self._cm.execute_script(
+            "memory.db",
+            """
             CREATE TABLE IF NOT EXISTS audit_log (
                 log_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL,
@@ -23,10 +27,10 @@ class AuditTrail:
                 timestamp REAL NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id);
-        """)
+        """,
+        )
 
-    async def log(self, user_id: str, action: str, layer: str = None,
-                  target_id: str = None, details: Dict = None):
+    async def log(self, user_id: str, action: str, layer: str = None, target_id: str = None, details: dict = None):
         conn = await self._cm.get("memory.db")
         await conn.execute(
             "INSERT INTO audit_log (user_id, action, layer, target_id, details, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
@@ -34,7 +38,7 @@ class AuditTrail:
         )
         await conn.commit()
 
-    async def get_history(self, user_id: str, limit: int = 50, action: str = None) -> List[Dict[str, Any]]:
+    async def get_history(self, user_id: str, limit: int = 50, action: str = None) -> list[dict[str, Any]]:
         conn = await self._cm.get("memory.db")
         if action:
             cursor = await conn.execute(
@@ -48,9 +52,14 @@ class AuditTrail:
             )
         rows = await cursor.fetchall()
         return [
-            {"log_id": r["log_id"], "action": r["action"], "layer": r["layer"],
-             "target_id": r["target_id"], "details": json.loads(r["details"]) if r["details"] else {},
-             "timestamp": r["timestamp"]}
+            {
+                "log_id": r["log_id"],
+                "action": r["action"],
+                "layer": r["layer"],
+                "target_id": r["target_id"],
+                "details": json.loads(r["details"]) if r["details"] else {},
+                "timestamp": r["timestamp"],
+            }
             for r in rows
         ]
 
@@ -70,11 +79,12 @@ class AuditTrail:
         await conn.commit()
         return cursor.rowcount
 
-    async def archive_and_prune(self, retention_days: int = 30, archive_dir: str = None) -> Dict[str, int]:
+    async def archive_and_prune(self, retention_days: int = 30, archive_dir: str = None) -> dict[str, int]:
         cutoff = time.time() - (retention_days * 86400)
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
-            "SELECT * FROM audit_log WHERE timestamp < ? ORDER BY timestamp", (cutoff,),
+            "SELECT * FROM audit_log WHERE timestamp < ? ORDER BY timestamp",
+            (cutoff,),
         )
         rows = await cursor.fetchall()
 
@@ -83,12 +93,18 @@ class AuditTrail:
 
         if archive_dir:
             from pathlib import Path
+
             archive_path = Path(archive_dir)
             archive_path.mkdir(parents=True, exist_ok=True)
             archive_file = archive_path / "audit_archive_%d.json" % int(time.time())
             archive_data = [
-                {"log_id": r["log_id"], "user_id": r["user_id"], "action": r["action"],
-                 "details": json.loads(r["details"]) if r["details"] else {}, "timestamp": r["timestamp"]}
+                {
+                    "log_id": r["log_id"],
+                    "user_id": r["user_id"],
+                    "action": r["action"],
+                    "details": json.loads(r["details"]) if r["details"] else {},
+                    "timestamp": r["timestamp"],
+                }
                 for r in rows
             ]
             archive_file.write_text(json.dumps(archive_data, indent=2, default=str), encoding="utf-8")

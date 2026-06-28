@@ -2,11 +2,13 @@
 DB Migrations — async, unified memory.db
 All tables in one file. wiki/graph/audit can be split out later under load.
 """
-import sqlite3
+
 import logging
+import sqlite3
 import time
-from pathlib import Path
-from typing import List, Callable, Dict, Any, Optional
+from collections.abc import Callable
+from typing import Any
+
 from shared.connection import AsyncConnectionManager, connection_manager
 
 logger = logging.getLogger(__name__)
@@ -21,7 +23,7 @@ class Migration:
         self.up = up
 
 
-def _get_migrations() -> List[Migration]:
+def _get_migrations() -> list[Migration]:
     migrations = []
 
     async def v1_init(conn):
@@ -190,13 +192,14 @@ def _get_migrations() -> List[Migration]:
                 version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at REAL NOT NULL
             );
         """)
+
     migrations.append(Migration(1, "init_unified_schema", v1_init))
 
     return migrations
 
 
 class MigrationManager:
-    def __init__(self, cm: Optional[AsyncConnectionManager] = None):
+    def __init__(self, cm: AsyncConnectionManager | None = None):
         self._cm = cm or connection_manager
         self._migrations = _get_migrations()
 
@@ -208,7 +211,7 @@ class MigrationManager:
         except sqlite3.OperationalError:
             return 0
 
-    async def migrate(self) -> Dict[str, Any]:
+    async def migrate(self) -> dict[str, Any]:
         current = await self.get_current_version()
         applied = []
         for migration in self._migrations:
@@ -225,7 +228,7 @@ class MigrationManager:
             applied.append({"version": migration.version, "name": migration.name})
         return {"current_version": current, "applied": applied, "new_version": await self.get_current_version()}
 
-    async def get_pending(self) -> List[Dict[str, Any]]:
+    async def get_pending(self) -> list[dict[str, Any]]:
         current = await self.get_current_version()
         return [{"version": m.version, "name": m.name} for m in self._migrations if m.version > current]
 

@@ -1,11 +1,13 @@
 """
 Backup — async backup/restore of all databases
 """
+
 import json
 import shutil
 import time
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Any
+
 from config import config
 
 
@@ -17,6 +19,7 @@ class BackupManager:
 
     async def backup(self, label: str = None) -> str:
         import uuid
+
         timestamp = int(time.time())
         name = label or "backup_%d_%s" % (timestamp, uuid.uuid4().hex[:6])
         dest = self.backup_dir / name
@@ -34,7 +37,7 @@ class BackupManager:
         (dest / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
         return str(dest)
 
-    async def restore(self, backup_name: str) -> Dict[str, Any]:
+    async def restore(self, backup_name: str) -> dict[str, Any]:
         src = self.backup_dir / backup_name
         if not src.exists():
             return {"error": "Backup not found: %s" % backup_name}
@@ -54,7 +57,7 @@ class BackupManager:
 
         return {"restored": restored, "backup": backup_name}
 
-    def list_backups(self) -> List[Dict[str, Any]]:
+    def list_backups(self) -> list[dict[str, Any]]:
         backups = []
         for d in sorted(self.backup_dir.iterdir(), reverse=True):
             if d.is_dir():
@@ -70,6 +73,7 @@ class BackupManager:
 
     def cleanup_old(self) -> int:
         import shutil as sh
+
         cutoff = time.time() - (config.get("backup", "backup_retention_days") or 30) * 86400
         removed = 0
         for d in self.backup_dir.iterdir():

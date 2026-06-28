@@ -1,10 +1,12 @@
 """
 Import/Export — async import/export memory between instances
 """
+
 import json
 import time
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Any, Optional
+
 from shared.connection import AsyncConnectionManager, connection_manager
 
 
@@ -19,29 +21,42 @@ class ImportExport:
         return self._cm.base_dir
 
     async def export_user(self, user_id: str) -> str:
-        data = {"user_id": user_id, "exported_at": time.time(), "version": "1.0",
-                "core_memory": [], "episodes": [], "sessions": []}
+        data = {
+            "user_id": user_id,
+            "exported_at": time.time(),
+            "version": "1.0",
+            "core_memory": [],
+            "episodes": [],
+            "sessions": [],
+        }
 
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute("SELECT * FROM core_memory WHERE user_id=?", (user_id,))
         rows = await cursor.fetchall()
         for r in rows:
-            data["core_memory"].append({"key": r["key"], "value": r["value"],
-                                         "importance": r["importance"], "created_at": r["created_at"]})
+            data["core_memory"].append(
+                {"key": r["key"], "value": r["value"], "importance": r["importance"], "created_at": r["created_at"]}
+            )
 
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute("SELECT * FROM episodes WHERE user_id=?", (user_id,))
         rows = await cursor.fetchall()
         for r in rows:
-            data["episodes"].append({"summary": r["summary"], "emotional_weight": r["emotional_weight"],
-                                      "tags": r["tags"], "created_at": r["created_at"]})
+            data["episodes"].append(
+                {
+                    "summary": r["summary"],
+                    "emotional_weight": r["emotional_weight"],
+                    "tags": r["tags"],
+                    "created_at": r["created_at"],
+                }
+            )
 
         filename = "export_%s_%d.json" % (user_id, int(time.time()))
         filepath = self.export_dir / filename
         filepath.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         return str(filepath)
 
-    async def import_user(self, filepath: str, target_user_id: str = None) -> Dict[str, int]:
+    async def import_user(self, filepath: str, target_user_id: str = None) -> dict[str, int]:
         data = json.loads(Path(filepath).read_text(encoding="utf-8"))
         user_id = target_user_id or data.get("user_id", "default")
         imported = {"core_memory": 0, "episodes": 0}
@@ -66,7 +81,7 @@ class ImportExport:
 
         return imported
 
-    def list_exports(self) -> List[Dict[str, Any]]:
+    def list_exports(self) -> list[dict[str, Any]]:
         exports = []
         for f in sorted(self.export_dir.glob("export_*.json"), reverse=True):
             exports.append({"file": f.name, "size": f.stat().st_size})

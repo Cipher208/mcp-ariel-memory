@@ -11,21 +11,21 @@ Legacy server is needed for:
 
 If writing new code — use mcp_server.py or import modules directly.
 """
+
 import asyncio
-import json
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from core import memory_manager
-from rag.engine import RAGEngine
+from features import BackupManager, ImportExport, MemoryCompressor
 from graph.epistemic import EpistemicGraph
 from graph.temporal import TemporalGraph
-from lifecycle.forgetting import ForgettingSystem
-from lifecycle.emotion_trigger import EmotionTrigger
+from hooks import HookRegistry
 from lifecycle.consolidation import ConsolidationEngine
-from wiki.file_wiki import FileWiki
-from features import ImportExport, BackupManager, MemoryCompressor
+from lifecycle.emotion_trigger import EmotionTrigger
+from lifecycle.forgetting import ForgettingSystem
+from rag.engine import RAGEngine
 from shared import MemoryCache
-from hooks import HookRegistry, UserHooks, AgentHooks
-from config import config
+from wiki.file_wiki import FileWiki
 
 
 class MemoryMCPServer:
@@ -49,7 +49,7 @@ class MemoryMCPServer:
 
         self._tools = self._register_tools()
 
-    def _register_tools(self) -> Dict[str, Any]:
+    def _register_tools(self) -> dict[str, Any]:
         return {
             # User Layer (10 tools)
             "memory.user.remember": self.user_remember,
@@ -75,7 +75,7 @@ class MemoryMCPServer:
             "memory.agent.stats": self.agent_stats,
         }
 
-    def call(self, tool_name: str, **kwargs) -> Dict[str, Any]:
+    def call(self, tool_name: str, **kwargs) -> dict[str, Any]:
         """Legacy sync call — for backward compatibility.
         Wraps async methods via asyncio.run().
         """
@@ -93,42 +93,52 @@ class MemoryMCPServer:
 
     # === User Layer Tools ===
 
-    def user_remember(self, user_id: str = "default", key: str = "", value: str = "", importance: float = 0.5, **kw) -> Dict:
+    def user_remember(
+        self, user_id: str = "default", key: str = "", value: str = "", importance: float = 0.5, **kw
+    ) -> dict:
         entry_id = self.mm.user_memory(user_id).remember(key, value, importance)
         return {"status": "ok", "entry_id": entry_id}
 
-    def user_recall(self, user_id: str = "default", query: str = "", limit: int = 10, **kw) -> Dict:
+    def user_recall(self, user_id: str = "default", query: str = "", limit: int = 10, **kw) -> dict:
         results = self.mm.user_memory(user_id).recall(query, limit)
         return {"results": results, "count": len(results)}
 
-    def user_forget(self, user_id: str = "default", key: str = "", **kw) -> Dict:
+    def user_forget(self, user_id: str = "default", key: str = "", **kw) -> dict:
         deleted = self.mm.user_memory(user_id).forget(key)
         return {"deleted": deleted}
 
-    def user_session_start(self, user_id: str = "default", **kw) -> Dict:
+    def user_session_start(self, user_id: str = "default", **kw) -> dict:
         session_id = self.mm.user_memory(user_id).l2.create_session(user_id)
         return {"session_id": session_id}
 
-    def user_session_end(self, user_id: str = "default", session_id: str = "", summary: str = "", **kw) -> Dict:
+    def user_session_end(self, user_id: str = "default", session_id: str = "", summary: str = "", **kw) -> dict:
         self.mm.user_memory(user_id).l2.close_session(session_id, summary)
         return {"status": "ok"}
 
-    def user_episode_save(self, user_id: str = "default", summary: str = "", weight: float = 0.5, tags: list = None, **kw) -> Dict:
+    def user_episode_save(
+        self, user_id: str = "default", summary: str = "", weight: float = 0.5, tags: list = None, **kw
+    ) -> dict:
         episode_id = self.mm.user_memory(user_id).l3.save(user_id, summary, weight, tags)
         return {"episode_id": episode_id}
 
-    def user_episode_recall(self, user_id: str = "default", tag: str = "", limit: int = 10, **kw) -> Dict:
+    def user_episode_recall(self, user_id: str = "default", tag: str = "", limit: int = 10, **kw) -> dict:
         if tag:
             episodes = self.mm.user_memory(user_id).l3.search_by_tag(user_id, tag, limit)
         else:
             episodes = self.mm.user_memory(user_id).l3.get_episodes(user_id, limit)
-        return {"episodes": [{"id": e.episode_id, "summary": e.summary, "weight": e.emotional_weight} for e in episodes]}
+        return {
+            "episodes": [{"id": e.episode_id, "summary": e.summary, "weight": e.emotional_weight} for e in episodes]
+        }
 
-    def user_graph_add(self, user_id: str = "default", content: str = "", node_type: str = "fact", tags: list = None, **kw) -> Dict:
+    def user_graph_add(
+        self, user_id: str = "default", content: str = "", node_type: str = "fact", tags: list = None, **kw
+    ) -> dict:
         node_id = self.user_graph.add_node(user_id, content, node_type, tags)
         return {"node_id": node_id}
 
-    def user_graph_query(self, user_id: str = "default", tag: str = "", node_type: str = "", limit: int = 20, **kw) -> Dict:
+    def user_graph_query(
+        self, user_id: str = "default", tag: str = "", node_type: str = "", limit: int = 20, **kw
+    ) -> dict:
         if tag:
             nodes = self.user_graph.query_by_tag(user_id, tag, limit)
         elif node_type:
@@ -137,7 +147,7 @@ class MemoryMCPServer:
             nodes = []
         return {"nodes": [{"id": n.node_id, "content": n.content, "type": n.node_type, "tags": n.tags} for n in nodes]}
 
-    def user_stats(self, user_id: str = "default", **kw) -> Dict:
+    def user_stats(self, user_id: str = "default", **kw) -> dict:
         mem = self.mm.user_memory(user_id)
         return {
             "l1_buffer": mem.l1.size(),
@@ -150,42 +160,52 @@ class MemoryMCPServer:
 
     # === Agent Layer Tools ===
 
-    def agent_remember(self, user_id: str = "default", key: str = "", value: str = "", importance: float = 0.5, **kw) -> Dict:
+    def agent_remember(
+        self, user_id: str = "default", key: str = "", value: str = "", importance: float = 0.5, **kw
+    ) -> dict:
         entry_id = self.mm.agent_memory(user_id).remember(key, value, importance)
         return {"status": "ok", "entry_id": entry_id}
 
-    def agent_recall(self, user_id: str = "default", query: str = "", limit: int = 10, **kw) -> Dict:
+    def agent_recall(self, user_id: str = "default", query: str = "", limit: int = 10, **kw) -> dict:
         results = self.mm.agent_memory(user_id).recall(query, limit)
         return {"results": results, "count": len(results)}
 
-    def agent_forget(self, user_id: str = "default", key: str = "", **kw) -> Dict:
+    def agent_forget(self, user_id: str = "default", key: str = "", **kw) -> dict:
         deleted = self.mm.agent_memory(user_id).forget(key)
         return {"deleted": deleted}
 
-    def agent_session_start(self, user_id: str = "default", **kw) -> Dict:
+    def agent_session_start(self, user_id: str = "default", **kw) -> dict:
         session_id = self.mm.agent_memory(user_id).l2.create_session(user_id)
         return {"session_id": session_id}
 
-    def agent_session_end(self, user_id: str = "default", session_id: str = "", summary: str = "", **kw) -> Dict:
+    def agent_session_end(self, user_id: str = "default", session_id: str = "", summary: str = "", **kw) -> dict:
         self.mm.agent_memory(user_id).l2.close_session(session_id, summary)
         return {"status": "ok"}
 
-    def agent_episode_save(self, user_id: str = "default", summary: str = "", weight: float = 0.5, tags: list = None, **kw) -> Dict:
+    def agent_episode_save(
+        self, user_id: str = "default", summary: str = "", weight: float = 0.5, tags: list = None, **kw
+    ) -> dict:
         episode_id = self.mm.agent_memory(user_id).l3.save(user_id, summary, weight, tags)
         return {"episode_id": episode_id}
 
-    def agent_episode_recall(self, user_id: str = "default", tag: str = "", limit: int = 10, **kw) -> Dict:
+    def agent_episode_recall(self, user_id: str = "default", tag: str = "", limit: int = 10, **kw) -> dict:
         if tag:
             episodes = self.mm.agent_memory(user_id).l3.search_by_tag(user_id, tag, limit)
         else:
             episodes = self.mm.agent_memory(user_id).l3.get_episodes(user_id, limit)
-        return {"episodes": [{"id": e.episode_id, "summary": e.summary, "weight": e.emotional_weight} for e in episodes]}
+        return {
+            "episodes": [{"id": e.episode_id, "summary": e.summary, "weight": e.emotional_weight} for e in episodes]
+        }
 
-    def agent_graph_add(self, user_id: str = "default", content: str = "", node_type: str = "decision_log", tags: list = None, **kw) -> Dict:
+    def agent_graph_add(
+        self, user_id: str = "default", content: str = "", node_type: str = "decision_log", tags: list = None, **kw
+    ) -> dict:
         node_id = self.agent_graph.add_node(user_id, content, node_type, tags)
         return {"node_id": node_id}
 
-    def agent_graph_query(self, user_id: str = "default", tag: str = "", node_type: str = "", limit: int = 20, **kw) -> Dict:
+    def agent_graph_query(
+        self, user_id: str = "default", tag: str = "", node_type: str = "", limit: int = 20, **kw
+    ) -> dict:
         if tag:
             nodes = self.agent_graph.query_by_tag(user_id, tag, limit)
         elif node_type:
@@ -194,7 +214,7 @@ class MemoryMCPServer:
             nodes = []
         return {"nodes": [{"id": n.node_id, "content": n.content, "type": n.node_type, "tags": n.tags} for n in nodes]}
 
-    def agent_stats(self, user_id: str = "default", **kw) -> Dict:
+    def agent_stats(self, user_id: str = "default", **kw) -> dict:
         mem = self.mm.agent_memory(user_id)
         return {
             "l1_buffer": mem.l1.size(),
@@ -205,7 +225,7 @@ class MemoryMCPServer:
             "graph_nodes": self.agent_graph.count_nodes(user_id),
         }
 
-    def list_tools(self) -> List[str]:
+    def list_tools(self) -> list[str]:
         return list(self._tools.keys())
 
     def get_context(self, user_id: str = "default", layer: str = "user") -> str:

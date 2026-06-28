@@ -2,20 +2,22 @@
 Core Memory Module — L1-L4 async
 Two-layer: user facts + agent identity
 """
-from typing import Optional, List, Dict
-from .reflex import ReflexBuffer
-from .session import SessionStore
+
+from typing import Dict, List, Optional
+
+from config import config
+from shared.connection import AsyncConnectionManager, connection_manager
+
 from .episodic import EpisodicMemory
 from .memory import CoreMemory
-from shared.connection import AsyncConnectionManager, connection_manager
-from config import config
+from .reflex import ReflexBuffer
+from .session import SessionStore
 
 
 class MemoryLayer:
     """Unified async memory layer for both user and agent."""
 
-    def __init__(self, layer_type: str, user_id: str = "default",
-                 cm: Optional[AsyncConnectionManager] = None, cache=None):
+    def __init__(self, layer_type: str, user_id: str = "default", cm: AsyncConnectionManager | None = None, cache=None):
         self.layer_type = layer_type
         self.user_id = user_id
         self._cm = cm or connection_manager
@@ -28,7 +30,7 @@ class MemoryLayer:
     async def remember(self, key: str, value: str, importance: float = 0.5) -> int:
         return await self.l4.save(self.user_id, key, value, importance)
 
-    async def recall(self, query: str, limit: int = 10) -> List[Dict]:
+    async def recall(self, query: str, limit: int = 10) -> list[dict]:
         cache_key = "recall:%s:%s:%d" % (self.user_id, query, limit)
         cached = self._cache.get(cache_key) if self._cache else None
         if cached is not None:
@@ -58,16 +60,16 @@ class MemoryLayer:
             parts.append("FACTS: " + "; ".join([f"{f.key}={f.value[:30]}" for f in facts]))
         return "\n".join(parts)
 
-    async def cleanup(self) -> Dict:
+    async def cleanup(self) -> dict:
         archived = await self.l3.archive_old(self.user_id)
         return {"archived": archived}
 
 
 class MemoryManager:
-    def __init__(self, cm: Optional[AsyncConnectionManager] = None, cache=None):
+    def __init__(self, cm: AsyncConnectionManager | None = None, cache=None):
         self._cm = cm or connection_manager
         self._cache = cache
-        self.layers: Dict[str, MemoryLayer] = {}
+        self.layers: dict[str, MemoryLayer] = {}
 
     def get_layer(self, layer_type: str, user_id: str = "default") -> MemoryLayer:
         key = "%s:%s" % (layer_type, user_id)
@@ -81,7 +83,7 @@ class MemoryManager:
     def agent_memory(self, user_id: str = "default") -> MemoryLayer:
         return self.get_layer("agent", user_id)
 
-    async def cleanup_all(self) -> Dict:
+    async def cleanup_all(self) -> dict:
         results = {}
         for key, layer in self.layers.items():
             results[key] = await layer.cleanup()

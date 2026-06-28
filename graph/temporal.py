@@ -1,10 +1,12 @@
 """
 Temporal Graph - time-based memory relations
 """
+
 import time
-from typing import List, Dict, Any
 from dataclasses import dataclass
-from shared.connection import AsyncConnectionManager, connection_manager
+from typing import Any
+
+from shared.connection import connection_manager
 
 
 @dataclass
@@ -15,7 +17,7 @@ class TemporalEvent:
     content: str
     timestamp: float
     importance: float
-    metadata: Dict
+    metadata: dict
 
 
 class TemporalGraph:
@@ -23,7 +25,9 @@ class TemporalGraph:
         self._cm = cm or connection_manager
 
     async def init_db(self):
-        await self._cm.execute_script("memory.db", """
+        await self._cm.execute_script(
+            "memory.db",
+            """
             CREATE TABLE IF NOT EXISTS temporal_events (
                 event_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL,
@@ -43,15 +47,18 @@ class TemporalGraph:
             CREATE INDEX IF NOT EXISTS idx_temp_user ON temporal_events(user_id);
             CREATE INDEX IF NOT EXISTS idx_temp_time ON temporal_events(timestamp);
             CREATE INDEX IF NOT EXISTS idx_temp_type ON temporal_events(event_type);
-        """)
+        """,
+        )
 
-    async def add_event(self, user_id: str, event_type: str, content: str,
-                        importance: float = 0.5, metadata: Dict = None) -> int:
+    async def add_event(
+        self, user_id: str, event_type: str, content: str, importance: float = 0.5, metadata: dict = None
+    ) -> int:
         import json
+
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
             "INSERT INTO temporal_events (user_id, event_type, content, timestamp, importance, metadata) VALUES (?, ?, ?, ?, ?, ?)",
-            (user_id, event_type, content, time.time(), importance, json.dumps(metadata or {}))
+            (user_id, event_type, content, time.time(), importance, json.dumps(metadata or {})),
         )
         await conn.commit()
         return cursor.lastrowid
@@ -60,44 +67,59 @@ class TemporalGraph:
         conn = await self._cm.get("memory.db")
         await conn.execute(
             "INSERT OR REPLACE INTO temporal_links (from_event, to_event, link_type, strength) VALUES (?, ?, ?, ?)",
-            (from_event, to_event, link_type, strength)
+            (from_event, to_event, link_type, strength),
         )
         await conn.commit()
 
-    async def get_timeline(self, user_id: str, limit: int = 50, offset: int = 0) -> List[TemporalEvent]:
+    async def get_timeline(self, user_id: str, limit: int = 50, offset: int = 0) -> list[TemporalEvent]:
         import json
+
         conn = await self._cm.get("memory.db")
         cur = await conn.execute(
             "SELECT * FROM temporal_events WHERE user_id=? ORDER BY timestamp DESC LIMIT ? OFFSET ?",
-            (user_id, limit, offset)
+            (user_id, limit, offset),
         )
         rows = await cur.fetchall()
         return [
             TemporalEvent(
-                event_id=r["event_id"], user_id=r["user_id"], event_type=r["event_type"],
-                content=r["content"], timestamp=r["timestamp"], importance=r["importance"],
-                metadata=json.loads(r["metadata"]) if r["metadata"] else {}
-            ) for r in rows
+                event_id=r["event_id"],
+                user_id=r["user_id"],
+                event_type=r["event_type"],
+                content=r["content"],
+                timestamp=r["timestamp"],
+                importance=r["importance"],
+                metadata=json.loads(r["metadata"]) if r["metadata"] else {},
+            )
+            for r in rows
         ]
 
-    async def get_events_near(self, user_id: str, timestamp: float, window_seconds: float = 3600,
-                              limit: int = 20) -> List[TemporalEvent]:
+    async def get_events_near(
+        self, user_id: str, timestamp: float, window_seconds: float = 3600, limit: int = 20
+    ) -> list[TemporalEvent]:
         import json
+
         conn = await self._cm.get("memory.db")
         cur = await conn.execute(
             "SELECT * FROM temporal_events WHERE user_id=? AND ABS(timestamp - ?) < ? ORDER BY timestamp LIMIT ?",
-            (user_id, timestamp, window_seconds, limit)
+            (user_id, timestamp, window_seconds, limit),
         )
         rows = await cur.fetchall()
         return [
             TemporalEvent(
-                event_id=r["event_id"], user_id=r["user_id"], event_type=r["event_type"],
-                content=r["content"], timestamp=r["timestamp"], importance=r["importance"],
-                metadata=json.loads(r["metadata"]) if r["metadata"] else {}
-            ) for r in rows
+                event_id=r["event_id"],
+                user_id=r["user_id"],
+                event_type=r["event_type"],
+                content=r["content"],
+                timestamp=r["timestamp"],
+                importance=r["importance"],
+                metadata=json.loads(r["metadata"]) if r["metadata"] else {},
+            )
+            for r in rows
         ]
 
-    async def get_causal_chain(self, event_id: int, direction: str = "forward", limit: int = 10) -> List[Dict[str, Any]]:
+    async def get_causal_chain(
+        self, event_id: int, direction: str = "forward", limit: int = 10
+    ) -> list[dict[str, Any]]:
         conn = await self._cm.get("memory.db")
         if direction == "forward":
             sql = "SELECT tl.to_event, te.event_type, te.content, te.timestamp FROM temporal_links tl JOIN temporal_events te ON tl.to_event = te.event_id WHERE tl.from_event = ? LIMIT ?"

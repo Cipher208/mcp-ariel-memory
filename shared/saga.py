@@ -2,15 +2,17 @@
 Saga — pattern for multi-step operations with compensation (rollback).
 Includes watchdog for detecting stuck sagas and persistence for recovery.
 """
+
 import asyncio
 import json
 import logging
-import time
 import threading
+import time
+from collections.abc import Callable, Coroutine
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Coroutine, Optional, Dict, List
-from dataclasses import dataclass, field
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +33,8 @@ class SagaStatus(str, Enum):
 class SagaStep:
     name: str
     action: Callable[[dict], Coroutine[Any, Any, dict]]
-    compensation: Optional[Callable[[dict], Coroutine[Any, Any, None]]] = None
-    timeout_seconds: Optional[int] = None  # step timeout (None = use saga timeout)
+    compensation: Callable[[dict], Coroutine[Any, Any, None]] | None = None
+    timeout_seconds: int | None = None  # step timeout (None = use saga timeout)
     status: SagaStatus = SagaStatus.PENDING
     result: dict = field(default_factory=dict)
     data: dict = field(default_factory=dict)
@@ -62,11 +64,12 @@ class Saga:
         self,
         name: str,
         action: Callable[[dict], Coroutine[Any, Any, dict]],
-        compensation: Optional[Callable[[dict], Coroutine[Any, Any, None]]] = None,
-        timeout_seconds: Optional[int] = None,
+        compensation: Callable[[dict], Coroutine[Any, Any, None]] | None = None,
+        timeout_seconds: int | None = None,
     ) -> "Saga":
-        self._steps.append(SagaStep(name=name, action=action, compensation=compensation,
-                                    timeout_seconds=timeout_seconds))
+        self._steps.append(
+            SagaStep(name=name, action=action, compensation=compensation, timeout_seconds=timeout_seconds)
+        )
         return self
 
     def _save_state(self):
@@ -79,17 +82,14 @@ class Saga:
             "current_step": self._current_step,
             "started_at": self._started_at,
             "data": self._data,
-            "steps": [
-                {"name": s.name, "status": s.status.value, "result": s.result}
-                for s in self._steps
-            ],
+            "steps": [{"name": s.name, "status": s.status.value, "result": s.result} for s in self._steps],
         }
         try:
             state_file.write_text(json.dumps(state, indent=2, default=str), encoding="utf-8")
         except Exception as e:
             logger.error("Failed to save saga state: %s" % e)
 
-    def _load_state(self, saga_id: str) -> Optional[dict]:
+    def _load_state(self, saga_id: str) -> dict | None:
         """Load state from disk."""
         state_file = SAGA_DIR / (saga_id + ".json")
         if state_file.exists():
@@ -108,8 +108,9 @@ class Saga:
             except Exception:
                 pass
 
-    async def execute(self, initial_data: Optional[dict] = None) -> dict:
+    async def execute(self, initial_data: dict | None = None) -> dict:
         import uuid
+
         self._saga_id = self.name + "_" + uuid.uuid4().hex[:8]
         self._data = initial_data or {}
         self._status = SagaStatus.RUNNING
@@ -130,15 +131,11 @@ class Saga:
                     step_timeout = step.timeout_seconds or self.timeout_seconds
                     if isinstance(step.action, Saga):
                         inner = step.action
-                        step.result = await asyncio.wait_for(
-                            inner.execute(self._data), timeout=step_timeout
-                        )
+                        step.result = await asyncio.wait_for(inner.execute(self._data), timeout=step_timeout)
                     else:
                         action_result = step.action(self._data)
-                        if hasattr(action_result, '__await__'):
-                            step.result = await asyncio.wait_for(
-                                action_result, timeout=step_timeout
-                            )
+                        if hasattr(action_result, "__await__"):
+                            step.result = await asyncio.wait_for(action_result, timeout=step_timeout)
                         else:
                             step.result = action_result
                     self._data.update(step.result)
@@ -192,7 +189,9 @@ class Saga:
                             await inner_step.compensation(inner_step.data)
                             logger.info("Saga '%s' compensated inner step '%s'" % (self.name, inner_step.name))
                         except Exception as e:
-                            logger.error("Saga '%s' inner compensation failed for '%s': %s" % (self.name, inner_step.name, e))
+                            logger.error(
+                                "Saga '%s' inner compensation failed for '%s': %s" % (self.name, inner_step.name, e)
+                            )
             elif step.compensation:
                 try:
                     await step.compensation(step.data)
@@ -210,10 +209,7 @@ class Saga:
             "current_step": self._current_step,
             "started_at": self._started_at,
             "data": self._data,
-            "steps": [
-                {"name": s.name, "status": s.status.value, "result": s.result}
-                for s in self._steps
-            ],
+            "steps": [{"name": s.name, "status": s.status.value, "result": s.result} for s in self._steps],
         }
 
 
@@ -224,7 +220,7 @@ class SagaWatchdog:
         self.check_interval = check_interval
         self.max_age_seconds = max_age_seconds
         self._running = False
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
 
     def start(self):
         if self._running:
@@ -271,7 +267,7 @@ class SagaWatchdog:
             except Exception as e:
                 logger.error("Error checking saga %s: %s" % (state_file.name, e))
 
-    def get_stuck_sagas(self) -> List[Dict[str, Any]]:
+    def get_stuck_sagas(self) -> list[dict[str, Any]]:
         """Get list of stuck sagas."""
         stuck = []
         SAGA_DIR.mkdir(parents=True, exist_ok=True)
@@ -281,19 +277,21 @@ class SagaWatchdog:
                 state = json.loads(state_file.read_text(encoding="utf-8"))
                 if state.get("status") in ("stuck", "failed", "running"):
                     age = time.time() - state.get("started_at", 0)
-                    stuck.append({
-                        "saga_id": state.get("saga_id"),
-                        "name": state.get("name"),
-                        "status": state.get("status"),
-                        "current_step": state.get("current_step"),
-                        "age_seconds": int(age),
-                    })
+                    stuck.append(
+                        {
+                            "saga_id": state.get("saga_id"),
+                            "name": state.get("name"),
+                            "status": state.get("status"),
+                            "current_step": state.get("current_step"),
+                            "age_seconds": int(age),
+                        }
+                    )
             except Exception:
                 pass
 
         return stuck
 
-    def recover_saga(self, saga_id: str) -> Optional[Dict[str, Any]]:
+    def recover_saga(self, saga_id: str) -> dict[str, Any] | None:
         """Attempt to recover a stuck saga."""
         state_file = SAGA_DIR / (saga_id + ".json")
         if not state_file.exists():
@@ -337,6 +335,7 @@ saga_watchdog = SagaWatchdog()
 
 
 # === Ready-made sagas for mcp-ariel-memory ===
+
 
 async def _consolidation_gather(data: dict) -> dict:
     """Gather staging memories."""
@@ -405,6 +404,7 @@ async def _backup_copy_db(data: dict) -> dict:
     """Copy the database."""
     import shutil
     from pathlib import Path
+
     base = Path.home() / ".mcp-ariel-memory"
     backup_dir = base / "backups" / ("saga_%d" % int(time.time()))
     backup_dir.mkdir(parents=True, exist_ok=True)
@@ -418,6 +418,7 @@ async def _backup_copy_db(data: dict) -> dict:
 async def _backup_verify(data: dict) -> dict:
     """Verify backup integrity."""
     from pathlib import Path
+
     backup_path = Path(data.get("backup_path", ""))
     files = list(backup_path.glob("*.db")) if backup_path.exists() else []
     return {"verified_files": len(files)}
@@ -427,6 +428,7 @@ async def _backup_compensate(data: dict) -> None:
     """Rollback: delete failed backup."""
     import shutil
     from pathlib import Path
+
     backup_path = Path(data.get("backup_path", ""))
     if backup_path.exists():
         shutil.rmtree(backup_path)
@@ -438,4 +440,3 @@ def create_backup_saga() -> Saga:
     saga.add_step("copy", _backup_copy_db, _backup_compensate)
     saga.add_step("verify", _backup_verify)
     return saga
-

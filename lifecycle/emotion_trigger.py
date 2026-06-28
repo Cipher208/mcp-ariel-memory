@@ -2,44 +2,116 @@
 Emotion Trigger — detecting important moments by emotional markers.
 Supports Russian + English. Rule-based + pattern detection.
 """
+
 import re
-from typing import Tuple
 
 EMOTION_MARKERS = {
     "love": [
-        "люблю", "обожаю", "адорю", "влюблён", "дорогой", "родной",
-        "love", "adore", "beloved", "dear",
+        "люблю",
+        "обожаю",
+        "адорю",
+        "влюблён",
+        "дорогой",
+        "родной",
+        "love",
+        "adore",
+        "beloved",
+        "dear",
     ],
     "fear": [
-        "боюсь", "страшно", "ужас", "паник", "тревог", "опасаюсь",
-        "afraid", "scared", "terrified", "panic", "anxiety",
+        "боюсь",
+        "страшно",
+        "ужас",
+        "паник",
+        "тревог",
+        "опасаюсь",
+        "afraid",
+        "scared",
+        "terrified",
+        "panic",
+        "anxiety",
     ],
     "anger": [
-        "ненавижу", "бесит", "злюсь", "раздраж", "гнев", "отвращ",
-        "hate", "angry", "furious", "frustrated", "annoyed",
+        "ненавижу",
+        "бесит",
+        "злюсь",
+        "раздраж",
+        "гнев",
+        "отвращ",
+        "hate",
+        "angry",
+        "furious",
+        "frustrated",
+        "annoyed",
     ],
     "joy": [
-        "счастлив", "рад", "весел", "отличн", "прекрасн", "восхитительн",
-        "ура", "класс", "супер", "круто",
-        "happy", "glad", "cheerful", "wonderful", "amazing", "awesome",
+        "счастлив",
+        "рад",
+        "весел",
+        "отличн",
+        "прекрасн",
+        "восхитительн",
+        "ура",
+        "класс",
+        "супер",
+        "круто",
+        "happy",
+        "glad",
+        "cheerful",
+        "wonderful",
+        "amazing",
+        "awesome",
     ],
     "gratitude": [
-        "спасибо", "благодарю", "благодарн", "признателен",
-        "thanks", "thank you", "grateful", "appreciate",
+        "спасибо",
+        "благодарю",
+        "благодарн",
+        "признателен",
+        "thanks",
+        "thank you",
+        "grateful",
+        "appreciate",
     ],
     "importance": [
-        "важно", "критично", "срочно", "необходимо", "обязательно",
-        "запомни", "никогда не забудь", "запиши",
-        "important", "critical", "urgent", "remember", "never forget",
+        "важно",
+        "критично",
+        "срочно",
+        "необходимо",
+        "обязательно",
+        "запомни",
+        "никогда не забудь",
+        "запиши",
+        "important",
+        "critical",
+        "urgent",
+        "remember",
+        "never forget",
     ],
     "sadness": [
-        "грустно", "печальн", "тоск", "одинок", "жаль", "жалею",
-        "грусть", "слёзы", "плач",
-        "sad", "sorrow", "lonely", "regret", "tears",
+        "грустно",
+        "печальн",
+        "тоск",
+        "одинок",
+        "жаль",
+        "жалею",
+        "грусть",
+        "слёзы",
+        "плач",
+        "sad",
+        "sorrow",
+        "lonely",
+        "regret",
+        "tears",
     ],
     "surprise": [
-        "удивлён", "неожиданн", "внезапно", "нечаянно",
-        "surprised", "unexpected", "suddenly", "wow",
+        "удивлён",
+        "неожиданн",
+        "внезапно",
+        "нечаянно",
+        "surprised",
+        "unexpected",
+        "suddenly",
+        "wow",
     ],
 }
 
@@ -82,8 +154,9 @@ STATE_SHIFT_THRESHOLD = 0.15
 
 
 class EmotionTrigger:
-    def should_save(self, message: str, emotional_state: dict = None,
-                    state_delta: dict = None) -> Tuple[bool, str, float]:
+    def should_save(
+        self, message: str, emotional_state: dict = None, state_delta: dict = None
+    ) -> tuple[bool, str, float]:
         msg_lower = message.lower()
 
         # 1. Phrase patterns (high priority)

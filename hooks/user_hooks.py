@@ -1,14 +1,15 @@
 """
 User Layer Hooks - 12 hooks for user memory events
 """
-import time
-from typing import Dict, Any
-from core.reflex import ReflexBuffer
-from lifecycle.emotion_trigger import EmotionTrigger
+
+from typing import Any
+
 from lifecycle.consolidation import ConsolidationEngine
+from lifecycle.emotion_trigger import EmotionTrigger
 from lifecycle.forgetting import ForgettingSystem
-from rag.router import RetrievalRouter
 from rag.conflict import ConflictResolver
+from rag.router import RetrievalRouter
+
 from .registry import hook_registry
 
 
@@ -32,64 +33,64 @@ class UserHooks:
         hook_registry.register("conflict_resolver", self._conflict_resolver)
         hook_registry.register("dream_buffer", self._dream_buffer)
 
-    def _message_received(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
+    def _message_received(self, ctx: dict[str, Any]) -> dict[str, Any]:
         text = ctx.get("text", "")
         importance = self._calculate_importance(text)
         return {"action": "store_to_l1", "importance": importance, "text": text[:100]}
 
-    def _message_sent(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
+    def _message_sent(self, ctx: dict[str, Any]) -> dict[str, Any]:
         text = ctx.get("text", "")
         return {"action": "store_to_l1", "role": "assistant", "text": text[:100]}
 
-    def _state_delta(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
+    def _state_delta(self, ctx: dict[str, Any]) -> dict[str, Any]:
         delta = ctx.get("delta", {})
         if delta:
             return {"action": "save_episode", "summary": f"State changed: {list(delta.keys())}", "weight": 0.4}
         return {"action": "skip"}
 
-    def _consolidation(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
+    def _consolidation(self, ctx: dict[str, Any]) -> dict[str, Any]:
         staging = ctx.get("staging_items", [])
         engine = ConsolidationEngine()
         result = engine.consolidate_staging(self.user_id, staging)
         return {"action": "consolidated", **result}
 
-    def _emotion_trigger(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
+    def _emotion_trigger(self, ctx: dict[str, Any]) -> dict[str, Any]:
         text = ctx.get("text", "")
         should, reason, weight = self.emotion_trigger.should_save(text)
         if should:
             return {"action": "save_episode", "reason": reason, "weight": weight}
         return {"action": "skip"}
 
-    def _nightly(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
+    def _nightly(self, ctx: dict[str, Any]) -> dict[str, Any]:
         return {"action": "create_diary", "summary": ctx.get("daily_summary", "")}
 
-    def _importance_gate(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
+    def _importance_gate(self, ctx: dict[str, Any]) -> dict[str, Any]:
         text = ctx.get("text", "")
         score = self._calculate_importance(text)
         return {"importance": score, "bypass": score < 0.3}
 
-    def _auto_context(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
+    def _auto_context(self, ctx: dict[str, Any]) -> dict[str, Any]:
         query = ctx.get("query", "")
         router = RetrievalRouter(user_id=self.user_id)
         result = router.route(query)
         return {"context": result.context, "strategy": result.strategy.value}
 
-    def _forgetting_ritual(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
+    def _forgetting_ritual(self, ctx: dict[str, Any]) -> dict[str, Any]:
         fs = ForgettingSystem()
         return fs.cleanup()
 
-    def _retrieval_router(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
+    def _retrieval_router(self, ctx: dict[str, Any]) -> dict[str, Any]:
         query = ctx.get("query", "")
         router = RetrievalRouter(user_id=self.user_id)
         result = router.route(query)
         return {"strategy": result.strategy.value, "confidence": result.confidence, "count": len(result.context)}
 
-    def _conflict_resolver(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
+    def _conflict_resolver(self, ctx: dict[str, Any]) -> dict[str, Any]:
         content = ctx.get("content", "")
         resolver = ConflictResolver()
         return resolver.check(self.user_id, content)
 
-    def _dream_buffer(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
+    def _dream_buffer(self, ctx: dict[str, Any]) -> dict[str, Any]:
         return {"action": "add_to_staging", "content": ctx.get("text", "")}
 
     def _calculate_importance(self, text: str) -> float:

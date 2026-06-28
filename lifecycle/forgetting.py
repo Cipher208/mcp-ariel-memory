@@ -1,11 +1,11 @@
 """
 Forgetting System - decay, archiving, compression
 """
-import time
-import json
+
 import logging
+import time
 from pathlib import Path
-from typing import Dict, Any
+
 from config import config
 from shared.connection import AsyncConnectionManager, connection_manager
 
@@ -31,7 +31,7 @@ class ForgettingSystem:
                 """UPDATE core_memory SET importance = MAX(0.01,
                    importance * EXP(-? * (? - updated_at) / 86400))
                    WHERE importance > 0.01""",
-                (self.decay_rate, now)
+                (self.decay_rate, now),
             )
             await conn.commit()
             affected = cursor.rowcount
@@ -48,7 +48,7 @@ class ForgettingSystem:
             cutoff = time.time() - (self.archive_days * 86400)
             cursor = await conn.execute(
                 "SELECT * FROM core_memory WHERE updated_at < ? AND importance < ?",
-                (cutoff, self.archive_min_importance)
+                (cutoff, self.archive_min_importance),
             )
             rows = await cursor.fetchall()
             if not rows:
@@ -56,6 +56,7 @@ class ForgettingSystem:
 
             # Use ArchivedMemories instead of manual JSON
             from shared.archived_memories import ArchivedMemories
+
             am = ArchivedMemories()
             archived_count = 0
             for row in rows:
@@ -91,7 +92,7 @@ class ForgettingSystem:
                 await conn.execute(
                     """DELETE FROM core_memory WHERE user_id=? AND key=? AND entry_id NOT IN
                        (SELECT entry_id FROM core_memory WHERE user_id=? AND key=? ORDER BY updated_at DESC LIMIT 1)""",
-                    (dup["user_id"], dup["key"], dup["user_id"], dup["key"])
+                    (dup["user_id"], dup["key"], dup["user_id"], dup["key"]),
                 )
                 changes_cursor = await conn.execute("SELECT changes()")
                 changes_row = await changes_cursor.fetchone()
@@ -102,7 +103,7 @@ class ForgettingSystem:
             logger.error("Compression failed: %s" % e)
             return 0
 
-    async def cleanup(self) -> Dict[str, int]:
+    async def cleanup(self) -> dict[str, int]:
         return {
             "decayed": await self.decay_importance(),
             "archived": await self.archive_old_entries(),

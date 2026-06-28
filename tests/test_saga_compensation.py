@@ -1,13 +1,19 @@
 """Tests for saga compensation — verifies actual DB rollback."""
-import sys
+
 import asyncio
+import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 
 # Ensure migrations run
 async def _setup():
     from shared.migrations import migration_manager
+
     await migration_manager.migrate()
+
+
 asyncio.run(_setup())
 
 

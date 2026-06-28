@@ -1,8 +1,9 @@
 """
 Lifecycle Module - forgetting, emotion trigger, consolidation
 """
-from .forgetting import ForgettingSystem
-from .emotion_trigger import EmotionTrigger
+
 from .consolidation import ConsolidationEngine
+from .emotion_trigger import EmotionTrigger
+from .forgetting import ForgettingSystem
 
 __all__ = ["ForgettingSystem", "EmotionTrigger", "ConsolidationEngine"]

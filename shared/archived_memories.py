@@ -1,9 +1,9 @@
 """
 ArchivedMemories — async archived memory storage
 """
-import json
-import time
-from typing import List, Dict, Any, Optional
+
+from typing import Any, Optional
+
 from shared.connection import AsyncConnectionManager, connection_manager
 
 
@@ -12,7 +12,9 @@ class ArchivedMemories:
         self._cm = cm or connection_manager
 
     async def _init_db(self):
-        await self._cm.execute_script("memory.db", """
+        await self._cm.execute_script(
+            "memory.db",
+            """
             CREATE TABLE IF NOT EXISTS archived_memories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL DEFAULT 'default',
@@ -21,10 +23,18 @@ class ArchivedMemories:
                 archive_reason TEXT NOT NULL,
                 archived_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
-        """)
+        """,
+        )
 
-    async def archive(self, user_id: str, content: str, memory_type: str = None,
-                      importance: float = None, original_id: int = None, reason: str = "manual") -> int:
+    async def archive(
+        self,
+        user_id: str,
+        content: str,
+        memory_type: str = None,
+        importance: float = None,
+        original_id: int = None,
+        reason: str = "manual",
+    ) -> int:
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
             "INSERT INTO archived_memories (user_id, original_id, content, memory_type, importance, archive_reason) VALUES (?, ?, ?, ?, ?, ?)",
@@ -33,22 +43,32 @@ class ArchivedMemories:
         await conn.commit()
         return cursor.lastrowid
 
-    async def get_archived(self, user_id: str = "default", limit: int = 50) -> List[Dict[str, Any]]:
+    async def get_archived(self, user_id: str = "default", limit: int = 50) -> list[dict[str, Any]]:
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
             "SELECT * FROM archived_memories WHERE user_id=? ORDER BY archived_at DESC LIMIT ?",
             (user_id, limit),
         )
         rows = await cursor.fetchall()
-        return [{"id": r["id"], "content": r["content"], "importance": r["importance"],
-                 "archive_reason": r["archive_reason"], "archived_at": r["archived_at"]} for r in rows]
+        return [
+            {
+                "id": r["id"],
+                "content": r["content"],
+                "importance": r["importance"],
+                "archive_reason": r["archive_reason"],
+                "archived_at": r["archived_at"],
+            }
+            for r in rows
+        ]
 
     async def count(self, user_id: str = "default") -> int:
         conn = await self._cm.get("memory.db")
-        row = await (await conn.execute("SELECT COUNT(*) FROM archived_memories WHERE user_id=?", (user_id,))).fetchone()
+        row = await (
+            await conn.execute("SELECT COUNT(*) FROM archived_memories WHERE user_id=?", (user_id,))
+        ).fetchone()
         return row[0] if row else 0
 
-    async def restore(self, archived_id: int) -> Optional[Dict[str, Any]]:
+    async def restore(self, archived_id: int) -> dict[str, Any] | None:
         conn = await self._cm.get("memory.db")
         row = await (await conn.execute("SELECT * FROM archived_memories WHERE id=?", (archived_id,))).fetchone()
         if row:

@@ -2,10 +2,12 @@
 Middleware Pipeline — chain of handlers for intercepting and modifying requests.
 Analogous to middleware_pipeline.py from ariel.
 """
+
 import logging
 import time
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -13,11 +15,12 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MiddlewareContext:
     """Context passed through the pipeline."""
+
     tool_name: str = ""
     user_id: str = "default"
-    args: Dict = field(default_factory=dict)
+    args: dict = field(default_factory=dict)
     result: Any = None
-    metadata: Dict = field(default_factory=dict)
+    metadata: dict = field(default_factory=dict)
     start_time: float = 0.0
     blocked: bool = False
     block_reason: str = ""
@@ -28,6 +31,7 @@ MiddlewareNext = Callable[[MiddlewareContext], Any]
 
 class Middleware:
     """Base middleware class."""
+
     name: str = "base"
 
     async def process(self, ctx: MiddlewareContext, next: MiddlewareNext) -> Any:
@@ -36,11 +40,12 @@ class Middleware:
 
 class RateLimitMiddleware(Middleware):
     """Rate limiting for requests."""
+
     name = "rate_limit"
 
     def __init__(self, max_per_minute: int = 100):
         self._max = max_per_minute
-        self._requests: Dict[str, List[float]] = {}
+        self._requests: dict[str, list[float]] = {}
 
     async def process(self, ctx: MiddlewareContext, next: MiddlewareNext) -> Any:
         now = time.time()
@@ -59,6 +64,7 @@ class RateLimitMiddleware(Middleware):
 
 class AuditMiddleware(Middleware):
     """Audit logging for all calls."""
+
     name = "audit"
 
     async def process(self, ctx: MiddlewareContext, next: MiddlewareNext) -> Any:
@@ -77,13 +83,15 @@ class ImportanceGateMiddleware(Middleware):
     """Noise filter — only passes important messages.
     Full version from agent_core/cognitive/importance_gate.py"""
 
-    def __init__(self, min_length: int = 15, threshold: float = 0.3,
-                 technical_weight: float = 0.3, question_weight: float = 0.2):
+    def __init__(
+        self, min_length: int = 15, threshold: float = 0.3, technical_weight: float = 0.3, question_weight: float = 0.2
+    ):
         self._min_length = min_length
         self._threshold = threshold
         self._technical_weight = technical_weight
         self._question_weight = question_weight
         import re
+
         self._technical_pattern = re.compile(
             r"\b(баг|функция|класс|ошибка|конфиг|redis|sqlite|api|endpoint|"
             r"модуль|сервис|деплой|тест|репозиторий|коммит|branch|merge|"
@@ -98,8 +106,12 @@ class ImportanceGateMiddleware(Middleware):
         )
 
     async def process(self, ctx: MiddlewareContext, next: MiddlewareNext) -> Any:
-        if ctx.tool_name not in ("memory_user_remember", "memory_agent_remember",
-                                  "memory_user_episode_save", "memory_agent_episode_save"):
+        if ctx.tool_name not in (
+            "memory_user_remember",
+            "memory_agent_remember",
+            "memory_user_episode_save",
+            "memory_agent_episode_save",
+        ):
             return await next(ctx)
 
         text = ctx.args.get("value", ctx.args.get("summary", ""))
@@ -136,6 +148,7 @@ class ImportanceGateMiddleware(Middleware):
 
 class ValidationMiddleware(Middleware):
     """Parameter validation."""
+
     name = "validation"
 
     async def process(self, ctx: MiddlewareContext, next: MiddlewareNext) -> Any:
@@ -155,11 +168,12 @@ class ValidationMiddleware(Middleware):
 
 class DedupMiddleware(Middleware):
     """Request deduplication."""
+
     name = "dedup"
 
     def __init__(self, window_seconds: int = 5):
         self._window = window_seconds
-        self._recent: Dict[str, float] = {}
+        self._recent: dict[str, float] = {}
 
     async def process(self, ctx: MiddlewareContext, next: MiddlewareNext) -> Any:
         now = time.time()
@@ -177,7 +191,7 @@ class MiddlewarePipeline:
     """Middleware chain."""
 
     def __init__(self):
-        self._middlewares: List[Middleware] = []
+        self._middlewares: list[Middleware] = []
 
     def add(self, middleware: Middleware) -> "MiddlewarePipeline":
         self._middlewares.append(middleware)
@@ -187,14 +201,14 @@ class MiddlewarePipeline:
         async def _run(index: int, ctx: MiddlewareContext) -> Any:
             if index >= len(self._middlewares):
                 result = handler(ctx)
-                if hasattr(result, '__await__'):
+                if hasattr(result, "__await__"):
                     return await result
                 return result
             return await self._middlewares[index].process(ctx, lambda c: _run(index + 1, c))
 
         return await _run(0, ctx)
 
-    def list_middlewares(self) -> List[str]:
+    def list_middlewares(self) -> list[str]:
         return [m.name for m in self._middlewares]
 
 

@@ -1,10 +1,10 @@
 """
 L2 SessionStore — async session history with indexes
 """
+
 import json
 import time
 import uuid
-from typing import List, Optional, Dict
 from dataclasses import dataclass, field
 
 from shared.connection import AsyncConnectionManager, connection_manager
@@ -15,19 +15,21 @@ class SessionRecord:
     session_id: str
     user_id: str
     summary: str
-    state_deltas: Dict = field(default_factory=dict)
-    topics: List[str] = field(default_factory=list)
+    state_deltas: dict = field(default_factory=dict)
+    topics: list[str] = field(default_factory=list)
     message_count: int = 0
     started_at: float = 0.0
     ended_at: float = 0.0
 
 
 class SessionStore:
-    def __init__(self, cm: Optional[AsyncConnectionManager] = None):
+    def __init__(self, cm: AsyncConnectionManager | None = None):
         self._cm = cm or connection_manager
 
     async def _init_db(self):
-        await self._cm.execute_script("memory.db", """
+        await self._cm.execute_script(
+            "memory.db",
+            """
             CREATE TABLE IF NOT EXISTS sessions (
                 session_id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -40,7 +42,8 @@ class SessionStore:
             );
             CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
             CREATE INDEX IF NOT EXISTS idx_sessions_time ON sessions(started_at);
-        """)
+        """,
+        )
 
     async def create_session(self, user_id: str) -> str:
         session_id = f"sess_{user_id}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
@@ -52,7 +55,9 @@ class SessionStore:
         await conn.commit()
         return session_id
 
-    async def close_session(self, session_id: str, summary: str = "", state_deltas: Dict = None, topics: List[str] = None):
+    async def close_session(
+        self, session_id: str, summary: str = "", state_deltas: dict = None, topics: list[str] = None
+    ):
         conn = await self._cm.get("memory.db")
         await conn.execute(
             "UPDATE sessions SET summary=?, state_deltas=?, topics=?, ended_at=? WHERE session_id=?",
@@ -60,7 +65,7 @@ class SessionStore:
         )
         await conn.commit()
 
-    async def get_recent_sessions(self, user_id: str, limit: int = 10) -> List["SessionRecord"]:
+    async def get_recent_sessions(self, user_id: str, limit: int = 10) -> list["SessionRecord"]:
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
             "SELECT * FROM sessions WHERE user_id=? ORDER BY started_at DESC LIMIT ?",

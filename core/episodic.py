@@ -1,9 +1,9 @@
 """
 L3 EpisodicMemory — async important moments with emotional weight
 """
+
 import json
 import time
-from typing import List, Optional
 from dataclasses import dataclass
 
 from shared.connection import AsyncConnectionManager, connection_manager
@@ -15,16 +15,18 @@ class Episode:
     user_id: str
     summary: str
     emotional_weight: float
-    tags: List[str]
+    tags: list[str]
     created_at: float
 
 
 class EpisodicMemory:
-    def __init__(self, cm: Optional[AsyncConnectionManager] = None):
+    def __init__(self, cm: AsyncConnectionManager | None = None):
         self._cm = cm or connection_manager
 
     async def _init_db(self):
-        await self._cm.execute_script("memory.db", """
+        await self._cm.execute_script(
+            "memory.db",
+            """
             CREATE TABLE IF NOT EXISTS episodes (
                 episode_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL,
@@ -35,9 +37,10 @@ class EpisodicMemory:
             );
             CREATE INDEX IF NOT EXISTS idx_episodes_user ON episodes(user_id);
             CREATE INDEX IF NOT EXISTS idx_episodes_time ON episodes(created_at);
-        """)
+        """,
+        )
 
-    async def save(self, user_id: str, summary: str, emotional_weight: float = 0.5, tags: List[str] = None) -> int:
+    async def save(self, user_id: str, summary: str, emotional_weight: float = 0.5, tags: list[str] = None) -> int:
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
             "INSERT INTO episodes (user_id, summary, emotional_weight, tags, created_at) VALUES (?, ?, ?, ?, ?)",
@@ -46,7 +49,7 @@ class EpisodicMemory:
         await conn.commit()
         return cursor.lastrowid
 
-    async def get_episodes(self, user_id: str, limit: int = 20, offset: int = 0) -> List[Episode]:
+    async def get_episodes(self, user_id: str, limit: int = 20, offset: int = 0) -> list[Episode]:
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
             "SELECT * FROM episodes WHERE user_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?",
@@ -55,7 +58,7 @@ class EpisodicMemory:
         rows = await cursor.fetchall()
         return [self._row_to_episode(r) for r in rows]
 
-    async def search_by_tag(self, user_id: str, tag: str, limit: int = 10) -> List[Episode]:
+    async def search_by_tag(self, user_id: str, tag: str, limit: int = 10) -> list[Episode]:
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
             "SELECT * FROM episodes WHERE user_id=? AND tags LIKE ? ORDER BY created_at DESC LIMIT ?",
@@ -64,7 +67,7 @@ class EpisodicMemory:
         rows = await cursor.fetchall()
         return [self._row_to_episode(r) for r in rows]
 
-    async def search(self, user_id: str, query: str, limit: int = 10) -> List:
+    async def search(self, user_id: str, query: str, limit: int = 10) -> list:
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
             "SELECT * FROM episodes WHERE user_id=? AND summary LIKE ? ORDER BY created_at DESC LIMIT ?",
@@ -86,6 +89,7 @@ class EpisodicMemory:
             return 0
 
         from shared.archived_memories import ArchivedMemories
+
         am = ArchivedMemories()
         archived_count = 0
         for row in rows:

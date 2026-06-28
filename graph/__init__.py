@@ -1,6 +1,7 @@
 """
 Graph Module - epistemic + temporal graph
 """
+
 from .epistemic import EpistemicGraph
 from .temporal import TemporalGraph
 

@@ -2,6 +2,7 @@
 Universal Memory MCP Server
 Two-layer unified memory: Layer 1 (user) + Layer 2 (agent identity)
 """
+
 import sys
 from pathlib import Path
 

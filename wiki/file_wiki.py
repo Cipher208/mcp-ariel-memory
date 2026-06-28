@@ -2,12 +2,13 @@
 File-based Wiki — .md files as source of truth + SQLite index for search.
 Architecture: files on disk = primary, DB = index/cache.
 """
-import time
+
 import json
-import os
-from pathlib import Path
-from typing import List, Dict, Any, Optional
+import time
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
 from shared.connection import AsyncConnectionManager, connection_manager
 
 
@@ -18,19 +19,28 @@ class WikiEntry:
     title: str
     content: str
     file_path: str
-    tags: List[str]
+    tags: list[str]
     importance: float
     created_at: float
     updated_at: float
 
 
 ALL_USER_TYPES = ["diary", "relationships", "desires", "aspirations", "work_notes", "preferences", "retrospective"]
-ALL_AGENT_TYPES = ["decision_log", "error_analysis", "personality_evolution", "emotional_context", "wiki_agent", "learning_journal", "principle_log"]
+ALL_AGENT_TYPES = [
+    "decision_log",
+    "error_analysis",
+    "personality_evolution",
+    "emotional_context",
+    "wiki_agent",
+    "learning_journal",
+    "principle_log",
+]
 
 
 def _get_config():
     try:
         import yaml
+
         config_path = Path(__file__).parent.parent / "config.yaml"
         with open(config_path) as f:
             return yaml.safe_load(f)
@@ -48,7 +58,9 @@ class FileWiki:
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
     async def init_db(self):
-        await self._cm.execute_script("memory.db", """
+        await self._cm.execute_script(
+            "memory.db",
+            """
             CREATE TABLE IF NOT EXISTS wiki_index (
                 entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 layer TEXT NOT NULL,
@@ -65,7 +77,8 @@ class FileWiki:
             CREATE UNIQUE INDEX IF NOT EXISTS idx_wiki_path ON wiki_index(file_path);
             CREATE INDEX IF NOT EXISTS idx_wiki_layer ON wiki_index(layer);
             CREATE INDEX IF NOT EXISTS idx_wiki_type ON wiki_index(wiki_type);
-        """)
+        """,
+        )
         conn = await self._cm.get("memory.db")
         await conn.execute("""
             CREATE VIRTUAL TABLE IF NOT EXISTS wiki_fts USING fts5(
@@ -76,7 +89,7 @@ class FileWiki:
         """)
         await conn.commit()
 
-    def _get_enabled_types(self) -> List[str]:
+    def _get_enabled_types(self) -> list[str]:
         cfg = _get_config()
         wiki_cfg = cfg.get("wiki", {}).get(self.layer, {})
         if not wiki_cfg:
@@ -89,8 +102,9 @@ class FileWiki:
         d.mkdir(parents=True, exist_ok=True)
         return d
 
-    async def add(self, wiki_type: str, title: str, content: str,
-            tags: List[str] = None, importance: float = 0.5) -> str:
+    async def add(
+        self, wiki_type: str, title: str, content: str, tags: list[str] = None, importance: float = 0.5
+    ) -> str:
         """Create .md file and index it. Returns file path."""
         enabled = self._get_enabled_types()
         if enabled and wiki_type not in enabled:
@@ -105,8 +119,9 @@ class FileWiki:
         await self._index_file(file_path, wiki_type, title, content, tags, importance)
         return str(file_path)
 
-    async def update(self, file_path: str, title: str = None, content: str = None,
-               tags: List[str] = None, importance: float = None):
+    async def update(
+        self, file_path: str, title: str = None, content: str = None, tags: list[str] = None, importance: float = None
+    ):
         """Update .md file and re-index."""
         p = Path(file_path)
         if not p.exists():
@@ -124,7 +139,7 @@ class FileWiki:
         wiki_type = p.parent.name
         await self._index_file(p, wiki_type, new_title, new_content, new_tags, new_importance)
 
-    async def get(self, file_path: str) -> Optional[WikiEntry]:
+    async def get(self, file_path: str) -> WikiEntry | None:
         p = Path(file_path)
         if not p.exists():
             return None
@@ -134,15 +149,19 @@ class FileWiki:
         row = await cur.fetchone()
         if row:
             return WikiEntry(
-                entry_id=row["entry_id"], wiki_type=row["wiki_type"],
-                title=parsed["title"], content=parsed["content"],
-                file_path=str(p), tags=parsed["tags"],
+                entry_id=row["entry_id"],
+                wiki_type=row["wiki_type"],
+                title=parsed["title"],
+                content=parsed["content"],
+                file_path=str(p),
+                tags=parsed["tags"],
                 importance=parsed["importance"],
-                created_at=row["created_at"], updated_at=row["updated_at"]
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
             )
         return None
 
-    async def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+    async def search(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
         """FTS5 search across all indexed files."""
         try:
             conn = await self._cm.get("memory.db")
@@ -151,7 +170,7 @@ class FileWiki:
                    FROM wiki_fts fts JOIN wiki_index wi ON fts.rowid = wi.entry_id
                    WHERE wiki_fts MATCH ? AND wi.layer = ?
                    ORDER BY fts.rank DESC LIMIT ?""",
-                (query, self.layer, limit)
+                (query, self.layer, limit),
             )
             rows = await cur.fetchall()
             results = []
@@ -159,24 +178,27 @@ class FileWiki:
                 p = Path(r["file_path"])
                 if p.exists():
                     parsed = self._parse_md(p.read_text(encoding="utf-8"))
-                    results.append({
-                        "id": r["entry_id"], "type": r["wiki_type"],
-                        "title": parsed["title"],
-                        "content": parsed["content"][:500],
-                        "file_path": str(p),
-                        "tags": json.loads(r["tags"]) if r["tags"] else [],
-                        "importance": r["importance"],
-                        "score": abs(r["rank"]) if r["rank"] else 0,
-                    })
+                    results.append(
+                        {
+                            "id": r["entry_id"],
+                            "type": r["wiki_type"],
+                            "title": parsed["title"],
+                            "content": parsed["content"][:500],
+                            "file_path": str(p),
+                            "tags": json.loads(r["tags"]) if r["tags"] else [],
+                            "importance": r["importance"],
+                            "score": abs(r["rank"]) if r["rank"] else 0,
+                        }
+                    )
             return results
         except Exception:
             return []
 
-    async def list_by_type(self, wiki_type: str, limit: int = 20) -> List[WikiEntry]:
+    async def list_by_type(self, wiki_type: str, limit: int = 20) -> list[WikiEntry]:
         conn = await self._cm.get("memory.db")
         cur = await conn.execute(
             "SELECT * FROM wiki_index WHERE layer=? AND wiki_type=? ORDER BY updated_at DESC LIMIT ?",
-            (self.layer, wiki_type, limit)
+            (self.layer, wiki_type, limit),
         )
         rows = await cur.fetchall()
         entries = []
@@ -184,20 +206,25 @@ class FileWiki:
             p = Path(r["file_path"])
             if p.exists():
                 parsed = self._parse_md(p.read_text(encoding="utf-8"))
-                entries.append(WikiEntry(
-                    entry_id=r["entry_id"], wiki_type=r["wiki_type"],
-                    title=parsed["title"], content=parsed["content"],
-                    file_path=str(p), tags=parsed["tags"],
-                    importance=parsed["importance"],
-                    created_at=r["created_at"], updated_at=r["updated_at"]
-                ))
+                entries.append(
+                    WikiEntry(
+                        entry_id=r["entry_id"],
+                        wiki_type=r["wiki_type"],
+                        title=parsed["title"],
+                        content=parsed["content"],
+                        file_path=str(p),
+                        tags=parsed["tags"],
+                        importance=parsed["importance"],
+                        created_at=r["created_at"],
+                        updated_at=r["updated_at"],
+                    )
+                )
         return entries
 
-    async def list_all(self, limit: int = 50) -> List[WikiEntry]:
+    async def list_all(self, limit: int = 50) -> list[WikiEntry]:
         conn = await self._cm.get("memory.db")
         cur = await conn.execute(
-            "SELECT * FROM wiki_index WHERE layer=? ORDER BY updated_at DESC LIMIT ?",
-            (self.layer, limit)
+            "SELECT * FROM wiki_index WHERE layer=? ORDER BY updated_at DESC LIMIT ?", (self.layer, limit)
         )
         rows = await cur.fetchall()
         entries = []
@@ -205,13 +232,19 @@ class FileWiki:
             p = Path(r["file_path"])
             if p.exists():
                 parsed = self._parse_md(p.read_text(encoding="utf-8"))
-                entries.append(WikiEntry(
-                    entry_id=r["entry_id"], wiki_type=r["wiki_type"],
-                    title=parsed["title"], content=parsed["content"],
-                    file_path=str(p), tags=parsed["tags"],
-                    importance=parsed["importance"],
-                    created_at=r["created_at"], updated_at=r["updated_at"]
-                ))
+                entries.append(
+                    WikiEntry(
+                        entry_id=r["entry_id"],
+                        wiki_type=r["wiki_type"],
+                        title=parsed["title"],
+                        content=parsed["content"],
+                        file_path=str(p),
+                        tags=parsed["tags"],
+                        importance=parsed["importance"],
+                        created_at=r["created_at"],
+                        updated_at=r["updated_at"],
+                    )
+                )
         return entries
 
     async def delete(self, file_path: str) -> bool:
@@ -226,20 +259,22 @@ class FileWiki:
     async def count(self, wiki_type: str = None) -> int:
         conn = await self._cm.get("memory.db")
         if wiki_type:
-            cur = await conn.execute("SELECT COUNT(*) FROM wiki_index WHERE layer=? AND wiki_type=?", (self.layer, wiki_type))
+            cur = await conn.execute(
+                "SELECT COUNT(*) FROM wiki_index WHERE layer=? AND wiki_type=?", (self.layer, wiki_type)
+            )
         else:
             cur = await conn.execute("SELECT COUNT(*) FROM wiki_index WHERE layer=?", (self.layer,))
         row = await cur.fetchone()
         return row[0] if row else 0
 
-    def get_enabled_types(self) -> List[str]:
+    def get_enabled_types(self) -> list[str]:
         return self._get_enabled_types()
 
-    def get_external_dirs(self) -> List[str]:
+    def get_external_dirs(self) -> list[str]:
         cfg = _get_config()
         return cfg.get("wiki", {}).get(self.layer, {}).get("external_dirs", [])
 
-    async def reindex_all(self) -> Dict[str, int]:
+    async def reindex_all(self) -> dict[str, int]:
         """Re-index all .md files from disk to DB."""
         result = {"indexed": 0, "skipped": 0, "errors": 0}
         for wiki_type_dir in self.base_dir.iterdir():
@@ -249,14 +284,15 @@ class FileWiki:
             for md_file in wiki_type_dir.glob("*.md"):
                 try:
                     parsed = self._parse_md(md_file.read_text(encoding="utf-8"))
-                    await self._index_file(md_file, wiki_type, parsed["title"],
-                                     parsed["content"], parsed["tags"], parsed["importance"])
+                    await self._index_file(
+                        md_file, wiki_type, parsed["title"], parsed["content"], parsed["tags"], parsed["importance"]
+                    )
                     result["indexed"] += 1
                 except Exception:
                     result["errors"] += 1
         return result
 
-    async def sync_external(self, external_dirs: List[str] = None) -> Dict[str, int]:
+    async def sync_external(self, external_dirs: list[str] = None) -> dict[str, int]:
         """Import external .md files into wiki."""
         dirs = external_dirs or self.get_external_dirs()
         result = {"imported": 0, "skipped": 0, "errors": 0}
@@ -274,20 +310,25 @@ class FileWiki:
                         result["skipped"] += 1
                         continue
 
-                    safe_title = "".join(c if c.isalnum() or c in " _-" else "_" for c in title).strip().replace(" ", "_")
+                    safe_title = (
+                        "".join(c if c.isalnum() or c in " _-" else "_" for c in title).strip().replace(" ", "_")
+                    )
                     dest = self._type_dir(wiki_type) / f"{safe_title}.md"
                     dest.write_text(content, encoding="utf-8")
-                    await self._index_file(dest, wiki_type, title, parsed["content"],
-                                     parsed["tags"], parsed["importance"])
+                    await self._index_file(
+                        dest, wiki_type, title, parsed["content"], parsed["tags"], parsed["importance"]
+                    )
                     result["imported"] += 1
                 except Exception:
                     result["errors"] += 1
         return result
 
-    async def _index_file(self, file_path: Path, wiki_type: str, title: str,
-                    content: str, tags: List[str] = None, importance: float = 0.5):
+    async def _index_file(
+        self, file_path: Path, wiki_type: str, title: str, content: str, tags: list[str] = None, importance: float = 0.5
+    ):
         """Index a single .md file into DB."""
         import hashlib
+
         content_hash = hashlib.md5(content.encode()).hexdigest()
         now = time.time()
 
@@ -301,33 +342,49 @@ class FileWiki:
         if existing:
             await conn.execute(
                 "UPDATE wiki_index SET title=?, tags=?, importance=?, content=?, content_hash=?, updated_at=? WHERE entry_id=?",
-                (title, json.dumps(tags or []), importance, content, content_hash, now, existing["entry_id"])
+                (title, json.dumps(tags or []), importance, content, content_hash, now, existing["entry_id"]),
             )
             entry_id = existing["entry_id"]
-            await conn.execute("INSERT INTO wiki_fts(wiki_fts, rowid, title, content, wiki_type, tags) VALUES ('delete', ?, ?, ?, ?, ?)",
-                         (entry_id, title, content, wiki_type, json.dumps(tags or [])))
-            await conn.execute("INSERT INTO wiki_fts(rowid, title, content, wiki_type, tags) VALUES (?, ?, ?, ?, ?)",
-                         (entry_id, title, content, wiki_type, json.dumps(tags or [])))
+            await conn.execute(
+                "INSERT INTO wiki_fts(wiki_fts, rowid, title, content, wiki_type, tags) VALUES ('delete', ?, ?, ?, ?, ?)",
+                (entry_id, title, content, wiki_type, json.dumps(tags or [])),
+            )
+            await conn.execute(
+                "INSERT INTO wiki_fts(rowid, title, content, wiki_type, tags) VALUES (?, ?, ?, ?, ?)",
+                (entry_id, title, content, wiki_type, json.dumps(tags or [])),
+            )
         else:
             cur = await conn.execute(
                 "INSERT INTO wiki_index (layer, wiki_type, title, file_path, tags, importance, content, content_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (self.layer, wiki_type, title, str(file_path), json.dumps(tags or []),
-                 importance, content, content_hash, now, now)
+                (
+                    self.layer,
+                    wiki_type,
+                    title,
+                    str(file_path),
+                    json.dumps(tags or []),
+                    importance,
+                    content,
+                    content_hash,
+                    now,
+                    now,
+                ),
             )
             entry_id = cur.lastrowid
-            await conn.execute("INSERT INTO wiki_fts(rowid, title, content, wiki_type, tags) VALUES (?, ?, ?, ?, ?)",
-                         (entry_id, title, content, wiki_type, json.dumps(tags or [])))
+            await conn.execute(
+                "INSERT INTO wiki_fts(rowid, title, content, wiki_type, tags) VALUES (?, ?, ?, ?, ?)",
+                (entry_id, title, content, wiki_type, json.dumps(tags or [])),
+            )
 
         await conn.commit()
 
-    def _parse_md(self, text: str) -> Dict[str, Any]:
+    def _parse_md(self, text: str) -> dict[str, Any]:
         """Parse .md with YAML frontmatter."""
         result = {"title": "", "content": text, "tags": [], "importance": 0.5}
         if text.startswith("---"):
             try:
                 end = text.index("---", 3)
                 frontmatter = text[3:end].strip()
-                body = text[end + 3:].strip()
+                body = text[end + 3 :].strip()
                 for line in frontmatter.split("\n"):
                     if ":" in line:
                         key, val = line.split(":", 1)
@@ -351,7 +408,7 @@ class FileWiki:
 
         return result
 
-    def _to_md(self, title: str, content: str, tags: List[str] = None, importance: float = 0.5) -> str:
+    def _to_md(self, title: str, content: str, tags: list[str] = None, importance: float = 0.5) -> str:
         """Create .md with YAML frontmatter."""
         lines = ["---"]
         lines.append(f'title: "{title}"')

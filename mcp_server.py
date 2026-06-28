@@ -2,13 +2,15 @@
 MCP Server — Real MCP SDK implementation
 FastMCP with 20 async tools, stdio + HTTP transports
 """
+
+import asyncio
 import os
 import sys
-import asyncio
-from pathlib import Path
+import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from mcp.server.fastmcp import FastMCP, Context
+from mcp.server.fastmcp import Context, FastMCP
 
 from shared.metrics import metrics
 
@@ -17,28 +19,25 @@ os.environ.setdefault("MCP_MEMORY_DATA_DIR", _data_dir)
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from core import memory_manager, MemoryManager
-from rag.engine import RAGEngine
-from rag.router import RetrievalRouter
-from rag.conflict import ConflictResolver
+from config import config
+from core import MemoryManager
+from features.audit_trail import AuditTrail
+from features.auth import api_key_auth, bearer_auth
+from features.backup import BackupManager
+from features.backup_cron import backup_cron
+from features.import_export import ImportExport
+from features.rate_limiting import RateLimiter
 from graph.epistemic import EpistemicGraph
 from graph.temporal import TemporalGraph
-from lifecycle.forgetting import ForgettingSystem
-from lifecycle.emotion_trigger import EmotionTrigger
+from hooks.agent_hooks import AgentHooks
+from hooks.user_hooks import UserHooks
 from lifecycle.consolidation import ConsolidationEngine
-from wiki.file_wiki import FileWiki
-from features.audit_trail import AuditTrail
-from features.rate_limiting import RateLimiter
-from features.backup import BackupManager
-from features.import_export import ImportExport
-from features.auth import api_key_auth, bearer_auth
-from features.backup_cron import backup_cron
+from lifecycle.emotion_trigger import EmotionTrigger
+from lifecycle.forgetting import ForgettingSystem
+from rag.engine import RAGEngine
 from shared.cache import MemoryCache
 from shared.read_only import read_only_replica
-from hooks.registry import hook_registry
-from hooks.user_hooks import UserHooks
-from hooks.agent_hooks import AgentHooks
-from config import config
+from wiki.file_wiki import FileWiki
 
 
 class AppContext:
@@ -67,12 +66,13 @@ class AppContext:
 async def lifespan(server: FastMCP):
     # 1. Run migrations
     from shared.migrations import migration_manager
+
     result = await migration_manager.migrate()
     import logging
+
     logging.getLogger(__name__).info("Migrations: %s" % result)
 
     # 2. Sync read-only replica
-    from shared.read_only import read_only_replica
     await asyncio.to_thread(read_only_replica.sync)
 
     # 3. Initialize context
@@ -98,6 +98,7 @@ def _get_ctx(ctx: Context) -> AppContext:
 # =============================================================================
 # USER LAYER — 10 tools
 # =============================================================================
+
 
 @mcp.tool()
 async def memory_user_remember(
@@ -258,12 +259,7 @@ async def memory_user_episode_recall(
         episodes = await app.mm.user_memory(user_id).l3.search_by_tag(user_id, tag, limit)
     else:
         episodes = await app.mm.user_memory(user_id).l3.get_episodes(user_id, limit)
-    return {
-        "episodes": [
-            {"id": e.episode_id, "summary": e.summary, "weight": e.emotional_weight}
-            for e in episodes
-        ]
-    }
+    return {"episodes": [{"id": e.episode_id, "summary": e.summary, "weight": e.emotional_weight} for e in episodes]}
 
 
 @mcp.tool()
@@ -314,12 +310,7 @@ async def memory_user_graph_query(
         nodes = await app.user_graph.query_by_type(user_id, node_type, limit)
     else:
         nodes = []
-    return {
-        "nodes": [
-            {"id": n.node_id, "content": n.content, "type": n.node_type, "tags": n.tags}
-            for n in nodes
-        ]
-    }
+    return {"nodes": [{"id": n.node_id, "content": n.content, "type": n.node_type, "tags": n.tags} for n in nodes]}
 
 
 @mcp.tool()
@@ -350,6 +341,7 @@ async def memory_user_stats(
 # =============================================================================
 # AGENT LAYER — 10 tools
 # =============================================================================
+
 
 @mcp.tool()
 async def memory_agent_remember(
@@ -505,12 +497,7 @@ async def memory_agent_episode_recall(
         episodes = await app.mm.agent_memory(user_id).l3.search_by_tag(user_id, tag, limit)
     else:
         episodes = await app.mm.agent_memory(user_id).l3.get_episodes(user_id, limit)
-    return {
-        "episodes": [
-            {"id": e.episode_id, "summary": e.summary, "weight": e.emotional_weight}
-            for e in episodes
-        ]
-    }
+    return {"episodes": [{"id": e.episode_id, "summary": e.summary, "weight": e.emotional_weight} for e in episodes]}
 
 
 @mcp.tool()
@@ -561,12 +548,7 @@ async def memory_agent_graph_query(
         nodes = await app.agent_graph.query_by_type(user_id, node_type, limit)
     else:
         nodes = []
-    return {
-        "nodes": [
-            {"id": n.node_id, "content": n.content, "type": n.node_type, "tags": n.tags}
-            for n in nodes
-        ]
-    }
+    return {"nodes": [{"id": n.node_id, "content": n.content, "type": n.node_type, "tags": n.tags} for n in nodes]}
 
 
 @mcp.tool()
@@ -597,6 +579,7 @@ async def memory_agent_stats(
 # =============================================================================
 # AUTH + BACKUP TOOLS
 # =============================================================================
+
 
 @mcp.tool()
 async def memory_create_api_key(
@@ -694,6 +677,7 @@ async def memory_backup_status(
 # SAGA + MIDDLEWARE + RRF TOOLS
 # =============================================================================
 
+
 @mcp.tool()
 async def memory_saga_consolidate(
     user_id: str = "default",
@@ -708,6 +692,7 @@ async def memory_saga_consolidate(
     metrics.inc("tool_saga_consolidate")
     app = _get_ctx(ctx)
     from shared.saga import create_consolidation_saga
+
     saga = create_consolidation_saga(user_id, mm=app.mm)
     result = await saga.execute({"user_id": user_id, "_mm": app.mm})
     return {"status": saga.status.value, "result": result, "steps": saga.get_state()["steps"]}
@@ -724,6 +709,7 @@ async def memory_saga_backup(
     metrics.inc("tool_calls")
     metrics.inc("tool_saga_backup")
     from shared.saga import create_backup_saga
+
     saga = create_backup_saga()
     result = await saga.execute()
     return {"status": saga.status.value, "result": result, "steps": saga.get_state()["steps"]}
@@ -739,7 +725,6 @@ async def memory_sync_replica(
     """
     metrics.inc("tool_calls")
     metrics.inc("tool_sync_replica")
-    from shared.read_only import read_only_replica
     result = await asyncio.to_thread(read_only_replica.sync)
     return {"synced": result, "ready": read_only_replica.is_ready()}
 
@@ -811,6 +796,7 @@ async def memory_cleanup(
 
     # 1. Deduplicate core memory
     from features.compression import MemoryCompressor
+
     mc = MemoryCompressor()
     results["dedup_core"] = await mc.deduplicate_core(user_id)
 
@@ -819,20 +805,24 @@ async def memory_cleanup(
 
     # 3. Clean DreamBuffer
     from shared.dream_buffer import dream_buffer
+
     results["dream_buffer_cleanup"] = await dream_buffer.cleanup_old(24, 500)
 
     # 4. Archive old audit logs
     from features.audit_trail import AuditTrail
+
     at = AuditTrail()
     archive_dir = str(Path.home() / ".mcp-ariel-memory" / "archives")
     results["audit_archive"] = await at.archive_and_prune(retention_days, archive_dir)
 
     # 5. Cleanup old backups
     from features.backup_cron import backup_cron
+
     results["backup_cleanup"] = await backup_cron.cleanup_old()
 
     # 6. Cleanup completed sagas
     from shared.saga import saga_watchdog
+
     results["saga_cleanup"] = await saga_watchdog.cleanup_completed()
 
     return results
@@ -866,7 +856,7 @@ async def memory_lucidity_purge(
         conn.close()
 
     # 2. Episodes — delete from last N hours
-    conn = mm.user_memory(user_id).l3._get_conn()
+    conn = await app.mm.user_memory(user_id).l3._get_conn()
     try:
         cursor = conn.execute("DELETE FROM episodes WHERE user_id=? AND created_at > ?", (user_id, cutoff))
         results["episodes"] = cursor.rowcount
@@ -876,11 +866,13 @@ async def memory_lucidity_purge(
 
     # 3. DreamBuffer — clear staging
     from shared.dream_buffer import DreamBuffer
+
     db = DreamBuffer()
     results["staging"] = db.clear_staging(user_id)
 
     # 4. Audit trail — delete from last N hours
     from features.audit_trail import AuditTrail
+
     at = AuditTrail()
     conn = at._get_conn()
     try:
@@ -892,6 +884,7 @@ async def memory_lucidity_purge(
 
     # 5. Graph nodes from last N hours (epistemic)
     from graph.epistemic import EpistemicGraph
+
     eg = EpistemicGraph(layer="user")
     conn = eg._get_conn()
     try:
@@ -901,7 +894,6 @@ async def memory_lucidity_purge(
     finally:
         conn.close()
 
-    logger.warning("Lucidity purge: user=%s, hours=%d, results=%s" % (user_id, hours, results))
     return results
 
 
@@ -982,9 +974,14 @@ async def memory_search_rrf(
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="Ariel Memory MCP Server")
-    parser.add_argument("--transport", choices=["stdio", "http"], default="stdio",
-                        help="Transport: stdio (Claude Desktop) or http (web clients)")
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "http"],
+        default="stdio",
+        help="Transport: stdio (Claude Desktop) or http (web clients)",
+    )
     parser.add_argument("--host", default="0.0.0.0", help="HTTP host (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=8000, help="HTTP port (default: 8000)")
     parser.add_argument("--dashboard", action="store_true", help="Enable dashboard + metrics endpoints")
@@ -1004,13 +1001,12 @@ def main():
 def _run_with_dashboard(host: str, port: int):
     import uvicorn
     from starlette.applications import Starlette
-    from starlette.routing import Mount, Route
-    from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse
     from starlette.middleware.cors import CORSMiddleware
+    from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse
+    from starlette.routing import Mount, Route
 
     from features.dashboard import Dashboard
-    from features.auth import bearer_auth
-    from features.rate_limiting import RateLimiter, ConnectionLimiter
+    from features.rate_limiting import ConnectionLimiter, RateLimiter
     from shared.metrics import metrics as m
 
     dashboard = Dashboard()
@@ -1120,6 +1116,7 @@ def _run_with_dashboard(host: str, port: int):
         if not check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         from features.auth import api_key_auth
+
         return JSONResponse(api_key_auth.list_keys())
 
     async def auth_create(request):
@@ -1134,6 +1131,7 @@ def _run_with_dashboard(host: str, port: int):
         if not check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         from features.auth import api_key_auth
+
         body = await request.json()
         key = api_key_auth.create_key(body.get("user_id", "default"), body.get("label", ""))
         return JSONResponse({"api_key": key})
@@ -1144,6 +1142,7 @@ def _run_with_dashboard(host: str, port: int):
         if not check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         from features.backup_cron import backup_cron
+
         path = await backup_cron.backup_now()
         return JSONResponse({"path": path})
 
@@ -1153,6 +1152,7 @@ def _run_with_dashboard(host: str, port: int):
         if not check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         from features.backup_cron import backup_cron
+
         return JSONResponse(backup_cron.list_backups())
 
     app = Starlette(
@@ -1174,7 +1174,6 @@ def _run_with_dashboard(host: str, port: int):
         ],
     )
 
-    from starlette.middleware import Middleware
     from starlette.middleware.base import BaseHTTPMiddleware
 
     class AuthMiddleware(BaseHTTPMiddleware):
@@ -1182,11 +1181,13 @@ def _run_with_dashboard(host: str, port: int):
             auth = request.headers.get("Authorization", "")
             if auth and not bearer_auth.verify(auth):
                 from starlette.responses import JSONResponse
+
                 return JSONResponse({"error": "Invalid token"}, status_code=401)
             return await call_next(request)
 
     class WSConnectionMiddleware(BaseHTTPMiddleware):
         """Limit concurrent WebSocket/SSE connections."""
+
         async def dispatch(self, request, call_next):
             # Only check for /mcp endpoint (SSE/WebSocket)
             if request.url.path == "/mcp" and request.headers.get("upgrade", "").lower() == "websocket":
@@ -1195,12 +1196,16 @@ def _run_with_dashboard(host: str, port: int):
                 acquired = ws_limiter.acquire(user, conn_id)
                 if not acquired["allowed"]:
                     from starlette.responses import JSONResponse
-                    return JSONResponse({
-                        "error": "WebSocket connection limit exceeded",
-                        "reason": acquired["reason"],
-                        "current": acquired["current"],
-                        "max": acquired["max"],
-                    }, status_code=429)
+
+                    return JSONResponse(
+                        {
+                            "error": "WebSocket connection limit exceeded",
+                            "reason": acquired["reason"],
+                            "current": acquired["current"],
+                            "max": acquired["max"],
+                        },
+                        status_code=429,
+                    )
             return await call_next(request)
 
     app.add_middleware(AuthMiddleware)

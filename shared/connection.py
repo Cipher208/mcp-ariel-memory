@@ -14,14 +14,14 @@ Usage:
     row = await cur.fetchone()
 """
 
-import os
-import sys
 import asyncio
-import sqlite3
 import logging
+import os
+import sqlite3
+import sys
 import threading
 from pathlib import Path
-from typing import Optional, Any
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +35,11 @@ _DEFAULT_DIR = os.environ.get(
 _USE_SYNC = sys.platform == "win32"
 
 if not _USE_SYNC:
-    try:
-        import aiosqlite
+    import importlib.util
+
+    if importlib.util.find_spec("aiosqlite") is not None:
         _HAS_AIOSQLITE = True
-    except ImportError:
+    else:
         _HAS_AIOSQLITE = False
         _USE_SYNC = True
         logger.warning("aiosqlite not installed, falling back to sync sqlite3")
@@ -56,6 +57,7 @@ class _SyncConnectionWrapper:
         def _do():
             with self._lock:
                 return self._conn.execute(sql, params)
+
         cursor = await asyncio.to_thread(_do)
         return _SyncCursorWrapper(cursor)
 
@@ -63,30 +65,35 @@ class _SyncConnectionWrapper:
         def _do():
             with self._lock:
                 self._conn.executemany(sql, params_list)
+
         await asyncio.to_thread(_do)
 
     async def executescript(self, sql: str) -> None:
         def _do():
             with self._lock:
                 self._conn.executescript(sql)
+
         await asyncio.to_thread(_do)
 
     async def commit(self) -> None:
         def _do():
             with self._lock:
                 self._conn.commit()
+
         await asyncio.to_thread(_do)
 
     async def rollback(self) -> None:
         def _do():
             with self._lock:
                 self._conn.rollback()
+
         await asyncio.to_thread(_do)
 
     async def close(self) -> None:
         def _do():
             with self._lock:
                 self._conn.close()
+
         await asyncio.to_thread(_do)
 
     def cursor(self) -> "_SyncCursorWrapper":
@@ -99,7 +106,7 @@ class _SyncCursorWrapper:
     def __init__(self, cursor: sqlite3.Cursor):
         self._cursor = cursor
 
-    async def fetchone(self) -> Optional[Any]:
+    async def fetchone(self) -> Any | None:
         return await asyncio.to_thread(self._cursor.fetchone)
 
     async def fetchall(self) -> list:
@@ -113,7 +120,7 @@ class _SyncCursorWrapper:
         return self._cursor.rowcount
 
     @property
-    def lastrowid(self) -> Optional[int]:
+    def lastrowid(self) -> int | None:
         return self._cursor.lastrowid
 
 
@@ -154,6 +161,7 @@ class AsyncConnectionManager:
     async def _get_aiosqlite_conn(self, db_path: str):
         """Create aiosqlite connection (Linux/macOS)."""
         import aiosqlite
+
         conn = await aiosqlite.connect(db_path)
         conn.row_factory = aiosqlite.Row
         await conn.execute("PRAGMA journal_mode=WAL")
@@ -164,6 +172,7 @@ class AsyncConnectionManager:
 
     async def _get_sync_conn(self, db_path: str) -> _SyncConnectionWrapper:
         """Create sync sqlite3 connection wrapped for async (Windows)."""
+
         def _connect():
             conn = sqlite3.connect(db_path, check_same_thread=False)
             conn.row_factory = sqlite3.Row
@@ -172,6 +181,7 @@ class AsyncConnectionManager:
             conn.execute("PRAGMA synchronous=NORMAL")
             conn.execute("PRAGMA foreign_keys=ON")
             return conn
+
         raw_conn = await asyncio.to_thread(_connect)
         return _SyncConnectionWrapper(raw_conn)
 

@@ -1,13 +1,13 @@
 """
 ReadOnlyReplica — async read-only DB copy for dashboard/metrics
 """
+
+import logging
 import shutil
 import sqlite3
-import time
 import threading
-import logging
+import time
 from pathlib import Path
-from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -18,11 +18,11 @@ class ReadOnlyReplica:
         self.replica_dir = Path(replica_dir or str(Path.home() / ".mcp-ariel-memory" / "replica"))
         self.replica_dir.mkdir(parents=True, exist_ok=True)
         self._running = False
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._sync_interval = 300
         self._last_sync = 0.0
 
-    def sync(self) -> Dict[str, int]:
+    def sync(self) -> dict[str, int]:
         db_files = ["memory.db"]
         synced = {}
         for db_file in db_files:

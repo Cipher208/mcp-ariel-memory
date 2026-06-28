@@ -1,9 +1,11 @@
 """
 Rate Limiter — async SQLite-based per-user rate limiting + WebSocket connection limiting
 """
-import time
+
 import threading
-from typing import Dict, Any, Set, Optional
+import time
+from typing import Any, Optional
+
 from config import config
 from shared.connection import AsyncConnectionManager, connection_manager
 
@@ -15,16 +17,19 @@ class RateLimiter:
         self._window_seconds = 60
 
     async def _init_db(self):
-        await self._cm.execute_script("memory.db", """
+        await self._cm.execute_script(
+            "memory.db",
+            """
             CREATE TABLE IF NOT EXISTS rate_limits (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL,
                 timestamp REAL NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_rl_user ON rate_limits(user_id);
-        """)
+        """,
+        )
 
-    async def check(self, user_id: str) -> Dict[str, Any]:
+    async def check(self, user_id: str) -> dict[str, Any]:
         now = time.time()
         cutoff = now - self._window_seconds
         conn = await self._cm.get("memory.db")
@@ -49,7 +54,7 @@ class RateLimiter:
 
         return {"allowed": True, "remaining": self._max_per_user - count}
 
-    async def get_stats(self, user_id: str) -> Dict[str, Any]:
+    async def get_stats(self, user_id: str) -> dict[str, Any]:
         cutoff = time.time() - self._window_seconds
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
@@ -73,11 +78,11 @@ class ConnectionLimiter:
     def __init__(self, max_connections_per_user: int = None, max_total: int = None):
         self._max_per_user = max_connections_per_user or config.get("security", "max_ws_per_user") or 5
         self._max_total = max_total or config.get("security", "max_ws_total") or 100
-        self._connections: Dict[str, Set[str]] = {}
+        self._connections: dict[str, set[str]] = {}
         self._total = 0
         self._lock = threading.Lock()
 
-    def acquire(self, user_id: str, connection_id: str) -> Dict[str, Any]:
+    def acquire(self, user_id: str, connection_id: str) -> dict[str, Any]:
         with self._lock:
             user_conns = self._connections.setdefault(user_id, set())
             if len(user_conns) >= self._max_per_user:
@@ -96,7 +101,11 @@ class ConnectionLimiter:
             if not user_conns:
                 self._connections.pop(user_id, None)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         with self._lock:
-            return {"total_connections": self._total, "max_total": self._max_total, "max_per_user": self._max_per_user,
-                    "users": {uid: len(c) for uid, c in self._connections.items()}}
+            return {
+                "total_connections": self._total,
+                "max_total": self._max_total,
+                "max_per_user": self._max_per_user,
+                "users": {uid: len(c) for uid, c in self._connections.items()},
+            }

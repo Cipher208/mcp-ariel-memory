@@ -1,8 +1,10 @@
 """
 MemoryCompressor — async dedup and compression
 """
+
 import time
-from typing import Dict, Any, Optional
+from typing import Optional
+
 from shared.connection import AsyncConnectionManager, connection_manager
 
 
@@ -38,11 +40,13 @@ class MemoryCompressor:
         await conn.commit()
         return cursor.rowcount
 
-    async def get_stats(self, user_id: str = None) -> Dict[str, int]:
+    async def get_stats(self, user_id: str = None) -> dict[str, int]:
         stats = {}
         for name, db in [("core", "memory.db"), ("episodes", "memory.db"), ("sessions", "memory.db")]:
             conn = await self._cm.get(db)
-            tables = [r[0] for r in await (await conn.execute("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()]
+            tables = [
+                r[0] for r in await (await conn.execute("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()
+            ]
             total = 0
             for t in tables:
                 try:
