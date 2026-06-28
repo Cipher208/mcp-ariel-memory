@@ -21,6 +21,7 @@ SAGA_DIR = Path.home() / ".mcp-ariel-memory" / "sagas"
 
 try:
     from features.secrets import encrypt_json, decrypt_json, is_encrypted_blob
+
     _HAS_ENCRYPTION = True
 except ImportError:
     _HAS_ENCRYPTION = False
