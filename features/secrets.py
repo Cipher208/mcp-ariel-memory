@@ -18,6 +18,7 @@ try:
     from nacl.secret import SecretBox
     from nacl.pwhash import argon2id
     from nacl.utils import random as nacl_random
+
     _HAS_NACL = True
 except ImportError:
     _HAS_NACL = False
@@ -42,6 +43,7 @@ def _load_master_key() -> bytes:
     # Try config first
     try:
         from config import config
+
         cfg_key = config.get("crypto", "master_key_hex", default="")
         if cfg_key:
             return bytes.fromhex(cfg_key)
@@ -51,6 +53,7 @@ def _load_master_key() -> bytes:
     # Try OS keychain
     try:
         import keyring
+
         stored = keyring.get_password(_KEYRING_SERVICE, _KEYRING_USERNAME)
         if stored:
             return bytes.fromhex(stored)
@@ -68,10 +71,7 @@ def _load_master_key() -> bytes:
             memlimit=argon2id.MEMLIMIT_MODERATE,
         )
 
-    raise RuntimeError(
-        "No master key found. Set MCP_MASTER_KEY env var, "
-        "store in OS keychain, or set crypto.master_key_hex in config.yaml"
-    )
+    raise RuntimeError("No master key found. Set MCP_MASTER_KEY env var, store in OS keychain, or set crypto.master_key_hex in config.yaml")
 
 
 _master_cache: dict[str, bytes] = {}
@@ -120,4 +120,5 @@ def install_master_key_to_keychain(hex_key: str) -> None:
     """Store master key in OS keychain (run once during setup)."""
     bytes.fromhex(hex_key)  # validate
     import keyring
+
     keyring.set_password(_KEYRING_SERVICE, _KEYRING_USERNAME, hex_key)

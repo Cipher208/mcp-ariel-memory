@@ -1,4 +1,5 @@
 """End-to-end tests for auth with encryption."""
+
 import json
 import os
 
@@ -10,6 +11,7 @@ def master_key_env():
     """Set master key BEFORE importing any auth modules."""
     os.environ["MCP_MASTER_KEY"] = "integration-test-secret"
     from features import secrets
+
     secrets._master_cache.clear()
     yield
     os.environ.pop("MCP_MASTER_KEY", None)
@@ -18,11 +20,9 @@ def master_key_env():
 def test_legacy_plain_json_gets_rotated(tmp_path):
     """If file is plain JSON, it should be auto-encrypted on load."""
     keys_file = tmp_path / "api_keys.json"
-    keys_file.write_text(
-        json.dumps({"ak_old": {"user_id": "u1", "label": "old",
-                                "enabled": True, "created_at": 1.0}})
-    )
+    keys_file.write_text(json.dumps({"ak_old": {"user_id": "u1", "label": "old", "enabled": True, "created_at": 1.0}}))
     from features.auth import APIKeyAuth
+
     auth = APIKeyAuth(keys_file=str(keys_file))
     keys = auth.list_keys()
     assert len(keys) == 1
@@ -36,6 +36,7 @@ def test_legacy_plain_json_gets_rotated(tmp_path):
 def test_create_then_verify_round_trip(tmp_path):
     keys_file = tmp_path / "api_keys.json"
     from features.auth import APIKeyAuth
+
     auth = APIKeyAuth(keys_file=str(keys_file))
     key = auth.create_key("alice", "test-key")
     out = auth.verify(key)
@@ -45,12 +46,14 @@ def test_create_then_verify_round_trip(tmp_path):
 def test_wrong_master_key_fails(tmp_path):
     keys_file = tmp_path / "api_keys.json"
     from features.auth import APIKeyAuth
+
     auth = APIKeyAuth(keys_file=str(keys_file))
     auth.create_key("bob")
 
     # Change master key
     os.environ["MCP_MASTER_KEY"] = "different-secret"
     from features import secrets
+
     secrets._master_cache.clear()
 
     # Should fail to decrypt (returns empty dict, not exception)
@@ -61,6 +64,7 @@ def test_wrong_master_key_fails(tmp_path):
 def test_bearer_token_encrypted(tmp_path):
     token_file = tmp_path / "bearer_token.json"
     from features.auth import BearerAuth
+
     auth = BearerAuth(token_file=str(token_file))
     token = auth.get_token()
     assert token.startswith("mt_")
