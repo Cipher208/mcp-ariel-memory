@@ -478,13 +478,14 @@ async def test_compression():
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="Dashboard.get_stats has sync/async mismatch - needs refactor")
 async def test_dashboard():
     from features.dashboard import Dashboard
 
     d = Dashboard()
-    stats = d.get_stats("test_integ")
+    stats = await d.get_stats("test_integ")
     assert isinstance(stats, dict)
+    assert "l1_buffer" in stats
+    assert "l4_facts" in stats
 
 
 # ═══════════════════════════════════════════════════════════════
