@@ -82,14 +82,14 @@ function install(python) {
     // Fallback: install from GitHub
     console.log(`[mcp-ariel-memory] PyPI install failed, installing from GitHub...`);
     try {
-      execSync(`${python} -m pip install --user "git+https://github.com/faustovo2003-commits/mcp-ariel-memory.git@master"`, {
+      execSync(`${python} -m pip install --user "git+https://github.com/Cipher208/mcp-ariel-memory.git@master"`, {
         stdio: 'inherit',
       });
       console.log(`[mcp-ariel-memory] Installation complete (from GitHub).`);
     } catch (e2) {
       console.error(`[mcp-ariel-memory] Failed to install. Install manually:`);
       console.error(`  pip install ${PACKAGE_NAME}`);
-      console.error(`  or: pip install git+https://github.com/faustovo2003-commits/mcp-ariel-memory.git`);
+      console.error(`  or: pip install git+https://github.com/Cipher208/mcp-ariel-memory.git`);
       process.exit(1);
     }
   }

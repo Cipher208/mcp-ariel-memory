@@ -52,10 +52,10 @@ ariel-memory = "mcp_server:main"
 mcp-ariel-memory = "mcp_server:main"
 
 [project.urls]
-Homepage = "https://github.com/faustovo2003-commits/mcp-ariel-memory"
-Repository = "https://github.com/faustovo2003-commits/mcp-ariel-memory"
-Issues = "https://github.com/faustovo2003-commits/mcp-ariel-memory/issues"
-Documentation = "https://github.com/faustovo2003-commits/mcp-ariel-memory/tree/main/docs"
+Homepage = "https://github.com/Cipher208/mcp-ariel-memory"
+Repository = "https://github.com/Cipher208/mcp-ariel-memory"
+Issues = "https://github.com/Cipher208/mcp-ariel-memory/issues"
+Documentation = "https://github.com/Cipher208/mcp-ariel-memory/tree/main/docs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]

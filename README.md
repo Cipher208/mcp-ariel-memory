@@ -4,7 +4,7 @@
 
 A two-layer universal memory system for AI agents. Real MCP Python SDK, async, **37 tools**, stdio + HTTP transports, dashboard, metrics, authentication, automatic backups, external wiki folders, read-only replica.
 
-[![CI](https://github.com/faustovo2003-commits/mcp-ariel-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/faustovo2003-commits/mcp-ariel-memory/actions/workflows/ci.yml)
+[![CI](https://github.com/Cipher208/mcp-ariel-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/Cipher208/mcp-ariel-memory/actions/workflows/ci.yml)
 
 ---
 
@@ -40,7 +40,7 @@ Requires Python 3.10+ on the system. The npm wrapper automatically installs the 
 ### Option 2: pip
 
 ```bash
-pip install git+https://github.com/faustovo2003-commits/mcp-ariel-memory.git
+pip install git+https://github.com/Cipher208/mcp-ariel-memory.git
 python -m mcp_server --transport stdio
 ```
 
@@ -54,7 +54,7 @@ docker run -p 8000:8000 ariel-memory
 ### Option 4: From source
 
 ```bash
-git clone https://github.com/faustovo2003-commits/mcp-ariel-memory.git
+git clone https://github.com/Cipher208/mcp-ariel-memory.git
 cd mcp-ariel-memory
 pip install -e ".[all]"
 python -m mcp_server --transport stdio

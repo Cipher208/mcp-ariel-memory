@@ -2,7 +2,7 @@
 
 **Universal Two-Layer Memory MCP Server**
 
-[![CI](https://github.com/faustovo2003-commits/mcp-ariel-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/faustovo2003-commits/mcp-ariel-memory/actions/workflows/ci.yml)
+[![CI](https://github.com/Cipher208/mcp-ariel-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/Cipher208/mcp-ariel-memory/actions/workflows/ci.yml)
 
 Two-layer universal memory for AI agents. Real MCP Python SDK, async, **37 tools**, stdio + Streamable HTTP, dashboard with auth + rate limiting, metrics, auto-backups with jitter, wiki with external folders, read-only replica.
 
@@ -23,7 +23,7 @@ npx mcp-ariel-memory --transport stdio
 ### Вариант 2: pip
 
 ```bash
-pip install git+https://github.com/faustovo2003-commits/mcp-ariel-memory.git
+pip install git+https://github.com/Cipher208/mcp-ariel-memory.git
 python -m mcp_server --transport stdio
 ```
 
@@ -37,7 +37,7 @@ docker run -p 8000:8000 ariel-memory
 ### Вариант 4: Из исходников
 
 ```bash
-git clone https://github.com/faustovo2003-commits/mcp-ariel-memory.git
+git clone https://github.com/Cipher208/mcp-ariel-memory.git
 cd mcp-ariel-memory
 pip install -e ".[all]"
 python -m mcp_server --transport stdio
