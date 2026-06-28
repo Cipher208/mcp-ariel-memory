@@ -1,37 +1,61 @@
 """
-Authentication — API key + persistent Bearer token.
-Bearer token is saved to file, survives server restarts.
+Authentication — API key + persistent Bearer token with envelope encryption.
+Bearer token and API keys are encrypted at rest using libsodium secretbox.
 """
 
 import json
 import os
 import secrets
 import time
+import warnings
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
+
+from features.secrets import encrypt_json, decrypt_json, is_encrypted_blob
 
 
 class APIKeyAuth:
-    """API key authentication with file persistence."""
+    """API key authentication with encrypted file persistence."""
 
     def __init__(self, keys_file: str = None):
         self.keys_file = Path(keys_file or str(Path.home() / ".mcp-ariel-memory" / "api_keys.json"))
-        self._keys: dict[str, dict] = {}
-        self._load()
-
-    def _load(self):
-        if self.keys_file.exists():
-            try:
-                self._keys = json.loads(self.keys_file.read_text(encoding="utf-8"))
-            except Exception:
-                self._keys = {}
-
-    def _save(self):
         self.keys_file.parent.mkdir(parents=True, exist_ok=True)
-        self.keys_file.write_text(json.dumps(self._keys, indent=2), encoding="utf-8")
+        self._keys: dict[str, dict] = self._load()
+
+    def _load(self) -> dict[str, dict]:
+        if not self.keys_file.exists():
+            return {}
+        try:
+            with open(self.keys_file, "rb") as f:
+                blob = f.read()
+            if is_encrypted_blob(self.keys_file):
+                return decrypt_json(blob)
+            # Legacy plain JSON — rotate to encrypted
+            warnings.warn(
+                f"{self.keys_file} is plain JSON; rotating to encrypted form",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            legacy = json.loads(blob.decode("utf-8"))
+            self._save(legacy)
+            return legacy
+        except Exception:
+            return {}
+
+    def _save(self, data: dict[str, dict] = None) -> None:
+        """Atomic write: tmp + rename + chmod 600."""
+        if data is None:
+            data = self._keys
+        tmp_file = self.keys_file.with_suffix(".json.tmp")
+        ciphertext = encrypt_json(data)
+        with open(tmp_file, "wb") as f:
+            f.write(ciphertext)
+        os.chmod(tmp_file, 0o600)
+        tmp_file.replace(self.keys_file)
+        os.chmod(self.keys_file, 0o600)
 
     def create_key(self, user_id: str, label: str = "") -> str:
-        key = f"ak_{secrets.token_hex(24)}"
+        key = "ak_" + secrets.token_hex(24)
         self._keys[key] = {
             "user_id": user_id,
             "label": label,
@@ -43,21 +67,17 @@ class APIKeyAuth:
         return key
 
     def verify(self, key: str) -> dict[str, Any] | None:
-        if key not in self._keys:
+        entry = self._keys.get(key)
+        if not entry or not entry.get("enabled", True):
             return None
-        entry = self._keys[key]
-        if not entry.get("enabled", True):
-            return None
-        entry["last_used"] = time.time()
-        self._save()
         return {"user_id": entry["user_id"], "label": entry.get("label", "")}
 
     def revoke(self, key: str) -> bool:
-        if key in self._keys:
-            self._keys[key]["enabled"] = False
-            self._save()
-            return True
-        return False
+        if key not in self._keys:
+            return False
+        self._keys[key]["enabled"] = False
+        self._save()
+        return True
 
     def list_keys(self) -> list:
         return [
@@ -72,18 +92,19 @@ class APIKeyAuth:
         ]
 
     def delete_key(self, key: str) -> bool:
-        if key in self._keys:
-            del self._keys[key]
-            self._save()
-            return True
-        return False
+        if key not in self._keys:
+            return False
+        del self._keys[key]
+        self._save()
+        return True
 
 
 class BearerAuth:
-    """Bearer token authentication — persistent (saved to file)."""
+    """Bearer token authentication with encrypted persistence."""
 
     def __init__(self, token_file: str = None):
         self.token_file = Path(token_file or str(Path.home() / ".mcp-ariel-memory" / "bearer_token.json"))
+        self.token_file.parent.mkdir(parents=True, exist_ok=True)
         self._token = self._load_or_create()
 
     def _load_or_create(self) -> str:
@@ -92,12 +113,25 @@ class BearerAuth:
         if env_token:
             return env_token
 
-        # 2. From file
+        # 2. From encrypted file
         if self.token_file.exists():
             try:
-                data = json.loads(self.token_file.read_text(encoding="utf-8"))
-                if data.get("token"):
-                    return data["token"]
+                with open(self.token_file, "rb") as f:
+                    blob = f.read()
+                if is_encrypted_blob(self.token_file):
+                    data = decrypt_json(blob)
+                    return data.get("token", "")
+                # Legacy plain JSON — rotate to encrypted
+                warnings.warn(
+                    f"{self.token_file} is plain JSON; rotating to encrypted form",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                data = json.loads(blob.decode("utf-8"))
+                token = data.get("token", "")
+                if token:
+                    self._save(token)
+                return token
             except Exception:
                 pass
 
@@ -106,15 +140,16 @@ class BearerAuth:
         self._save(token)
         return token
 
-    def _save(self, token: str):
-        self.token_file.parent.mkdir(parents=True, exist_ok=True)
-        self.token_file.write_text(
-            json.dumps(
-                {"token": token, "created_at": time.time(), "note": "Do not delete! Token survives server restarts."},
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
+    def _save(self, token: str) -> None:
+        """Atomic write: tmp + rename + chmod 600."""
+        data = {"token": token, "created_at": time.time()}
+        ciphertext = encrypt_json(data)
+        tmp_file = self.token_file.with_suffix(".json.tmp")
+        with open(tmp_file, "wb") as f:
+            f.write(ciphertext)
+        os.chmod(tmp_file, 0o600)
+        tmp_file.replace(self.token_file)
+        os.chmod(self.token_file, 0o600)
 
     def verify(self, auth_header: str) -> bool:
         if not auth_header:
@@ -128,14 +163,12 @@ class BearerAuth:
         return self._token
 
     def rotate(self) -> str:
-        """Create a new token (the old one stops working)."""
-        import secrets
-
+        """Create a new token (old one stops working)."""
         self._token = f"mt_{secrets.token_hex(32)}"
         self._save(self._token)
         return self._token
 
 
-# Singleton
+# Singletons
 api_key_auth = APIKeyAuth()
 bearer_auth = BearerAuth()
