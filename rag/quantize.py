@@ -7,7 +7,7 @@ Supervised variant (per-dimension threshold) activates via
 
 from __future__ import annotations
 
-from typing import Iterable, Optional, Sequence
+from typing import Callable, Iterable, Optional, Sequence, Tuple
 
 try:
     import numpy as np
@@ -92,6 +92,89 @@ def supervised_threshold(
                 best_t = t
         thresholds[i] = best_t
     return thresholds
+
+
+def train_supervised_thresholds(
+    pos_pairs: list[Tuple[Sequence[float], Sequence[float]]],
+    neg_pairs: list[Tuple[Sequence[float], Sequence[float]]] | None = None,
+    emb_fn: Callable | None = None,
+    n_candidates: int = 50,
+    dim: int = DEFAULT_DIM,
+) -> np.ndarray:
+    """Train per-dimension thresholds from positive and negative pairs.
+
+    Optimizes a weighted score: 0.7 * agree_pos + 0.3 * agree_neg,
+    where agree_pos measures binarization agreement on positive pairs
+    and agree_neg measures disagreement on negative pairs.
+
+    Args:
+        pos_pairs: (emb_a, emb_b) that share semantic relation.
+        neg_pairs: (emb_a, emb_b) that should NOT agree.
+        emb_fn: if set, pos_pairs/neg_pairs are (text_a, text_b) and this
+                converts text to embedding. Otherwise pairs are raw embeddings.
+        n_candidates: threshold grid resolution per dimension.
+        dim: embedding dimensionality.
+
+    Returns:
+        np.ndarray of length dim — per-dimension thresholds.
+    """
+    _check_numpy()
+
+    if emb_fn is not None:
+        pos_a = np.array([emb_fn(a) for a, _ in pos_pairs])
+        pos_b = np.array([emb_fn(b) for _, b in pos_pairs])
+    else:
+        pos_a = np.asarray([p[0] for p in pos_pairs], dtype=np.float32)
+        pos_b = np.asarray([p[1] for p in pos_pairs], dtype=np.float32)
+
+    if pos_a.ndim != 2 or pos_a.shape[1] != dim:
+        raise ValueError(f"pos_pairs embeddings must be [N, {dim}], got {pos_a.shape}")
+
+    neg_a = np.array([], dtype=np.float32)
+    neg_b = np.array([], dtype=np.float32)
+    if neg_pairs:
+        if emb_fn is not None:
+            neg_a = np.array([emb_fn(a) for a, _ in neg_pairs])
+            neg_b = np.array([emb_fn(b) for _, b in neg_pairs])
+        else:
+            neg_a = np.asarray([p[0] for p in neg_pairs], dtype=np.float32)
+            neg_b = np.asarray([p[1] for p in neg_pairs], dtype=np.float32)
+
+    thresholds = np.zeros(dim, dtype=np.float32)
+    for i in range(dim):
+        candidates = np.linspace(
+            min(pos_a[:, i].min(), pos_b[:, i].min()),
+            max(pos_a[:, i].max(), pos_b[:, i].max()),
+            n_candidates,
+        )
+        best_t, best_score = candidates[0], -1.0
+        for t in candidates:
+            agree_pos = ((pos_a[:, i] > t) == (pos_b[:, i] > t)).mean()
+            if len(neg_a) > 0:
+                agree_neg = 1.0 - ((neg_a[:, i] > t) == (neg_b[:, i] > t)).mean()
+            else:
+                agree_neg = 0.5
+            score = 0.7 * agree_pos + 0.3 * agree_neg
+            if score > best_score:
+                best_score = score
+                best_t = t
+        thresholds[i] = best_t
+    return thresholds
+
+
+def save_thresholds(thresholds: np.ndarray, path: str):
+    """Save thresholds to .npy file."""
+    _check_numpy()
+    np.save(path, thresholds)
+
+
+def load_thresholds(path: str) -> np.ndarray | None:
+    """Load thresholds from .npy file. Returns None if file doesn't exist."""
+    _check_numpy()
+    try:
+        return np.load(path)
+    except (FileNotFoundError, Exception):
+        return None
 
 
 def binary_from_threshold_array(

@@ -26,6 +26,7 @@ class RAGEngine:
         binary_dim: int = 384,
         binary_threshold_mode: str = "naive",
         binary_thresholds_path: Optional[str] = None,
+        thresholds=None,
     ):
         self._cm = cm or connection_manager
         self.layer = layer
@@ -34,6 +35,7 @@ class RAGEngine:
         self.binary_threshold_mode = binary_threshold_mode
         self.binary_thresholds_path = binary_thresholds_path
         self._thresholds_cache = None
+        self.thresholds = thresholds
 
     def _load_thresholds(self):
         """Load supervised thresholds if available. Returns None for naive mode."""
@@ -55,7 +57,7 @@ class RAGEngine:
         """Convert embedding to binary using configured mode."""
         if not _HAS_BINARY:
             return None
-        thr = self._load_thresholds()
+        thr = self.thresholds if self.thresholds is not None else self._load_thresholds()
         if thr is not None:
             from rag.quantize import binary_from_threshold_array
 
