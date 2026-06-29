@@ -133,7 +133,7 @@ features:
   compression: true
   webhooks: false
   backup: true
-  dashboard: true
+  dashboard: false  # Enable with --dashboard flag
   plugins: false
   rate_limiting: true
   audit_trail: true

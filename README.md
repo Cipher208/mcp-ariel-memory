@@ -115,14 +115,17 @@ mcpServers:
 ### HTTP Server
 
 ```bash
-# Start HTTP server
+# Start HTTP server (no auth required for MCP endpoint)
 python -m mcp_server.server --transport http --port 8000
+
+# With dashboard (disabled by default)
+python -m mcp_server.server --transport http --port 8000 --dashboard
+
+# Development mode (no auth at all)
+python -m mcp_server.server --transport http --port 8000 --no-auth
 
 # Or with Docker
 docker run -p 8000:8000 ariel-memory --transport http --port 8000
-
-# Or with dashboard + metrics
-docker run -p 8000:8000 ariel-memory --transport http --port 8000 --dashboard
 ```
 
 ### docker-compose
@@ -295,14 +298,16 @@ backup: { auto_backup: true, backup_interval_hours: 24 }
 
 ### Secrets Management
 
-```bash
-# Option 1: .env file (recommended for development)
-echo 'MCP_MASTER_KEY=your-32-byte-hex-key' > .env
+On first run without a master key, the server **auto-generates** a key and saves it to `.env` for development convenience.
 
-# Option 2: Environment variable
+```bash
+# Check if .env was created
+cat .env
+
+# For production, set explicitly:
 export MCP_MASTER_KEY="your-32-byte-hex-key"
 
-# Option 3: OS keychain (recommended for production)
+# Or use OS keychain (recommended)
 pip install keyring
 python -c "from features.secrets import install_master_key_to_keychain; install_master_key_to_keychain('your-key')"
 ```
