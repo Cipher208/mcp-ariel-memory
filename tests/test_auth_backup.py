@@ -205,10 +205,16 @@ async def test_rate_limiter():
 
 
 @pytest.mark.asyncio
-async def test_rate_limiter_stats():
+async def test_rate_limiter_stats(tmp_path):
     from features.rate_limiting import RateLimiter
+    from shared.connection import AsyncConnectionManager
 
-    rl = RateLimiter()
+    cm = AsyncConnectionManager(base_dir=str(tmp_path))
+    await cm.execute_script(
+        "memory.db",
+        "CREATE TABLE IF NOT EXISTS rate_limits (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, timestamp REAL NOT NULL);",
+    )
+    rl = RateLimiter(cm=cm)
     await rl.check("stats_test")
     stats = await rl.get_stats("stats_test")
     assert "requests_last_minute" in stats

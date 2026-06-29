@@ -2,14 +2,14 @@
 Legacy MemoryMCPServer — backward compatibility.
 
 This module is NOT used for MCP protocol.
-Main MCP server: mcp_server.py (FastMCP, async, 37 tools).
+Main MCP server: mcp_server/ package (FastMCP, async, 19 unified tools).
 
 Legacy server is needed for:
 - Tests (test_backward_compat)
 - Direct Python calls without MCP protocol
 - Backward compatibility with old code
 
-If writing new code — use mcp_server.py or import modules directly.
+If writing new code — use mcp_server.server or import modules directly.
 """
 
 import asyncio
