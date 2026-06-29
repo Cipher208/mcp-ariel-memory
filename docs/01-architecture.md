@@ -6,12 +6,12 @@
 |-----------|-----------|
 | MCP protocol | Python MCP SDK v1.28 (FastMCP) |
 | Transports | stdio + Streamable HTTP |
-| Storage | **Single `memory.db` file** (~21 tables) |
+| Storage | **Single `memory.db` file** (~20 tables) |
 | Async DB | asyncio + sqlite3 via to_thread |
 | Search | FTS5 + MIB binary embeddings (Hamming) + RRF |
 | Hooks | 24 hooks, integrated into tool pipeline |
 | Docker | Dockerfile + docker-compose |
-| Tests | pytest + pytest-asyncio (239 tests) |
+| Tests | pytest + pytest-asyncio (246 tests) |
 | CI/CD | GitHub Actions |
 
 ## Two-Layer Model

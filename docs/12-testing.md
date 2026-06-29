@@ -3,7 +3,7 @@
 ## Testing
 
 ```bash
-# All tests (229 tests)
+# All tests (246 tests)
 python -m pytest tests/ -v
 
 # Single test file
@@ -13,7 +13,7 @@ python -m pytest tests/test_auth_crypto.py -v
 uv run mcp dev mcp_server.server
 ```
 
-**Status:** 239/239 pytest + 19/19 MCP tools. Python 3.10–3.13 CI matrix. Single `memory.db` file. Envelope encryption for sensitive data.
+**Status:** 246/246 pytest + 19/19 MCP tools. Python 3.10–3.13 CI matrix. Single `memory.db` file. Envelope encryption for sensitive data.
 
 ## Test Fixtures
 
@@ -71,7 +71,7 @@ mcp-ariel-memory/
 │   ├── quantize.py            # MIB binarization + supervised thresholds
 │   └── ...
 ├── docs/                      # 13 documents
-├── tests/                     # 229 pytest tests
+├── tests/                     # 246 pytest tests
 │   ├── conftest.py            # Shared fixtures (master_key_env)
 │   ├── test_all.py            # Core integration tests
 │   ├── test_auth_backup.py    # Auth + backup + config tests

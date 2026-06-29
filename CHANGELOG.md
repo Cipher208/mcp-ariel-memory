@@ -20,6 +20,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Auto-generate master key on first run — no more `RuntimeError: No master key found`.
 - `None` scores in `_materialize_candidates` merge — LIKE-fallback results now handled.
 - Deprecation warnings on deprecated test calls (`search_rrf`/`search_binary`) — migrated to `search(strategy=...)`.
+- `Saga.get_state()` returned reference to `_data` — now returns copy.
+- `Saga._compensate()` didn't save state before compensation — added `_save_state()` before loop.
+- `SagaWatchdog.cleanup_completed()` only cleaned completed/compensated — added stuck/failed/manual_review_required.
+- `Saga._data` wasn't saved before `update()` — moved `step.data` assignment before `_data.update()` to preserve pre-step state.
+- `rag/engine.py` empty embedding guard — added `len(emb) > 0` check before `struct.pack`.
+- Missing indexes on `updated_at`/`timestamp` columns — added for `core_memory`, `user_wiki`, `agent_wiki`, `wiki_index`, `audit_log`.
 
 ### Added
 - `AgentHooks._importance_gate` with agent-specific keywords (error, decision, principle, lesson, pattern).
@@ -31,19 +37,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Unit test for `AgentHooks._importance_gate`.
 - Config fallback for missing `config.yaml` files.
 - Hermes YAML config examples in README.
-- CHANGELOG.md.
+- `CHANGELOG.md` with full release history.
+- `rag.storage.keep_float_blobs` config option — make float embeddings optional (default: true).
+- 6 new tests for `features/secrets.py` — `_load_master_key`, `_save_dotenv`, `_load_dotenv`, `_get_master_key` caching.
+- MultiSourceRAG documentation in `docs/04-rag.md`.
+- 5 database indexes on `updated_at`/`timestamp` columns.
 
 ### Changed
 - Dashboard `features.dashboard: false` by default (was `true`).
 - Test suite: deprecated `search_rrf()` / `search_binary()` calls migrated to unified `search(strategy=...)`.
 - `docs/07-hooks.md`: added `AgentHooks._importance_gate` documentation.
 - `docs/11-operations.md`: added `--no-auth`, auto-generated keys, dashboard flag docs.
+- Test count: 246 passing (was 239).
 
 ### Docs
 - MCP initialization protocol in `docs/11-operations.md`.
 - Security/encryption documentation for API keys and bearer tokens.
 - Hermes YAML config in both README and README_EN.
 - Updated README features table with MultiSourceRAG, ITS scoring, search strategies.
+- `docs/01-architecture.md`: fixed test count (229→239), search description (sqlite-vec→MIB), removed phantom `api_keys` table.
+- `docs/02-mcp-tools.md`: added `sources` parameter to `memory_search_rrf`.
+- `docs/04-rag.md`: added `thresholds`/`search_strategy` params to RAGEngine, deprecation notices for `search_rrf`/`search_binary`, MultiSourceRAG section, `keep_float_blobs` config.
+- `docs/07-hooks.md`: clarified `_importance_gate` is called directly, not via hook registry.
+- `docs/09-features.md`: added `features/secrets.py` documentation.
+- `README_EN.md`: fixed test count (237→239), synced rag config block.
+- `README.md`: synced doc 04 description with README_EN.
 
 ---
 
