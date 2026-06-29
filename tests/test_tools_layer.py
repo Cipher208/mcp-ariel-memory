@@ -108,8 +108,7 @@ def test_memory_stats():
 
 def test_memory_remember_agent_integration():
     """Integration test: memory_remember(layer='agent') through full tool path."""
-    from mcp_server.tools_layer import register_tools
-    from mcp_server.server import mcp, AppContext
+    from mcp_server.server import mcp
 
     tools_registered = any(t.name == "memory_remember" for t in mcp._tool_manager.list_tools())
     assert tools_registered, "memory_remember tool not registered"
