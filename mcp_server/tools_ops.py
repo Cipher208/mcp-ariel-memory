@@ -67,12 +67,12 @@ def register_tools(mcp):
         metrics.inc("tool_backup")
 
         if action == "now":
-            path = await backup_cron.backup_now()
+            path = backup_cron.backup_now()
             return {"path": path}
         elif action == "list":
-            return {"backups": await backup_cron.list_backups()}
+            return {"backups": backup_cron.list_backups()}
         elif action == "restore":
-            return await backup_cron.restore(backup_name)
+            return backup_cron.restore(backup_name)
         else:
             return backup_cron.status()
 
@@ -208,7 +208,7 @@ def register_tools(mcp):
         cutoff = time.time() - (hours * 3600)
 
         async def _delete_core():
-            conn = await app.mm.user_memory(user_id).l4._get_conn()
+            conn = await app.mm.user_memory(user_id).l4._cm.get("memory.db")
             try:
                 cursor = await conn.execute("DELETE FROM core_memory WHERE user_id=? AND created_at > ?", (user_id, cutoff))
                 result = cursor.rowcount
@@ -218,7 +218,7 @@ def register_tools(mcp):
                 conn.close()
 
         async def _delete_episodes():
-            conn = await app.mm.user_memory(user_id).l3._get_conn()
+            conn = await app.mm.user_memory(user_id).l3._cm.get("memory.db")
             try:
                 cursor = await conn.execute("DELETE FROM episodes WHERE user_id=? AND created_at > ?", (user_id, cutoff))
                 result = cursor.rowcount
@@ -237,7 +237,7 @@ def register_tools(mcp):
             from features.audit_trail import AuditTrail
 
             at = AuditTrail()
-            conn = at._get_conn()
+            conn = await at._cm.get("memory.db")
             try:
                 cursor = await conn.execute("DELETE FROM audit_log WHERE user_id=? AND timestamp > ?", (user_id, cutoff))
                 result = cursor.rowcount
@@ -250,7 +250,7 @@ def register_tools(mcp):
             from graph.epistemic import EpistemicGraph
 
             eg = EpistemicGraph(layer="user")
-            conn = eg._get_conn()
+            conn = await eg._cm.get("memory.db")
             try:
                 cursor = await conn.execute("DELETE FROM epi_nodes WHERE user_id=? AND created_at > ?", (user_id, cutoff))
                 result = cursor.rowcount

@@ -90,18 +90,7 @@ class BackupCron:
         dest = self.backup_dir / name
         dest.mkdir(parents=True, exist_ok=True)
 
-        db_files = [
-            "memory.db",
-            "memory.db",
-            "memory.db",
-            "memory.db",
-            "memory.db",
-            "memory.db",
-            "memory.db",
-            "memory.db",
-            "memory.db",
-            "memory.db",
-        ]
+        db_files = ["memory.db"]
         backed_up = []
         for db_file in db_files:
             src = self.base_dir / db_file
