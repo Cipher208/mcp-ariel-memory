@@ -1,5 +1,4 @@
 """Tests for MultiSourceRAG — unified search across RAG + Wiki."""
-import pytest
 
 
 class FakeRAG:
