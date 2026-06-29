@@ -250,7 +250,7 @@ Message → L1 (ReflexBuffer, ring buffer, 50 items)
 ## Testing
 
 ```bash
-# Run all tests (239 passed)
+# Run all tests (246 passed)
 pytest tests/ -v
 
 # Run only integration tests
@@ -258,6 +258,9 @@ pytest tests/test_integration.py -v
 
 # Run with coverage
 pytest tests/ --cov=. --cov-report=term-missing
+
+# Run performance benchmark
+python -m tests.benchmark_perf
 ```
 
 ### Benchmark
@@ -267,6 +270,11 @@ pytest tests/ --cov=. --cov-report=term-missing
 | `memory_remember` | 1533 ops/s | SQLite + encryption |
 | `memory_recall` | 6739 q/s | FTS5 search |
 | `encrypt+decrypt` | 402 ops/s | argon2id KDF |
+| `fts_search` | 1757 ops/s | FTS5 full-text search |
+| `mib_search` | 212 ops/s | Binary embedding search (batched) |
+| `hybrid_search` | 164 ops/s | FTS5 + MIB combined |
+| `epi_tags_join` | 1855 ops/s | Tag lookup via epi_tags table |
+| `rag_chunks_join` | 3386 ops/s | rag_chunks + rag_pages JOIN |
 
 ---
 

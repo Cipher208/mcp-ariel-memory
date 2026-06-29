@@ -30,10 +30,37 @@ Shared `master_key_env` fixture in `tests/conftest.py` sets `MCP_MASTER_KEY` for
 
 ## Benchmark Results
 
+### Core Operations
+
 | Operation | Before | After | Change |
 |-----------|--------|-------|--------|
 | `memory_remember` | 1344 ops/s | 1533 ops/s | +14% |
 | `encrypt+decrypt` | 382 ops/s | 402 ops/s | +5% |
+
+### RAG and Search (500 chunks)
+
+| Operation | Speed | Notes |
+|-----------|-------|-------|
+| `fts_search` | 1757 ops/s | FTS5 full-text search |
+| `mib_search` | 212 ops/s | Binary embedding search (batched) |
+| `hybrid_search` | 164 ops/s | FTS5 + MIB combined |
+
+### Index and Join Performance
+
+| Operation | Speed | Notes |
+|-----------|-------|-------|
+| `epi_tags_join` | 1855 ops/s | Tag lookup via epi_tags table (was LIKE on JSON) |
+| `rag_chunks_join` | 3386 ops/s | rag_chunks + rag_pages JOIN (with index) |
+
+### Running Benchmarks
+
+```bash
+# Run all benchmarks
+python -m tests.benchmark_perf
+
+# Run existing benchmarks
+python tests/benchmark_memory.py
+```
 
 ## Tests — async
 
@@ -81,6 +108,8 @@ mcp-ariel-memory/
 │   ├── test_rag_scoring.py    # Scorer unit tests
 │   ├── test_rag_search_facade.py  # Unified search tests
 │   ├── test_threshold_training.py  # Supervised threshold tests
+│   ├── benchmark_memory.py    # Core operation benchmarks (remember, recall, encrypt)
+│   ├── benchmark_perf.py      # Performance benchmarks (FTS, MIB, hybrid, tags, joins)
 │   └── ...
 ├── core/                      # L1-L4 (async via AsyncConnectionManager)
 ├── graph/                     # Epistemic + Temporal (async)
