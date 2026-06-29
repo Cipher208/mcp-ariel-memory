@@ -1,5 +1,34 @@
 # Features — features/
 
+## Performance Optimizations
+
+### Caching
+
+| Cache | TTL | Description |
+|-------|-----|-------------|
+| `memory_context_inject` | 30s | Caches L4 facts + L3 episodes + L1 recent + wiki |
+| `memory_recall` | 10s | Caches search results by query hash |
+
+Caches are invalidated on write operations (remember, forget, episode_save, graph_add).
+
+### Optimizations
+
+| Optimization | Location | Description |
+|-------------|----------|-------------|
+| `EpisodicMemory.count()` | `core/episodic.py` | Fast COUNT query instead of loading all episodes |
+| Parallel agent writes | `mcp_server/tools_layer.py` | `asyncio.gather` for core + graph writes |
+| Rate limiting | `mcp_server/tools_layer.py` | Per-user limits on write operations |
+
+### Benchmark Results
+
+| Operation | Speed | Notes |
+|-----------|-------|-------|
+| `memory_remember` | 1533 ops/s | SQLite + encryption |
+| `memory_recall` | 6739 q/s | FTS5 search |
+| `encrypt+decrypt` | 402 ops/s | argon2id KDF (intentionally slow) |
+
+---
+
 ## Auth (`features/auth.py`)
 
 ### APIKeyAuth

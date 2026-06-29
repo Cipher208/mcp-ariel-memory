@@ -220,7 +220,7 @@ Message → L1 (ReflexBuffer, ring buffer, 50 items)
 ## Testing
 
 ```bash
-# Run all tests (158 passed)
+# Run all tests (171 passed)
 pytest tests/ -v
 
 # Run with parallel execution
@@ -232,6 +232,14 @@ pytest tests/test_integration.py -v
 # Run with coverage
 pytest tests/ --cov=. --cov-report=term-missing
 ```
+
+### Benchmark
+
+| Operation | Speed | Notes |
+|-----------|-------|-------|
+| `memory_remember` | 1533 ops/s | SQLite + encryption |
+| `memory_recall` | 6739 q/s | FTS5 search |
+| `encrypt+decrypt` | 402 ops/s | argon2id KDF |
 
 ---
 

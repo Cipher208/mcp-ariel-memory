@@ -1,6 +1,6 @@
 # Hooks — hooks/ (integrated into tool pipeline)
 
-24 hooks, actively called from mcp_server.py on every tool call.
+24 hooks, actively called from mcp_server/ on every tool call.
 
 ## HookRegistry (hooks/registry.py)
 
