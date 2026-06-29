@@ -148,3 +148,17 @@ class Scorer:
     ) -> list[ScoredCandidate]:
         """Async wrapper around rank_sync."""
         return self.rank_sync(query, candidates, user_id)
+
+    def update_weights(self, feedback: dict[str, float]) -> None:
+        """Update scoring weights from user feedback (bandit-style).
+
+        Args:
+            feedback: dict with keys 'relevance', 'novelty', 'type_boost'
+                     and float values (higher = more important).
+        """
+        if "relevance" in feedback:
+            self.weights = ScoringWeights(
+                relevance=max(0.0, min(2.0, feedback.get("relevance", self.weights.relevance))),
+                novelty=max(0.0, min(2.0, feedback.get("novelty", self.weights.novelty))),
+                type_boost=max(0.0, min(2.0, feedback.get("type_boost", self.weights.type_boost))),
+            )
