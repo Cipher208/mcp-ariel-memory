@@ -37,6 +37,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Router bilingual keywords — RU + EN for recent, wiki, graph (B2.1-B2.3).
 - Router entity extraction — stopword whitelist instead of length filter (B2.4).
 - Router data-driven priorities — `_ROUTE_TABLE` config (B2.5).
+- ConflictResolver B3 — BM25 + char-trigram hybrid similarity replaces Jaccard.
+- ConflictResolver resolve() — archives deleted conflicts before removal with audit trail.
 
 ### Added
 - `AgentHooks._importance_gate` with agent-specific keywords (error, decision, principle, lesson, pattern).

@@ -849,7 +849,7 @@ router._is_graph_query("What decisions did we make?")
 
 ## ConflictResolver
 
-`rag/conflict.py` — Detects conflicting memory entries using keyword-based similarity.
+`rag/conflict.py` — Detects conflicting memory entries using BM25 + char-trigram hybrid similarity (B3).
 
 ### Constructor
 
@@ -866,6 +866,24 @@ from rag.conflict import ConflictResolver
 
 cr = ConflictResolver()
 cr = ConflictResolver(cm=my_cm)
+```
+
+### Similarity (B3)
+
+The resolver uses an adaptive similarity function:
+
+| Text Length | Strategy | Weights |
+|-------------|----------|---------|
+| Short (< 80 chars) | Char-trigram Jaccard (n=3 + n=4) | 100% ngram |
+| Medium (80-400 chars) | BM25 + Jaccard hybrid | 40% BM25 + 60% Jaccard |
+| Long (> 400 chars) | BM25-heavy + Jaccard | 60% BM25 + 40% Jaccard |
+
+```python
+from rag.conflict import smart_similarity
+
+smart_similarity("Python is best", "Python best")  # 0.5+ (short → ngram)
+smart_similarity("redis cluster config", "redis cluster issue")  # medium → hybrid
+smart_similarity("long document about..." * 100, "long document about..." * 100)  # long → BM25-heavy
 ```
 
 ### `_init_db()`
