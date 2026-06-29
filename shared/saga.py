@@ -153,9 +153,9 @@ class Saga:
                             step.result = await asyncio.wait_for(action_result, timeout=step_timeout)
                         else:
                             step.result = action_result
+                    step.data = self._data.copy()  # save state BEFORE updating _data
                     self._data.update(step.result)
                     step.status = SagaStatus.COMPLETED
-                    step.data = self._data.copy()
                     self._save_state()
                     logger.info("Saga '%s' step '%s' completed" % (self.name, step.name))
 
