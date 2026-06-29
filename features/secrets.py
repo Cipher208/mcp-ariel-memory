@@ -2,9 +2,10 @@
 
 Master key resolution order:
 1. OS keychain (keyring library) — recommended for production
-2. crypto.master_key_hex in config.yaml
-3. MCP_MASTER_KEY environment variable (argon2id KDF)
-4. Fail loud if none available
+2. .env file in project root (MCP_MASTER_KEY=...)
+3. crypto.master_key_hex in config.yaml
+4. MCP_MASTER_KEY environment variable (argon2id KDF)
+5. Fail loud if none available
 """
 
 from __future__ import annotations
@@ -35,8 +36,31 @@ _NONCE_SIZE = 24
 _MAC_SIZE = 16
 
 
+def _load_dotenv() -> None:
+    """Load .env file if it exists and MCP_MASTER_KEY is not already set."""
+    if os.environ.get(_ENV_VAR):
+        return
+    env_path = Path(".env")
+    if not env_path.exists():
+        return
+    try:
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    key, _, value = line.partition("=")
+                    key = key.strip()
+                    value = value.strip().strip("\"'")
+                    if key and key not in os.environ:
+                        os.environ[key] = value
+    except Exception:
+        pass
+
+
 def _load_master_key() -> bytes:
-    """Load or derive master key from keyring, config, or environment."""
+    """Load or derive master key from keyring, .env, config, or environment."""
     if not _HAS_NACL:
         raise ImportError("pynacl is required for encryption. Install with: pip install pynacl")
 
@@ -49,6 +73,9 @@ def _load_master_key() -> bytes:
             return bytes.fromhex(stored)
     except Exception:
         pass
+
+    # Try .env file
+    _load_dotenv()
 
     # Try config
     try:
@@ -71,7 +98,7 @@ def _load_master_key() -> bytes:
             memlimit=argon2id.MEMLIMIT_MODERATE,
         )
 
-    raise RuntimeError("No master key found. Set MCP_MASTER_KEY env var, store in OS keychain, or set crypto.master_key_hex in config.yaml")
+    raise RuntimeError("No master key found. Set MCP_MASTER_KEY in .env, env var, OS keychain, or config.yaml")
 
 
 _master_cache: dict[str, bytes] = {}
