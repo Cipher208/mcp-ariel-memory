@@ -326,7 +326,7 @@ class SagaWatchdog:
             return {"error": str(e)}
 
     def cleanup_completed(self) -> int:
-        """Delete completed sagas older than 1 hour."""
+        """Delete completed, compensated, stuck, failed, and manual_review_required sagas older than 1 hour."""
         cutoff = time.time() - 3600
         removed = 0
         SAGA_DIR.mkdir(parents=True, exist_ok=True)
@@ -334,7 +334,7 @@ class SagaWatchdog:
         for state_file in SAGA_DIR.glob("*.json"):
             try:
                 state = json.loads(state_file.read_text(encoding="utf-8"))
-                if state.get("status") in ("completed", "compensated"):
+                if state.get("status") in ("completed", "compensated", "stuck", "failed", "manual_review_required"):
                     if state.get("started_at", 0) < cutoff:
                         state_file.unlink()
                         removed += 1
