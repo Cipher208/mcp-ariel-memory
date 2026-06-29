@@ -212,9 +212,9 @@ def register_tools(mcp):
         async def _delete_core():
             conn = await app.mm.user_memory(user_id).l4._get_conn()
             try:
-                cursor = conn.execute("DELETE FROM core_memory WHERE user_id=? AND created_at > ?", (user_id, cutoff))
+                cursor = await conn.execute("DELETE FROM core_memory WHERE user_id=? AND created_at > ?", (user_id, cutoff))
                 result = cursor.rowcount
-                conn.commit()
+                await conn.commit()
                 return result
             finally:
                 conn.close()
@@ -222,9 +222,9 @@ def register_tools(mcp):
         async def _delete_episodes():
             conn = await app.mm.user_memory(user_id).l3._get_conn()
             try:
-                cursor = conn.execute("DELETE FROM episodes WHERE user_id=? AND created_at > ?", (user_id, cutoff))
+                cursor = await conn.execute("DELETE FROM episodes WHERE user_id=? AND created_at > ?", (user_id, cutoff))
                 result = cursor.rowcount
-                conn.commit()
+                await conn.commit()
                 return result
             finally:
                 conn.close()
@@ -239,9 +239,9 @@ def register_tools(mcp):
             at = AuditTrail()
             conn = at._get_conn()
             try:
-                cursor = conn.execute("DELETE FROM audit_log WHERE user_id=? AND timestamp > ?", (user_id, cutoff))
+                cursor = await conn.execute("DELETE FROM audit_log WHERE user_id=? AND timestamp > ?", (user_id, cutoff))
                 result = cursor.rowcount
-                conn.commit()
+                await conn.commit()
                 return result
             finally:
                 conn.close()
@@ -251,9 +251,9 @@ def register_tools(mcp):
             eg = EpistemicGraph(layer="user")
             conn = eg._get_conn()
             try:
-                cursor = conn.execute("DELETE FROM epi_nodes WHERE user_id=? AND created_at > ?", (user_id, cutoff))
+                cursor = await conn.execute("DELETE FROM epi_nodes WHERE user_id=? AND created_at > ?", (user_id, cutoff))
                 result = cursor.rowcount
-                conn.commit()
+                await conn.commit()
                 return result
             finally:
                 conn.close()
