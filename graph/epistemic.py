@@ -72,6 +72,13 @@ class EpistemicGraph:
             CREATE INDEX IF NOT EXISTS idx_epi_user ON epi_nodes(user_id);
             CREATE INDEX IF NOT EXISTS idx_epi_type ON epi_nodes(node_type);
             CREATE INDEX IF NOT EXISTS idx_epi_tags ON epi_nodes(tags);
+            CREATE TABLE IF NOT EXISTS epi_tags (
+                node_id INTEGER NOT NULL,
+                tag TEXT NOT NULL,
+                PRIMARY KEY (node_id, tag),
+                FOREIGN KEY (node_id) REFERENCES epi_nodes(node_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_epi_tags_tag ON epi_tags(tag);
         """,
         )
         # Migration: add layer column if missing
@@ -86,8 +93,15 @@ class EpistemicGraph:
             "INSERT INTO epi_nodes (layer, user_id, content, node_type, tags, confidence, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (self.layer, user_id, content, node_type, json.dumps(tags or []), confidence, time.time()),
         )
+        node_id = cursor.lastrowid
+        if tags:
+            for tag in tags:
+                await conn.execute(
+                    "INSERT OR IGNORE INTO epi_tags (node_id, tag) VALUES (?, ?)",
+                    (node_id, tag),
+                )
         await conn.commit()
-        return cursor.lastrowid
+        return node_id
 
     async def add_edge(self, source_id: int, target_id: int, relation: str, weight: float = 0.8):
         conn = await self._cm.get("memory.db")
@@ -100,8 +114,11 @@ class EpistemicGraph:
     async def query_by_tag(self, user_id: str, tag: str, limit: int = 20) -> list[EpistemicNode]:
         conn = await self._cm.get("memory.db")
         cur = await conn.execute(
-            "SELECT * FROM epi_nodes WHERE layer=? AND user_id=? AND tags LIKE ? ORDER BY confidence DESC LIMIT ?",
-            (self.layer, user_id, f'%"{tag}"%', limit),
+            """SELECT n.* FROM epi_nodes n
+               JOIN epi_tags t ON t.node_id = n.node_id
+               WHERE n.layer=? AND n.user_id=? AND t.tag=?
+               ORDER BY n.confidence DESC LIMIT ?""",
+            (self.layer, user_id, tag, limit),
         )
         rows = await cur.fetchall()
         return [self._row_to_node(r) for r in rows]

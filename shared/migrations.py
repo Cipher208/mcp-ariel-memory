@@ -210,6 +210,31 @@ def _get_migrations() -> list[Migration]:
 
     migrations.append(Migration(2, "binary_embeddings", v2_binary_embeddings))
 
+    async def v3_epi_tags(conn):
+        """Add epi_tags table for fast tag lookups."""
+        try:
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS epi_tags (
+                    node_id INTEGER NOT NULL,
+                    tag TEXT NOT NULL,
+                    PRIMARY KEY (node_id, tag)
+                )
+            """)
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_epi_tags_tag ON epi_tags(tag)")
+        except sqlite3.OperationalError:
+            pass
+
+    migrations.append(Migration(3, "epi_tags", v3_epi_tags))
+
+    async def v4_rag_chunks_index(conn):
+        """Add index on rag_chunks(page_id, chunk_index) for JOINs."""
+        try:
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_rag_chunks_page_idx ON rag_chunks(page_id, chunk_index)")
+        except sqlite3.OperationalError:
+            pass  # Index already exists
+
+    migrations.append(Migration(4, "rag_chunks_index", v4_rag_chunks_index))
+
     return migrations
 
 

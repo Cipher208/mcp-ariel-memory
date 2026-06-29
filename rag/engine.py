@@ -125,6 +125,7 @@ class RAGEngine:
             );
             CREATE INDEX IF NOT EXISTS idx_rag_user ON rag_pages(user_id);
             CREATE INDEX IF NOT EXISTS idx_rag_chunks_bin ON rag_chunks(page_id, id) WHERE bin_embedding IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS idx_rag_chunks_page_idx ON rag_chunks(page_id, chunk_index);
         """,
         )
         if self._fts_available:
@@ -332,9 +333,8 @@ class RAGEngine:
             return []
 
         conn = await self._cm.get("memory.db")
-        rows = await (
-            await conn.execute(
-                """
+        cursor = await conn.execute(
+            """
             SELECT c.id, c.page_id, c.content, c.bin_embedding,
                    p.title, p.wiki_type
             FROM rag_chunks c
@@ -342,24 +342,28 @@ class RAGEngine:
             WHERE p.user_id = ?
               AND c.bin_embedding IS NOT NULL
             """,
-                (user_id,),
-            )
-        ).fetchall()
+            (user_id,),
+        )
 
         scored = []
-        for r in rows:
-            d = hamming_distance(q_bin, r["bin_embedding"])
-            scored.append(
-                {
-                    "id": r["id"],
-                    "page_id": r["page_id"],
-                    "title": r["title"],
-                    "content": r["content"][:1024],
-                    "wiki_type": r["wiki_type"],
-                    "score": hamming_to_score(d, self.binary_dim),
-                    "source": "mib",
-                }
-            )
+        BATCH_SIZE = 1000
+        while True:
+            rows = await cursor.fetchmany(BATCH_SIZE)
+            if not rows:
+                break
+            for r in rows:
+                d = hamming_distance(q_bin, r["bin_embedding"])
+                scored.append(
+                    {
+                        "id": r["id"],
+                        "page_id": r["page_id"],
+                        "title": r["title"],
+                        "content": r["content"][:1024],
+                        "wiki_type": r["wiki_type"],
+                        "score": hamming_to_score(d, self.binary_dim),
+                        "source": "mib",
+                    }
+                )
         scored.sort(key=lambda x: (-x["score"], x["id"]))
         return scored[:limit]
 
