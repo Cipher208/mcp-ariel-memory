@@ -19,8 +19,11 @@ class Config:
 
     def _load(self):
         config_path = Path(__file__).parent / "config.yaml"
-        with open(config_path) as f:
-            self._data = yaml.safe_load(f)
+        try:
+            with open(config_path) as f:
+                self._data = yaml.safe_load(f)
+        except FileNotFoundError:
+            self._data = {}
 
     def get(self, *keys, default=None):
         value = self._data
@@ -32,6 +35,15 @@ class Config:
         return value
 
     def is_hook_enabled(self, layer: str, hook: str) -> bool:
+        # Known hooks enabled by default
+        known_hooks = {
+            "user": ["message_received", "message_sent", "importance_gate", "emotion_trigger",
+                     "consolidation", "auto_context", "forgetting_ritual"],
+            "agent": ["error_occurred", "decision_made", "self_correction", "personality_shift",
+                      "emotion_context", "consolidation", "auto_context"],
+        }
+        if hook in known_hooks.get(layer, []):
+            return self.get("hooks", layer, hook, default=True)
         return self.get("hooks", layer, hook, default=False)
 
     def is_feature_enabled(self, feature: str) -> bool:
