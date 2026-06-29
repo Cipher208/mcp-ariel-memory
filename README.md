@@ -22,7 +22,10 @@ The server is built with the official MCP Python SDK (FastMCP), supports both st
 - **19 unified MCP tools** with `layer` parameter (user/agent) instead of 37 separate tools
 - **Envelope encryption** — all sensitive data (API keys, tokens, saga state) encrypted at rest with libsodium secretbox
 - **.env support** — set `MCP_MASTER_KEY` in `.env` file for easy local development
-- **Hybrid search** combining FTS5 full-text with vector similarity via Reciprocal Rank Fusion
+- **Unified Search API** — single `search()` method with 4 strategies: `fts`, `mib`, `hybrid`, `auto`
+- **MultiSourceRAG** — unified search across RAG + Wiki with deduplication and reranking
+- **ITS-inspired scoring** — novelty component using document frequency as prior for better ranking
+- **Supervised thresholds** — per-dimension MIB thresholds trained on labeled data (+10-15% recall)
 - **Knowledge graphs** for epistemic (facts/decisions) and temporal (timeline) relationships
 - **Wiki system** with 14 content types, .md files as source of truth, and external folder sync
 - **24 hooks** for intercepting memory operations at every stage
@@ -135,7 +138,8 @@ docker-compose up
 | **Two-Layer Memory** | L1 ReflexBuffer → L2 SessionStore → L3 EpisodicMemory → L4 CoreMemory |
 | **Envelope Encryption** | libsodium secretbox (AES-256-GCM) for API keys, tokens, saga state |
 | **Unified Search API** | Single `search()` method with 4 strategies: `fts`, `mib`, `hybrid`, `auto` |
-| **Hybrid Search** | FTS5 + binary embeddings via Reciprocal Rank Fusion (RRF) with Scorer |
+| **MultiSourceRAG** | Unified search across RAG + Wiki with deduplication and reranking |
+| **ITS Scoring** | Novelty component using document frequency as prior for better ranking |
 | **Supervised Thresholds** | Per-dimension MIB thresholds trained on labeled data (+10-15% recall) |
 | **Knowledge Graph** | Epistemic graph (facts, decisions) + Temporal graph (timeline) |
 | **Wiki System** | 14 types (7 user + 7 agent), .md files as source of truth, FTS5 index |
@@ -172,6 +176,15 @@ Message → L1 (ReflexBuffer, ring buffer, 50 items)
 3. config.yaml (crypto.master_key_hex)
 4. Environment variable (MCP_MASTER_KEY)
 ```
+
+### Search Strategies
+
+| Strategy | Description | When to Use |
+|----------|-------------|-------------|
+| `fts` | Full-text search via FTS5 with LIKE fallback | Short queries (<3 words), keyword-heavy |
+| `mib` | Binary embedding similarity (Hamming distance) | Semantic similarity, concept-based |
+| `hybrid` | Combines FTS5 + MIB with Scorer ranking | General-purpose, best recall |
+| `auto` | Automatically selects `fts` for short queries, `hybrid` for longer | Default for most use cases |
 
 ### Database Tables (21)
 
