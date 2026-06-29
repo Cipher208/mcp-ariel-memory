@@ -1,41 +1,75 @@
 """
 Consolidation Engine — L1→L2→L3→L4 memory promotion (async)
-Uses CoreMemory.save() instead of duplicating UPSERT logic.
+Type-aware promotion with memory_kind support.
 """
 
 from typing import Any
 
 from shared.connection import AsyncConnectionManager, connection_manager
+from shared.memory_types import MemoryKind, get_policy, validate_kind
 
 
 class ConsolidationEngine:
     def __init__(self, cm: AsyncConnectionManager = None):
         self._cm = cm or connection_manager
 
-    async def consolidate_staging(self, user_id: str, staging_items: list[dict[str, Any]], min_importance: float = 0.7) -> dict[str, int]:
+    async def consolidate_staging(
+        self,
+        user_id: str,
+        staging_items: list[dict[str, Any]],
+        min_importance: float = 0.7,
+    ) -> dict[str, int]:
+        """Type-aware promotion: instruction/rule/commitment pass even with low importance."""
         from core.memory import CoreMemory
 
         cm = CoreMemory(cm=self._cm)
         promoted = 0
         skipped = 0
+
         for item in staging_items:
-            if item.get("importance", 0) < min_importance:
+            content = item.get("content", "")
+            importance = float(item.get("importance", 0.7))
+            kind_str = item.get("memory_kind", "fact")
+
+            kind = MemoryKind(kind_str) if validate_kind(kind_str) else MemoryKind.FACT
+            pol = get_policy(kind)
+
+            # Type-aware threshold: instruction/rule/commitment pass at 0.3+
+            effective_threshold = (
+                min_importance
+                if not (pol.never_archive or kind in (
+                    MemoryKind.INSTRUCTION, MemoryKind.RULE, MemoryKind.COMMITMENT
+                ))
+                else min(min_importance, 0.3)
+            )
+            if importance < effective_threshold:
                 skipped += 1
                 continue
-            content = item.get("content", "")
+
             key = "staging_%s" % content[:30].replace(" ", "_").lower()
-            await cm.save(user_id, key, content, item.get("importance", 0.7))
+            await cm.save(
+                user_id, key, content,
+                importance=importance,
+                memory_kind=kind_str,
+                source="staging_promotion",
+            )
             promoted += 1
+
         return {"promoted": promoted, "skipped": skipped}
 
-    async def consolidate_episodes(self, user_id: str, episodic_db: str = None, min_weight: float = 0.7) -> int:
+    async def consolidate_episodes(
+        self,
+        user_id: str,
+        episodic_db: str = None,
+        min_weight: float = 0.7,
+    ) -> int:
         from core.memory import CoreMemory
 
         cm = CoreMemory(cm=self._cm)
         epi_db = episodic_db or "memory.db"
         epi_conn = await self._cm.get(epi_db)
         cursor = await epi_conn.execute(
-            "SELECT summary, emotional_weight FROM episodes WHERE user_id=? AND emotional_weight > ? ORDER BY created_at DESC LIMIT 10",
+            "SELECT summary, emotional_weight, memory_kind FROM episodes WHERE user_id=? AND emotional_weight > ? ORDER BY created_at DESC LIMIT 10",
             (user_id, min_weight),
         )
         rows = await cursor.fetchall()
@@ -47,8 +81,9 @@ class ConsolidationEngine:
         for row in rows:
             summary = row["summary"]
             weight = row["emotional_weight"]
+            kind = row["memory_kind"] or "fact"
             key = "ep_%s" % summary[:30].replace(" ", "_").lower()
-            await cm.save(user_id, key, summary[:200], weight)
+            await cm.save(user_id, key, summary[:200], importance=weight, memory_kind=kind, source="episode_promotion")
             consolidated += 1
         return consolidated
 
