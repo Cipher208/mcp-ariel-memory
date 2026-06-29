@@ -355,16 +355,21 @@ score = uh._calculate_importance("ok")
 
 ## AgentHooks (hooks/agent_hooks.py)
 
-12 hooks for agent identity events. Automatically registers all handlers on initialization.
+12 hooks for agent identity events, plus `_importance_gate` for filtering.
 
-### Class: `AgentHooks`
+### `AgentHooks._importance_gate(ctx: Dict[str, Any]) -> Dict[str, Any]`
+
+Filters agent messages by importance using agent-specific keywords.
 
 ```python
-class AgentHooks:
-    def __init__(self, user_id: str = "default")
+from hooks.agent_hooks import AgentHooks
+
+ah = AgentHooks("agent_id")
+result = ah._importance_gate({"text": "error in database connection"})
+# {"importance": 0.65, "bypass": False}
 ```
 
-**Description**: Creates an AgentHooks instance and registers all 12 agent hooks with the global hook_registry.
+Agent-specific keywords that boost score: `error`, `decision`, `principle`, `lesson`, `pattern`.
 
 **Parameters**:
 - `user_id` (str, optional): The user ID for memory operations. Defaults to `"default"`.

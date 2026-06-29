@@ -13,7 +13,7 @@ python -m pytest tests/test_auth_crypto.py -v
 uv run mcp dev mcp_server.server
 ```
 
-**Status:** 229/229 pytest + 19/19 MCP tools. Python 3.10–3.13 CI matrix. Single `memory.db` file. Envelope encryption for sensitive data.
+**Status:** 239/239 pytest + 19/19 MCP tools. Python 3.10–3.13 CI matrix. Single `memory.db` file. Envelope encryption for sensitive data.
 
 ## Test Fixtures
 
