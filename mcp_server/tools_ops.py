@@ -179,9 +179,7 @@ def register_tools(mcp):
         audit_task = at.archive_and_prune(retention_days, archive_dir)
         backup_task = backup_cron.cleanup_old()
 
-        dedup_r, compress_r, dream_r, audit_r, backup_r = await asyncio.gather(
-            dedup_task, compress_task, dream_task, audit_task, backup_task
-        )
+        dedup_r, compress_r, dream_r, audit_r, backup_r = await asyncio.gather(dedup_task, compress_task, dream_task, audit_task, backup_task)
 
         results["dedup_core"] = dedup_r
         results["compress_episodes"] = compress_r
@@ -231,11 +229,13 @@ def register_tools(mcp):
 
         async def _delete_staging():
             from shared.dream_buffer import DreamBuffer
+
             db = DreamBuffer()
             return db.clear_staging(user_id)
 
         async def _delete_audit():
             from features.audit_trail import AuditTrail
+
             at = AuditTrail()
             conn = at._get_conn()
             try:
@@ -248,6 +248,7 @@ def register_tools(mcp):
 
         async def _delete_graph():
             from graph.epistemic import EpistemicGraph
+
             eg = EpistemicGraph(layer="user")
             conn = eg._get_conn()
             try:

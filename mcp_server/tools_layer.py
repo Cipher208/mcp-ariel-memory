@@ -140,12 +140,8 @@ def register_tools(mcp):
                 _get_graph(app, layer).add_node(
                     user_id,
                     value,
-                    "error_analysis" if "error" in key.lower()
-                    else "decision_log" if "decision" in key.lower()
-                    else "agent_fact",
-                    ["error_pattern"] if "error" in key.lower()
-                    else ["decided_because"] if "decision" in key.lower()
-                    else [],
+                    "error_analysis" if "error" in key.lower() else "decision_log" if "decision" in key.lower() else "agent_fact",
+                    ["error_pattern"] if "error" in key.lower() else ["decided_because"] if "decision" in key.lower() else [],
                     importance,
                 ),
             )
