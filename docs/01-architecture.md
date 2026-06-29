@@ -11,7 +11,7 @@
 | Search | FTS5 + MIB binary embeddings (Hamming) + RRF |
 | Hooks | 24 hooks, integrated into tool pipeline |
 | Docker | Dockerfile + docker-compose |
-| Tests | pytest + pytest-asyncio (246 tests) |
+| Tests | pytest + pytest-asyncio (266 tests) |
 | CI/CD | GitHub Actions |
 
 ## Two-Layer Model

@@ -39,6 +39,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Router data-driven priorities — `_ROUTE_TABLE` config (B2.5).
 - ConflictResolver B3 — BM25 + char-trigram hybrid similarity replaces Jaccard.
 - ConflictResolver resolve() — archives deleted conflicts before removal with audit trail.
+- Saga retry with exponential backoff (B7) — `retry_attempts`, `retry_backoff`, `retry_on` per step.
+- Saga idempotent step replay (B7) — `idempotency_key_fn` + `saga_step_log` table prevents duplicate effects.
+- `saga_crypto.py` — atomic encrypted state writes with legacy JSON rotation.
 
 ### Added
 - `AgentHooks._importance_gate` with agent-specific keywords (error, decision, principle, lesson, pattern).
@@ -65,7 +68,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Test suite: deprecated `search_rrf()` / `search_binary()` calls migrated to unified `search(strategy=...)`.
 - `docs/07-hooks.md`: added `AgentHooks._importance_gate` documentation.
 - `docs/11-operations.md`: added `--no-auth`, auto-generated keys, dashboard flag docs.
-- Test count: 246 passing (was 239).
+- Test count: 266 passing (was 239).
 
 ### Docs
 - MCP initialization protocol in `docs/11-operations.md`.

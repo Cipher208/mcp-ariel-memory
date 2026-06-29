@@ -314,6 +314,10 @@ def add_step(
     action: Callable[[dict], Coroutine[Any, Any, dict]],
     compensation: Optional[Callable[[dict], Coroutine[Any, Any, None]]] = None,
     timeout_seconds: Optional[int] = None,
+    retry_attempts: int = 0,
+    retry_backoff: float = 0.5,
+    retry_on: tuple = (ConnectionError, TimeoutError),
+    idempotency_key_fn: Optional[Callable[[dict], str]] = None,
 ) -> "Saga"
 ```
 
@@ -325,6 +329,52 @@ Appends a step. Returns `self` for chaining.
 | `action` | `Callable[[dict], Coroutine]` | — | Async function receiving `data` dict, returning dict to merge. Can also be another `Saga` instance for nested sagas. |
 | `compensation` | `Optional[Callable]` | `None` | Async rollback function (receives `data` dict, returns `None`). |
 | `timeout_seconds` | `Optional[int]` | `None` | Per-step timeout. Falls back to saga-level timeout. |
+| `retry_attempts` | `int` | `0` | Number of retries for transient errors (B7). |
+| `retry_backoff` | `float` | `0.5` | Initial backoff delay in seconds. Doubles each retry. |
+| `retry_on` | `tuple` | `(ConnectionError, TimeoutError)` | Exception types that trigger retry. |
+| `idempotency_key_fn` | `Optional[Callable]` | `None` | Function returning a key for idempotent replay. |
+
+### B7: Retry with Backoff
+
+Steps with `retry_attempts > 0` automatically retry on transient errors:
+
+```python
+async def call_external_api(data):
+    resp = await httpx.get("https://api.example.com/data")
+    return {"result": resp.json()}
+
+saga = Saga("api_call", timeout_seconds=30)
+saga.add_step(
+    "fetch", call_external_api,
+    retry_attempts=3,           # retry up to 3 times
+    retry_backoff=0.5,          # 0.5s, 1s, 2s (exponential)
+    retry_on=(ConnectionError, TimeoutError),  # only retry these
+)
+```
+
+Exponential backoff: `delay = retry_backoff * 2^(attempt - 1)`.
+
+### B7: Idempotent Step Replay
+
+Steps with `idempotency_key_fn` log completed results to `saga_step_log`. On replay with the same `saga_id`, completed steps are skipped:
+
+```python
+def user_key(data):
+    return f"user:{data.get('user_id', 'default')}"
+
+async def write_to_db(data):
+    # This side-effect only runs once per unique key
+    await db.insert(data["content"])
+    return {"wrote": True}
+
+saga = Saga("write", timeout_seconds=10)
+saga.add_step("db_write", write_to_db, idempotency_key_fn=user_key)
+
+await saga.execute({"user_id": "alice", "content": "hello"})  # runs
+same = Saga("write", saga_id=saga.saga_id)
+same.add_step("db_write", write_to_db, idempotency_key_fn=user_key)
+await same.execute({"user_id": "alice", "content": "hello"})  # replayed from cache
+```
 
 ```python
 async def do_backup(data):
