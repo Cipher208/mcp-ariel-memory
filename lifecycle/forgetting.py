@@ -1,5 +1,5 @@
 """
-Forgetting System - decay, archiving, compression
+Forgetting System — type-aware decay, archiving, compression
 """
 
 import logging
@@ -8,6 +8,9 @@ from pathlib import Path
 
 from config import config
 from shared.connection import AsyncConnectionManager, connection_manager
+from shared.memory_types import (
+    MemoryKind, apply_decay, can_archive, validate_kind,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,53 +27,87 @@ class ForgettingSystem:
         ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
 
     async def decay_importance(self) -> int:
+        """Type-aware decay: instruction/rule/commitment never decay (decay_rate=0)."""
         try:
             now = time.time()
             conn = await self._cm.get("memory.db")
-            cursor = await conn.execute(
-                """UPDATE core_memory SET importance = MAX(0.01,
-                   importance * EXP(-? * (? - updated_at) / 86400))
-                   WHERE importance > 0.01""",
-                (self.decay_rate, now),
+            rows = await (await conn.execute(
+                "SELECT entry_id, memory_kind, importance, updated_at FROM core_memory"
+            )).fetchall()
+
+            updates: list[tuple[float, int]] = []
+            for r in rows:
+                kind_str = r["memory_kind"] or "fact"
+                if not validate_kind(kind_str):
+                    continue
+                kind = MemoryKind(kind_str)
+                days = (now - float(r["updated_at"])) / 86400.0
+                new_imp = apply_decay(float(r["importance"]), kind, days)
+                if abs(new_imp - float(r["importance"])) > 1e-3:
+                    updates.append((new_imp, int(r["entry_id"])))
+
+            if not updates:
+                return 0
+
+            await conn.executemany(
+                "UPDATE core_memory SET importance = ? WHERE entry_id = ?",
+                updates,
             )
             await conn.commit()
-            affected = cursor.rowcount
-            if affected > 0:
-                logger.info("Decayed %d entries" % affected)
-            return affected
+            logger.info("Decayed %d entries" % len(updates))
+            return len(updates)
         except Exception as e:
             logger.error("Decay failed: %s" % e)
             return 0
 
     async def archive_old_entries(self) -> int:
+        """Type-aware archive: instruction/rule/commitment never archived.
+        Goal/todo/commitment archived by expires_at. Others by age + importance."""
         try:
             conn = await self._cm.get("memory.db")
-            cutoff = time.time() - (self.archive_days * 86400)
-            cursor = await conn.execute(
-                "SELECT * FROM core_memory WHERE updated_at < ? AND importance < ?",
-                (cutoff, self.archive_min_importance),
-            )
-            rows = await cursor.fetchall()
-            if not rows:
+            now = time.time()
+
+            # 1) Expired goals/todos/commitments
+            expired = await (await conn.execute(
+                """SELECT entry_id, user_id, key, value, memory_kind, importance, expires_at
+                   FROM core_memory
+                   WHERE memory_kind IN ('goal', 'todo', 'commitment')
+                     AND expires_at IS NOT NULL AND expires_at < ?""",
+                (now,),
+            )).fetchall()
+
+            # 2) Old low-importance entries (excluding never-archive types)
+            old = await (await conn.execute(
+                """SELECT entry_id, user_id, key, value, memory_kind, importance, expires_at
+                   FROM core_memory
+                   WHERE memory_kind NOT IN ('instruction', 'rule', 'commitment')
+                     AND (expires_at IS NULL OR expires_at > ?)
+                     AND updated_at < ?
+                     AND importance < ?""",
+                (now, now - self.archive_days * 86400, self.archive_min_importance),
+            )).fetchall()
+
+            all_rows = expired + old
+            if not all_rows:
                 return 0
 
-            # Use ArchivedMemories instead of manual JSON
             from shared.archived_memories import ArchivedMemories
 
-            am = ArchivedMemories()
+            am = ArchivedMemories(cm=self._cm)
             archived_count = 0
-            for row in rows:
+            for r in all_rows:
                 await am.archive(
-                    user_id=row["user_id"],
-                    content="%s=%s" % (row["key"], row["value"]),
-                    memory_type="core_memory",
-                    importance=row["importance"],
-                    original_id=row["entry_id"],
-                    reason="inactive_%dd" % self.archive_days,
+                    user_id=r["user_id"],
+                    content="%s=%s" % (r["key"], r["value"]),
+                    memory_type=r["memory_kind"] or "fact",
+                    importance=r["importance"],
+                    original_id=r["entry_id"],
+                    reason="expired" if (r["expires_at"] and r["expires_at"] < now)
+                           else "inactive_%dd" % self.archive_days,
                 )
                 archived_count += 1
 
-            ids = [row["entry_id"] for row in rows]
+            ids = [r["entry_id"] for r in all_rows]
             placeholders = ",".join(["?"] * len(ids))
             await conn.execute("DELETE FROM core_memory WHERE entry_id IN (%s)" % placeholders, ids)
             await conn.commit()
