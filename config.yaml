@@ -61,6 +61,16 @@ rag:
   storage:
     keep_float_blobs: true  # Set false to save disk (float embeddings only needed for threshold training)
 
+# === Typed Memory ===
+typed_memory:
+  enabled: true
+  default_for_null: "fact"
+  reclassify_on_save: false  # true: always call kind_for_text() on save()
+  boost_cap: 0.5
+  archive:
+    goal_todo_default_ttl_days: 30
+    commitment_ttl_days: 365
+
 # === Binary Embeddings (MIB) ===
 binary:
   enabled: true
