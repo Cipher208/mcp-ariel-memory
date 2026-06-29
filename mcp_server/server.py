@@ -129,9 +129,8 @@ def main():
                 mcp.run(transport="streamable-http")
             except Exception as e:
                 import logging
-                logging.getLogger(__name__).error(
-                    "HTTP transport failed: %s. Try with --dashboard flag.", e
-                )
+
+                logging.getLogger(__name__).error("HTTP transport failed: %s. Try with --dashboard flag.", e)
                 raise
     else:
         mcp.run(transport="stdio")

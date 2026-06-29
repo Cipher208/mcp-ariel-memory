@@ -37,10 +37,8 @@ class Config:
     def is_hook_enabled(self, layer: str, hook: str) -> bool:
         # Known hooks enabled by default
         known_hooks = {
-            "user": ["message_received", "message_sent", "importance_gate", "emotion_trigger",
-                     "consolidation", "auto_context", "forgetting_ritual"],
-            "agent": ["error_occurred", "decision_made", "self_correction", "personality_shift",
-                      "emotion_context", "consolidation", "auto_context"],
+            "user": ["message_received", "message_sent", "importance_gate", "emotion_trigger", "consolidation", "auto_context", "forgetting_ritual"],
+            "agent": ["error_occurred", "decision_made", "self_correction", "personality_shift", "emotion_context", "consolidation", "auto_context"],
         }
         if hook in known_hooks.get(layer, []):
             return self.get("hooks", layer, hook, default=True)
