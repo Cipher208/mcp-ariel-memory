@@ -29,6 +29,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - `query_by_tag()` used `LIKE` on JSON — extracted tags to `epi_tags` table with indexed JOIN (1850 ops/s).
 - `_search_binary()` loaded all rows into memory — changed to batched `fetchmany(1000)`.
 - Missing `rag_chunks(page_id, chunk_index)` index — added for JOIN performance (3537 ops/s).
+- `GET /health` — health check endpoint with status, version, uptime, DB connectivity.
+- `GET /ready` — readiness probe for Kubernetes (DB + migrations OK).
+- `GET /alive` — liveness heartbeat for container orchestrators.
+- Graceful shutdown — SIGTERM/SIGINT handler stops backup_cron, saga_watchdog, read_only_replica.
+- `demo.py` — launch demo script creating test data and showing all features.
 
 ### Added
 - `AgentHooks._importance_gate` with agent-specific keywords (error, decision, principle, lesson, pattern).

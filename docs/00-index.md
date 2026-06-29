@@ -92,6 +92,8 @@ python -m mcp_server --transport http --port 8000
 - **DB tables:** 21
 - **Hooks:** 24
 - **Wiki types:** 14
+- **Health endpoints:** /health, /ready, /alive
 - **Platform:** Windows, Linux, macOS, Docker
 - **Python:** 3.10–3.13
 - **Encryption:** libsodium secretbox (AES-256-GCM)
+- **Graceful shutdown:** SIGTERM/SIGINT handling

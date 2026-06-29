@@ -34,23 +34,92 @@ python -m mcp_server.server --transport http --port 8000 --no-auth
 
 ## Auth + Rate Limiting
 
-| Endpoint | Auth | Rate Limit |
-|----------|------|------------|
-| `/mcp` (MCP) | — | ✅ (connection limit) |
-| `/health` | — | — |
-| `/dashboard` | ✅ | ✅ |
-| `/api/stats` | ✅ | ✅ |
-| `/api/user/facts` | ✅ | ✅ |
-| `/api/agent/facts` | ✅ | ✅ |
-| `/api/user/episodes` | ✅ | ✅ |
-| `/api/agent/episodes` | ✅ | ✅ |
-| `/api/audit` | ✅ | ✅ |
-| `/api/auth/keys` | ✅ | ✅ |
-| `/api/auth/create` | ✅ | ✅ |
-| `/api/backup/trigger` | ✅ | ✅ |
-| `/api/backup/list` | ✅ | ✅ |
-| `/metrics` | ✅ | ✅ |
-| `/metrics/json` | ✅ | ✅ |
+| Endpoint | Auth | Rate Limit | Description |
+|----------|------|------------|-------------|
+| `/mcp` (MCP) | — | ✅ (connection limit) | MCP protocol endpoint |
+| `/health` | — | — | Health check (status, version, uptime, DB) |
+| `/ready` | — | — | Readiness probe (DB + migrations OK) |
+| `/alive` | — | — | Liveness heartbeat (Kubernetes) |
+| `/dashboard` | ✅ | ✅ | Web dashboard |
+| `/api/stats` | ✅ | ✅ | Statistics |
+| `/api/user/facts` | ✅ | ✅ | User facts |
+| `/api/agent/facts` | ✅ | ✅ | Agent facts |
+| `/api/user/episodes` | ✅ | ✅ | User episodes |
+| `/api/agent/episodes` | ✅ | ✅ | Agent episodes |
+| `/api/audit` | ✅ | ✅ | Audit log |
+| `/api/auth/keys` | ✅ | ✅ | API keys |
+| `/api/auth/create` | ✅ | ✅ | Create API key |
+| `/api/backup/trigger` | ✅ | ✅ | Trigger backup |
+| `/api/backup/list` | ✅ | ✅ | List backups |
+| `/metrics` | ✅ | ✅ | Prometheus metrics |
+| `/metrics/json` | ✅ | ✅ | JSON metrics |
+
+## Health Endpoints
+
+### GET /health
+
+Returns server health status, version, uptime, and DB connectivity:
+
+```json
+{
+  "status": "ok",
+  "version": "1.0.0",
+  "uptime_seconds": 3600.5,
+  "db": {"connected": true, "latency_ms": 1.2}
+}
+```
+
+### GET /ready
+
+Readiness probe for Kubernetes. Returns `ready: true` when DB is connected and migrations are complete.
+
+```json
+{"ready": true, "migration_version": 4}
+```
+
+### GET /alive
+
+Liveness heartbeat for container orchestrators.
+
+```json
+{"alive": true}
+```
+
+## Graceful Shutdown
+
+The server handles `SIGTERM` and `SIGINT` signals for graceful shutdown:
+
+1. Stops backup cron jobs
+2. Stops saga watchdog
+3. Stops read-only replica sync
+4. Closes all DB connections
+
+```bash
+# Send SIGTERM for graceful shutdown
+kill -TERM <pid>
+
+# Or SIGINT (Ctrl+C)
+kill -INT <pid>
+```
+
+## Launch Demo
+
+Run the demo script to create test data and see all features in action:
+
+```bash
+# Run demo only (no server start)
+python demo.py --demo-only
+
+# Run demo then start server
+python demo.py --transport http --port 8000
+```
+
+The demo script:
+- Creates 20 memories, 6 RAG pages, 10 graph nodes
+- Runs FTS, MIB, and hybrid searches
+- Tests encryption and saga execution
+- Creates a backup
+- Shows timing results
 
 ## MCP Protocol
 

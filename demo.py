@@ -17,11 +17,9 @@ Requirements:
 """
 
 import asyncio
-import json
 import os
 import sys
 import time
-from pathlib import Path
 
 # Set master key for demo
 os.environ["MCP_MASTER_KEY"] = "demo-master-key-for-testing"
@@ -43,10 +41,9 @@ async def run_demo():
     from features.backup import BackupManager
     from features.secrets import encrypt_json, decrypt_json
     from graph.epistemic import EpistemicGraph
-    from lifecycle.forgetting import ForgettingSystem
     from rag.engine import RAGEngine
     from shared.connection import connection_manager
-    from shared.saga import Saga, SagaStatus
+    from shared.saga import Saga
 
     mm = MemoryManager()
     rag = RAGEngine(cm=connection_manager, layer="user", binary_dim=384)
@@ -196,9 +193,13 @@ def main():
         import subprocess
 
         cmd = [
-            sys.executable, "-m", "mcp_server.server",
-            "--transport", args.transport,
-            "--port", str(args.port),
+            sys.executable,
+            "-m",
+            "mcp_server.server",
+            "--transport",
+            args.transport,
+            "--port",
+            str(args.port),
             "--no-auth",
         ]
         print(f"Running: {' '.join(cmd)}")

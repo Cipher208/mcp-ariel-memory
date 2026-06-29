@@ -293,6 +293,8 @@ def _run_with_dashboard(host: str, port: int):
         """Health check — returns status, uptime, and DB connectivity."""
         import time as _time
 
+        from shared.connection import connection_manager
+
         start = _time.time()
         try:
             conn = await connection_manager.get("memory.db")
@@ -303,12 +305,14 @@ def _run_with_dashboard(host: str, port: int):
         db_latency = _time.time() - start
 
         status = "ok" if db_ok else "degraded"
-        return JSONResponse({
-            "status": status,
-            "version": "1.0.0",
-            "uptime_seconds": _time.time() - _server_start_time,
-            "db": {"connected": db_ok, "latency_ms": round(db_latency * 1000, 1)},
-        })
+        return JSONResponse(
+            {
+                "status": status,
+                "version": "1.0.0",
+                "uptime_seconds": _time.time() - _server_start_time,
+                "db": {"connected": db_ok, "latency_ms": round(db_latency * 1000, 1)},
+            }
+        )
 
     async def ready_endpoint(request):
         """Readiness probe — returns ready when DB connected and migrations done."""
