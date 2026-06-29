@@ -25,16 +25,17 @@ def test_mcp_tools_count():
     from mcp_server import mcp
 
     tools = mcp._tool_manager.list_tools()
-    assert len(tools) >= 20
+    assert len(tools) >= 15
 
 
 def test_mcp_tools_are_async():
     import inspect
 
-    from mcp_server import memory_agent_remember, memory_user_remember
+    from mcp_server import mcp
 
-    assert inspect.iscoroutinefunction(memory_user_remember)
-    assert inspect.iscoroutinefunction(memory_agent_remember)
+    tools = mcp._tool_manager.list_tools()
+    for tool in tools:
+        assert inspect.iscoroutinefunction(tool.fn), f"{tool.name} is not async"
 
 
 def test_backward_compat():

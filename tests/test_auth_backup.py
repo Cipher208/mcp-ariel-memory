@@ -223,26 +223,23 @@ def test_mcp_tools_count():
     from mcp_server import mcp
 
     tools = mcp._tool_manager.list_tools()
-    assert len(tools) >= 37
+    assert len(tools) >= 15
 
 
 def test_mcp_tools_are_async():
     import inspect
-    from mcp_server import (
-        memory_user_remember,
-        memory_agent_remember,
-        memory_backup_now,
-        memory_create_api_key,
-        memory_lucidity_purge,
-        memory_search_rrf,
-    )
+    from mcp_server import mcp
 
-    assert inspect.iscoroutinefunction(memory_user_remember)
-    assert inspect.iscoroutinefunction(memory_agent_remember)
-    assert inspect.iscoroutinefunction(memory_backup_now)
-    assert inspect.iscoroutinefunction(memory_create_api_key)
-    assert inspect.iscoroutinefunction(memory_lucidity_purge)
-    assert inspect.iscoroutinefunction(memory_search_rrf)
+    tools = mcp._tool_manager.list_tools()
+    tool_names = [t.name for t in tools]
+    assert "memory_remember" in tool_names
+    assert "memory_backup" in tool_names
+    assert "memory_api_key" in tool_names
+    assert "memory_lucidity_purge" in tool_names
+    assert "memory_search_rrf" in tool_names
+
+    for tool in tools:
+        assert inspect.iscoroutinefunction(tool.fn), f"{tool.name} is not async"
 
 
 def test_mcp_server_name():
@@ -261,7 +258,7 @@ def test_mcp_server_instructions():
 
 @pytest.mark.asyncio
 async def test_mcp_lifespan():
-    from mcp_server import lifespan, mcp
+    from mcp_server.server import lifespan, mcp
 
     async with lifespan(mcp) as ctx:
         assert ctx is not None

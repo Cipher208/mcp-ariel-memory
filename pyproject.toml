@@ -56,8 +56,8 @@ all = [
 ]
 
 [project.scripts]
-ariel-memory = "mcp_server:main"
-mcp-ariel-memory = "mcp_server:main"
+ariel-memory = "mcp_server.server:main"
+mcp-ariel-memory = "mcp_server.server:main"
 
 [project.urls]
 Homepage = "https://github.com/Cipher208/mcp-ariel-memory"

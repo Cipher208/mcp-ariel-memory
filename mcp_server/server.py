@@ -1,0 +1,340 @@
+"""MCP Server — FastMCP setup, AppContext, lifespan, main()."""
+
+import asyncio
+import os
+import sys
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from mcp.server.fastmcp import Context, FastMCP
+
+from shared.metrics import metrics
+
+_data_dir = os.environ.get("MCP_MEMORY_DATA_DIR", str(Path.home() / ".mcp-ariel-memory"))
+os.environ.setdefault("MCP_MEMORY_DATA_DIR", _data_dir)
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from config import config
+from core import MemoryManager
+from features.audit_trail import AuditTrail
+from features.auth import api_key_auth, bearer_auth
+from features.backup import BackupManager
+from features.backup_cron import backup_cron
+from features.import_export import ImportExport
+from features.rate_limiting import RateLimiter
+from graph.epistemic import EpistemicGraph
+from graph.temporal import TemporalGraph
+from hooks.agent_hooks import AgentHooks
+from hooks.user_hooks import UserHooks
+from lifecycle.consolidation import ConsolidationEngine
+from lifecycle.emotion_trigger import EmotionTrigger
+from lifecycle.forgetting import ForgettingSystem
+from rag.engine import RAGEngine
+from shared.cache import MemoryCache
+from shared.read_only import read_only_replica
+from wiki.file_wiki import FileWiki
+
+
+class AppContext:
+    def __init__(self):
+        self.cache = MemoryCache()
+        self.mm = MemoryManager(cache=self.cache)
+        self.user_wiki = FileWiki(layer="user")
+        self.agent_wiki = FileWiki(layer="agent")
+        self.user_rag = RAGEngine(layer="user")
+        self.agent_rag = RAGEngine(layer="agent")
+        self.user_graph = EpistemicGraph(layer="user")
+        self.agent_graph = EpistemicGraph(layer="agent")
+        self.temporal = TemporalGraph()
+        self.forgetting = ForgettingSystem()
+        self.emotion_trigger = EmotionTrigger()
+        self.consolidation = ConsolidationEngine()
+        self.audit = AuditTrail()
+        self.rate_limiter = RateLimiter()
+        self.backup = BackupManager()
+        self.import_export = ImportExport()
+        self.user_hooks = UserHooks()
+        self.agent_hooks = AgentHooks()
+
+
+@asynccontextmanager
+async def lifespan(server: FastMCP):
+    from shared.migrations import migration_manager
+
+    result = await migration_manager.migrate()
+    import logging
+
+    logging.getLogger(__name__).info("Migrations: %s" % result)
+
+    await asyncio.to_thread(read_only_replica.sync)
+
+    ctx = AppContext()
+    backup_cron.start()
+    try:
+        yield ctx
+    finally:
+        backup_cron.stop()
+
+
+mcp = FastMCP(
+    "ariel-memory",
+    instructions="Universal Two-Layer Memory MCP Server. Layer 1 (user) stores facts about users. Layer 2 (agent) stores agent identity, decisions, errors, and personality.",
+    lifespan=lifespan,
+)
+
+
+def _get_ctx(ctx: Context) -> AppContext:
+    return ctx.request_context.lifespan_context
+
+
+def _register_all_tools():
+    from mcp_server.tools_layer import register_tools as register_layer
+    from mcp_server.tools_ops import register_tools as register_ops
+
+    register_layer(mcp)
+    register_ops(mcp)
+
+
+_register_all_tools()
+
+
+def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Ariel Memory MCP Server")
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "http"],
+        default="stdio",
+        help="Transport: stdio (Claude Desktop) or http (web clients)",
+    )
+    parser.add_argument("--host", default="0.0.0.0", help="HTTP host (default: 0.0.0.0)")
+    parser.add_argument("--port", type=int, default=8000, help="HTTP port (default: 8000)")
+    parser.add_argument("--dashboard", action="store_true", help="Enable dashboard + metrics endpoints")
+    args = parser.parse_args()
+
+    if args.transport == "http":
+        if args.dashboard:
+            _run_with_dashboard(args.host, args.port)
+        else:
+            mcp.settings.host = args.host
+            mcp.settings.port = args.port
+            mcp.run(transport="streamable-http")
+    else:
+        mcp.run(transport="stdio")
+
+
+def _run_with_dashboard(host: str, port: int):
+    import time
+
+    import uvicorn
+    from starlette.applications import Starlette
+    from starlette.middleware.cors import CORSMiddleware
+    from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse
+    from starlette.routing import Mount, Route
+
+    from features.dashboard import Dashboard
+    from features.rate_limiting import ConnectionLimiter, RateLimiter
+    from shared.metrics import metrics as m
+
+    dashboard = Dashboard()
+    api_rate_limiter = RateLimiter()
+    ws_limiter = ConnectionLimiter()
+
+    def check_auth(request) -> bool:
+        auth_enabled = config.get("auth", "bearer_token_enabled", default=True)
+        if not auth_enabled:
+            return True
+        auth = request.headers.get("Authorization", "")
+        if not auth:
+            return False
+        return bearer_auth.verify(auth)
+
+    def get_user_from_token(request) -> str:
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            info = bearer_auth.verify(auth)
+            if info:
+                return info.get("user_id", "api")
+        return request.client.host if request.client else "unknown"
+
+    def check_rate_limit(request) -> bool:
+        rate_enabled = config.get("features", "rate_limiting", default=True)
+        if not rate_enabled:
+            return True
+        user = get_user_from_token(request)
+        result = api_rate_limiter.check(user)
+        return result.get("allowed", True)
+
+    async def dashboard_page(request):
+        if not check_auth(request):
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+        if not check_rate_limit(request):
+            return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
+        return HTMLResponse(dashboard.render_html())
+
+    async def api_stats(request):
+        if not check_auth(request):
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+        if not check_rate_limit(request):
+            return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
+        user_id = request.query_params.get("user_id", "default")
+        return JSONResponse(dashboard.get_stats(user_id))
+
+    async def api_user_facts(request):
+        if not check_auth(request):
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+        if not check_rate_limit(request):
+            return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
+        user_id = request.query_params.get("user_id", "default")
+        return JSONResponse(dashboard.get_user_facts(user_id))
+
+    async def api_agent_facts(request):
+        if not check_auth(request):
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+        if not check_rate_limit(request):
+            return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
+        user_id = request.query_params.get("user_id", "default")
+        return JSONResponse(dashboard.get_agent_facts(user_id))
+
+    async def api_user_episodes(request):
+        if not check_auth(request):
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+        if not check_rate_limit(request):
+            return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
+        user_id = request.query_params.get("user_id", "default")
+        return JSONResponse(dashboard.get_user_episodes(user_id))
+
+    async def api_agent_episodes(request):
+        if not check_auth(request):
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+        if not check_rate_limit(request):
+            return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
+        user_id = request.query_params.get("user_id", "default")
+        return JSONResponse(dashboard.get_agent_episodes(user_id))
+
+    async def api_audit(request):
+        if not check_auth(request):
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+        if not check_rate_limit(request):
+            return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
+        return JSONResponse(dashboard.get_audit())
+
+    async def metrics_endpoint(request):
+        if not check_auth(request):
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+        if not check_rate_limit(request):
+            return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
+        return PlainTextResponse(m.render_prometheus())
+
+    async def metrics_json(request):
+        if not check_auth(request):
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+        if not check_rate_limit(request):
+            return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
+        return JSONResponse(m.render_json())
+
+    async def auth_keys(request):
+        if not check_auth(request):
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+        if not check_rate_limit(request):
+            return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
+        from features.auth import api_key_auth
+
+        return JSONResponse(api_key_auth.list_keys())
+
+    async def auth_create(request):
+        if not check_auth(request):
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+        if not check_rate_limit(request):
+            return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
+        from features.auth import api_key_auth
+
+        body = await request.json()
+        key = api_key_auth.create_key(body.get("user_id", "default"), body.get("label", ""))
+        return JSONResponse({"api_key": key})
+
+    async def backup_trigger(request):
+        if not check_auth(request):
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+        if not check_rate_limit(request):
+            return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
+        from features.backup_cron import backup_cron
+
+        path = await backup_cron.backup_now()
+        return JSONResponse({"path": path})
+
+    async def backup_list(request):
+        if not check_auth(request):
+            return JSONResponse({"error": "Unauthorized"}, status_code=401)
+        if not check_rate_limit(request):
+            return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
+        from features.backup_cron import backup_cron
+
+        return JSONResponse(backup_cron.list_backups())
+
+    app = Starlette(
+        routes=[
+            Route("/dashboard", dashboard_page),
+            Route("/api/stats", api_stats),
+            Route("/api/user/facts", api_user_facts),
+            Route("/api/agent/facts", api_agent_facts),
+            Route("/api/user/episodes", api_user_episodes),
+            Route("/api/agent/episodes", api_agent_episodes),
+            Route("/api/audit", api_audit),
+            Route("/api/auth/keys", auth_keys),
+            Route("/api/auth/create", auth_create, methods=["POST"]),
+            Route("/api/backup/trigger", backup_trigger, methods=["POST"]),
+            Route("/api/backup/list", backup_list),
+            Route("/metrics", metrics_endpoint),
+            Route("/metrics/json", metrics_json),
+            Mount("/", app=mcp.streamable_http_app()),
+        ],
+    )
+
+    from starlette.middleware.base import BaseHTTPMiddleware
+
+    class AuthMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            auth = request.headers.get("Authorization", "")
+            if auth and not bearer_auth.verify(auth):
+                from starlette.responses import JSONResponse
+
+                return JSONResponse({"error": "Invalid token"}, status_code=401)
+            return await call_next(request)
+
+    class WSConnectionMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            if request.url.path == "/mcp" and request.headers.get("upgrade", "").lower() == "websocket":
+                user = request.headers.get("X-User-ID", request.client.host if request.client else "unknown")
+                conn_id = "%s_%s" % (user, int(time.time() * 1000))
+                acquired = ws_limiter.acquire(user, conn_id)
+                if not acquired["allowed"]:
+                    from starlette.responses import JSONResponse
+
+                    return JSONResponse(
+                        {
+                            "error": "WebSocket connection limit exceeded",
+                            "reason": acquired["reason"],
+                            "current": acquired["current"],
+                            "max": acquired["max"],
+                        },
+                        status_code=429,
+                    )
+            return await call_next(request)
+
+    app.add_middleware(AuthMiddleware)
+    app.add_middleware(WSConnectionMiddleware)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["GET", "POST", "DELETE"],
+        expose_headers=["Mcp-Session-Id"],
+    )
+
+    uvicorn.run(app, host=host, port=port)
+
+
+if __name__ == "__main__":
+    main()

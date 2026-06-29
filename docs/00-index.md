@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Cipher208/mcp-ariel-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/Cipher208/mcp-ariel-memory/actions/workflows/ci.yml)
 
-Two-layer universal memory for AI agents. Real MCP Python SDK, async, **37 tools**, stdio + Streamable HTTP, dashboard, auth + rate limiting, metrics, auto-backups with jitter, wiki with external folders, read-only replica. **Single `memory.db` file** (~21 tables), platform-aware async (aiosqlite on Linux/macOS, sync sqlite3 on Windows), hooks integrated into tool pipeline.
+Two-layer universal memory for AI agents. Real MCP Python SDK, async, **19 tools** (unified layer-based API), stdio + Streamable HTTP, dashboard, auth + rate limiting, metrics, auto-backups with jitter, wiki with external folders, read-only replica. **Single `memory.db` file** (~21 tables), platform-aware async (aiosqlite on Linux/macOS, sync sqlite3 on Windows), hooks integrated into tool pipeline.
 
 ---
 
@@ -56,7 +56,7 @@ python -m mcp_server --transport stdio
 | 09 | [Features](09-features.md) | Auth, Backup, Dashboard, Audit, RateLimit |
 | 10 | [Shared](10-shared.md) | Cache, Saga+Watchdog, Middleware, Embeddings, Metrics |
 | 11 | [Operations](11-operations.md) | Transports, Dashboard, Auth, Backup, Configuration |
-| 12 | [Testing](12-testing.md) | pytest (104 tests), project structure |
+| 12 | [Testing](12-testing.md) | pytest (158 tests), project structure |
 
 ---
 
@@ -86,10 +86,12 @@ python -m mcp_server --transport http --port 8000
 ## Status
 
 - **Version:** 1.0.0
-- **MCP Tools:** 37
-- **Tests:** 104 passed
+- **MCP Tools:** 19
+- **Tests:** 158 passed
 - **Python files:** 70
 - **DB tables:** 21
 - **Hooks:** 24
 - **Wiki types:** 14
 - **Platform:** Windows, Linux, macOS, Docker
+- **Python:** 3.10–3.13
+- **Encryption:** libsodium secretbox (AES-256-GCM)
