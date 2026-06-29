@@ -465,14 +465,6 @@ class RAGEngine:
             "source": c.source,
         }
 
-    async def search_rrf(self, *args, **kwargs) -> list[dict[str, Any]]:
-        warnings.warn("search_rrf() deprecated; use search(strategy='hybrid')", DeprecationWarning, stacklevel=2)
-        return await self.search(strategy="hybrid", *args, **kwargs)
-
-    async def search_binary(self, *args, **kwargs) -> list[dict[str, Any]]:
-        warnings.warn("search_binary() deprecated; use search(strategy='mib')", DeprecationWarning, stacklevel=2)
-        return await self.search(strategy="mib", *args, **kwargs)
-
     async def get_relations(self, page_id: int, depth: int = 1) -> list[dict[str, Any]]:
         conn = await self._cm.get("memory.db")
         sql = """

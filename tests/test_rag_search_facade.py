@@ -95,39 +95,6 @@ class TestUnifiedSearch:
         assert "bob" in bob_results[0]["content"].lower()
 
 
-class TestDeprecatedWrappers:
-    @pytest.mark.asyncio
-    async def test_search_rrf_warns(self, rag_with_data):
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            results = await rag_with_data.search_rrf("Content", user_id="u1")
-        assert len(w) == 1
-        assert issubclass(w[0].category, DeprecationWarning)
-        assert "search_rrf" in str(w[0].message)
-        assert "strategy='hybrid'" in str(w[0].message)
-        assert isinstance(results, list)
-
-    @pytest.mark.asyncio
-    async def test_search_binary_warns(self, rag_with_data):
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            results = await rag_with_data.search_binary("Redis", user_id="u1")
-        assert len(w) == 1
-        assert issubclass(w[0].category, DeprecationWarning)
-        assert "search_binary" in str(w[0].message)
-        assert "strategy='mib'" in str(w[0].message)
-        assert isinstance(results, list)
-
-    @pytest.mark.asyncio
-    async def test_search_rrf_delegates_to_hybrid(self, rag_with_data):
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            rrf_results = await rag_with_data.search_rrf("Content", user_id="u1")
-            hybrid_results = await rag_with_data.search("Content", user_id="u1", strategy="hybrid")
-        assert len(rrf_results) > 0
-        assert len(hybrid_results) > 0
-
-
 class TestAutoStrategy:
     def test_single_word_returns_fts(self, rag):
         assert rag._auto_strategy("python") == "fts"
