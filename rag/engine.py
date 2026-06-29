@@ -4,12 +4,15 @@ All DB operations via AsyncConnectionManager (aiosqlite).
 """
 
 import hashlib
+import logging
 import struct
 import warnings
 from pathlib import Path
 from typing import Any, Literal, Optional
 
 from shared.connection import AsyncConnectionManager, connection_manager
+
+logger = logging.getLogger(__name__)
 
 try:
     from rag.quantize import embed_to_binary, hamming_distance, hamming_to_score
@@ -42,6 +45,14 @@ class RAGEngine:
         self.thresholds = thresholds
         self.search_strategy: StrategyT = search_strategy
         self.scorer = None  # lazily set from rag.scoring if needed
+
+    def _rrf_k(self) -> int:
+        """Get RRF k parameter from config (default 60)."""
+        try:
+            from config import config
+            return int(config.get("rag", "rrf_k", default=60))
+        except Exception:
+            return 60
 
     def _load_thresholds(self):
         """Load supervised thresholds if available. Returns None for naive mode."""
@@ -77,6 +88,16 @@ class RAGEngine:
             self._fts_available = "ENABLE_FTS5" in compile_options
         except Exception:
             self._fts_available = False
+
+        if not self._fts_available:
+            from shared.metrics import metrics
+
+            metrics.inc("rag_fts5_unavailable_total")
+            metrics.gauge("rag_fts5_enabled", 0)
+            logger.warning(
+                "[rag] SQLite build lacks FTS5; lexical search will use LIKE fallback. "
+                "Install sqlite3 with FTS5 support for better search quality."
+            )
 
         await self._cm.execute_script(
             "memory.db",
@@ -266,11 +287,12 @@ class RAGEngine:
         return [
             {
                 "id": r[0],
-                "title": r[1],
-                "content": r[2][:500] + "..." if len(r[2]) > 500 else r[2],
+                "page_id": r[0],
+                "title": r[1] or "",
+                "content": r[2] or "",  # Full content, no truncation
                 "wiki_type": r[3],
-                "score": 0.5,
-                "source": "like",
+                "score": None,  # NOT 0.5 — caller knows this is degraded
+                "source": "fts5_like_fallback",
             }
             for r in rows
         ]
@@ -282,7 +304,7 @@ class RAGEngine:
         if self.scorer is not None:
             ranked = await self.scorer.rank(query, candidates, user_id)
         else:
-            ranked = sorted(candidates, key=lambda c: -c.rrf_score)
+            ranked = sorted(candidates, key=lambda c: -(c.rrf_score or 0.0))
         return [self._format_result(c) for c in ranked][:limit]
 
     async def _search_binary(
