@@ -4,6 +4,7 @@ Agent Layer Hooks - 12 hooks for agent identity events
 
 import asyncio
 import logging
+import threading
 from typing import Any
 
 from graph.epistemic import EpistemicGraph
@@ -16,22 +17,29 @@ from .registry import hook_registry
 
 logger = logging.getLogger(__name__)
 
+# Lock to prevent concurrent SQLite access from _run_async
+_db_lock = threading.Lock()
+
 
 def _run_async(coro):
-    """Run async coroutine from sync context, handling running event loops."""
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
+    """Run async coroutine from sync context, handling running event loops.
 
-    if loop and loop.is_running():
-        import concurrent.futures
+    Uses threading.Lock to prevent concurrent SQLite access.
+    """
+    with _db_lock:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
 
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            future = pool.submit(asyncio.run, coro)
-            return future.result()
-    else:
-        return asyncio.run(coro)
+        if loop and loop.is_running():
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                future = pool.submit(asyncio.run, coro)
+                return future.result()
+        else:
+            return asyncio.run(coro)
 
 
 class AgentHooks:
