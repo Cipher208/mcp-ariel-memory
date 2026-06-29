@@ -3,20 +3,17 @@
 ## Testing
 
 ```bash
-# All tests (171 tests)
+# All tests (229 tests)
 python -m pytest tests/ -v
 
 # Single test file
 python -m pytest tests/test_auth_crypto.py -v
 
-# Run with parallel execution
-pytest tests/ -v -n auto
-
 # MCP Inspector
 uv run mcp dev mcp_server.server
 ```
 
-**Status:** 171/171 pytest + 19/19 MCP tools. Python 3.10–3.13 CI matrix. Single `memory.db` file. Envelope encryption for sensitive data.
+**Status:** 229/229 pytest + 19/19 MCP tools. Python 3.10–3.13 CI matrix. Single `memory.db` file. Envelope encryption for sensitive data.
 
 ## Test Fixtures
 
@@ -68,18 +65,24 @@ mcp-ariel-memory/
 │   ├── tools_ops.py           # Ops tools (auth, backup, saga, data)
 │   ├── models.py              # Pydantic return type models
 │   └── schema.py              # OpenAPI/JSON schema generator
-├── server.py                  # Legacy sync wrapper
+├── rag/                        # RAG module with unified search
+│   ├── engine.py              # search() facade + strategies
+│   ├── scoring.py             # Scorer, ScoringWeights, ScoredCandidate
+│   ├── quantize.py            # MIB binarization + supervised thresholds
+│   └── ...
 ├── docs/                      # 13 documents
-├── tests/                     # 171 pytest tests
+├── tests/                     # 229 pytest tests
 │   ├── conftest.py            # Shared fixtures (master_key_env)
 │   ├── test_all.py            # Core integration tests
 │   ├── test_auth_backup.py    # Auth + backup + config tests
 │   ├── test_auth_crypto.py    # Encryption + rotation tests
 │   ├── test_tools_layer.py    # Unified layer tool tests
 │   ├── test_tools_ops.py      # Ops tool tests
+│   ├── test_rag_scoring.py    # Scorer unit tests
+│   ├── test_rag_search_facade.py  # Unified search tests
+│   ├── test_threshold_training.py  # Supervised threshold tests
 │   └── ...
 ├── core/                      # L1-L4 (async via AsyncConnectionManager)
-├── rag/                       # FTS5 + RRF (async)
 ├── graph/                     # Epistemic + Temporal (async)
 ├── lifecycle/                 # Forgetting + Emotion + Consolidation (async)
 ├── hooks/                     # 24 hooks

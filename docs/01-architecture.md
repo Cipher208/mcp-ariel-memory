@@ -11,7 +11,7 @@
 | Search | FTS5 + sqlite-vec (optional) + RRF |
 | Hooks | 24 hooks, integrated into tool pipeline |
 | Docker | Dockerfile + docker-compose |
-| Tests | pytest + pytest-asyncio (171 tests) |
+| Tests | pytest + pytest-asyncio (229 tests) |
 | CI/CD | GitHub Actions |
 
 ## Two-Layer Model
