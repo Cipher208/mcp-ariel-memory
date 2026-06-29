@@ -66,7 +66,8 @@ class UserHooks:
 
     def _importance_gate(self, ctx: dict[str, Any]) -> dict[str, Any]:
         text = ctx.get("text", "")
-        score = self._calculate_importance(text)
+        kind = ctx.get("memory_kind")
+        score = self._calculate_importance(text, kind)
         return {"importance": score, "bypass": score < 0.3}
 
     def _auto_context(self, ctx: dict[str, Any]) -> dict[str, Any]:
@@ -93,10 +94,18 @@ class UserHooks:
     def _dream_buffer(self, ctx: dict[str, Any]) -> dict[str, Any]:
         return {"action": "add_to_staging", "content": ctx.get("text", "")}
 
-    def _calculate_importance(self, text: str) -> float:
+    def _calculate_importance(self, text: str, memory_kind: str = None) -> float:
+        from shared.memory_types import default_importance, get_policy, MemoryKind
+
         if not text:
             return 0.0
-        score = 0.3
+
+        # Start with type-based importance if kind specified
+        if memory_kind:
+            score = default_importance(memory_kind)
+        else:
+            score = 0.3
+
         # Length heuristics
         if len(text) > 15:
             score += 0.15

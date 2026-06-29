@@ -244,18 +244,31 @@ class RAGEngine:
         if strategy == "auto":
             strategy = self._auto_strategy(query)
         if strategy == "fts":
-            return await self._search_fts5(query, user_id, limit)
+            results = await self._search_fts5(query, user_id, limit)
         elif strategy == "mib":
-            return await self._search_binary(query, user_id, limit)
+            results = await self._search_binary(query, user_id, limit)
         elif strategy == "hybrid":
-            return await self._search_hybrid(query, user_id, limit)
+            results = await self._search_hybrid(query, user_id, limit)
         else:
             raise ValueError(f"unknown strategy: {strategy!r}")
+        return self._apply_type_boost(query, results)
 
     def _auto_strategy(self, query: str) -> str:
         if len(query.split()) <= 2:
             return "fts"
         return "hybrid"
+
+    def _apply_type_boost(self, query: str, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Apply type-aware boost to search results based on query keywords."""
+        from shared.memory_types import boost_for_query
+        for r in results:
+            kind = r.get("memory_kind") or r.get("wiki_type") or "fact"
+            boost = boost_for_query(query, kind)
+            if boost > 0:
+                current_score = r.get("score") or 0.0
+                r["score"] = min(1.0, current_score + boost)
+                r["boost_by_memory_type"] = boost
+        return results
 
     async def _search_fts5(self, query: str, user_id: str = "default", limit: int = 10) -> list[dict[str, Any]]:
         conn = await self._cm.get("memory.db")

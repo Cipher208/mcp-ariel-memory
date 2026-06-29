@@ -63,12 +63,16 @@ class AgentHooks:
         hook_registry.register("emotion", self._emotion)
 
     def _importance_gate(self, ctx: dict[str, Any]) -> dict[str, Any]:
-        """Filter agent messages by importance. Agent-specific keywords boost score."""
+        """Filter agent messages by importance. Type-aware with agent keywords."""
+        from shared.memory_types import default_importance
+
         text = ctx.get("text", "")
         if not text:
             return {"importance": 0.0, "bypass": True}
 
-        score = 0.2
+        kind = ctx.get("memory_kind")
+        score = default_importance(kind) if kind else 0.2
+
         # Agent-specific keywords
         agent_keywords = ["error", "decision", "principle", "lesson", "pattern"]
         for kw in agent_keywords:
