@@ -3,10 +3,13 @@
 import asyncio
 import os
 import sys
+import time as _time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from mcp.server.fastmcp import Context, FastMCP
+
+_server_start_time = _time.time()
 
 _data_dir = os.environ.get("MCP_MEMORY_DATA_DIR", str(Path.home() / ".mcp-ariel-memory"))
 os.environ.setdefault("MCP_MEMORY_DATA_DIR", _data_dir)
@@ -285,8 +288,48 @@ def _run_with_dashboard(host: str, port: int):
 
         return JSONResponse(backup_cron.list_backups())
 
+    # Health, readiness, and liveness endpoints
+    async def health_endpoint(request):
+        """Health check — returns status, uptime, and DB connectivity."""
+        import time as _time
+
+        start = _time.time()
+        try:
+            conn = await connection_manager.get("memory.db")
+            await (await conn.execute("SELECT 1")).fetchone()
+            db_ok = True
+        except Exception:
+            db_ok = False
+        db_latency = _time.time() - start
+
+        status = "ok" if db_ok else "degraded"
+        return JSONResponse({
+            "status": status,
+            "version": "1.0.0",
+            "uptime_seconds": _time.time() - _server_start_time,
+            "db": {"connected": db_ok, "latency_ms": round(db_latency * 1000, 1)},
+        })
+
+    async def ready_endpoint(request):
+        """Readiness probe — returns ready when DB connected and migrations done."""
+        from shared.migrations import migration_manager
+
+        try:
+            current = await migration_manager.get_current_version()
+            ready = current >= 2
+        except Exception:
+            ready = False
+        return JSONResponse({"ready": ready, "migration_version": current if ready else 0})
+
+    async def alive_endpoint(request):
+        """Liveness probe — simple heartbeat."""
+        return JSONResponse({"alive": True})
+
     app = Starlette(
         routes=[
+            Route("/health", health_endpoint),
+            Route("/ready", ready_endpoint),
+            Route("/alive", alive_endpoint),
             Route("/dashboard", dashboard_page),
             Route("/api/stats", api_stats),
             Route("/api/user/facts", api_user_facts),
@@ -309,7 +352,7 @@ def _run_with_dashboard(host: str, port: int):
     class AuthMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request, call_next):
             # Skip auth for MCP endpoint and health checks
-            if request.url.path in ("/mcp", "/health"):
+            if request.url.path in ("/mcp", "/health", "/ready", "/alive"):
                 return await call_next(request)
             # Skip auth if disabled
             if os.environ.get("MCP_AUTH_DISABLED"):
@@ -349,6 +392,30 @@ def _run_with_dashboard(host: str, port: int):
         allow_methods=["GET", "POST", "DELETE"],
         expose_headers=["Mcp-Session-Id"],
     )
+
+    # Graceful shutdown handler
+    import signal
+
+    def _shutdown_handler(signum, frame):
+        import logging
+
+        logger = logging.getLogger(__name__)
+        sig_name = signal.Signals(signum).name
+        logger.info("Received %s, starting graceful shutdown...", sig_name)
+
+        # Stop background tasks
+        from features.backup_cron import backup_cron
+        from shared.read_only import read_only_replica
+        from shared.saga import saga_watchdog
+
+        backup_cron.stop()
+        saga_watchdog.stop()
+        read_only_replica.stop()
+
+        logger.info("Background tasks stopped. Server shutting down.")
+
+    signal.signal(signal.SIGTERM, _shutdown_handler)
+    signal.signal(signal.SIGINT, _shutdown_handler)
 
     uvicorn.run(app, host=host, port=port)
 
