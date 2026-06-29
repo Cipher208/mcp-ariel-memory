@@ -1,11 +1,16 @@
 """
-L4 CoreMemory — async key-value facts with importance
+L4 CoreMemory — async key-value facts with importance and typed memory (B7)
 """
 
+import json
+import logging
 import time
 from dataclasses import dataclass
+from typing import Any
 
 from shared.connection import AsyncConnectionManager, connection_manager
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -15,6 +20,7 @@ class CoreEntry:
     key: str
     value: str
     importance: float
+    memory_kind: str
     created_at: float
     updated_at: float
 
@@ -43,24 +49,67 @@ class CoreMemory:
         """,
         )
 
-    async def save(self, user_id: str, key: str, value: str, importance: float = 0.5) -> int:
+    async def save(
+        self,
+        user_id: str,
+        key: str,
+        value: str,
+        importance: float | None = None,
+        memory_kind: str | None = None,
+        expires_at: float | None = None,
+        source: str = "manual",
+        metadata: dict | None = None,
+    ) -> int:
+        from shared.memory_types import (
+            MemoryKind, default_importance, kind_for_text, get_policy, validate_kind,
+        )
+
         now = time.time()
+
+        # Auto-classification if kind not specified
+        if memory_kind is None:
+            memory_kind = kind_for_text(value).value
+        if not validate_kind(memory_kind):
+            raise ValueError(f"invalid memory_kind: {memory_kind!r}")
+        kind = MemoryKind(memory_kind)
+
+        # Auto-importance from type policy
+        if importance is None:
+            importance = default_importance(kind)
+        importance = max(0.0, min(1.0, float(importance)))
+
+        # Auto expires_at for types that require it
+        p = get_policy(kind)
+        if p.requires_expires_at and expires_at is None:
+            logger.warning("memory_kind=%s requires expires_at; auto-set +30d", kind.value)
+            expires_at = now + 30 * 86400
+
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
             "SELECT entry_id FROM core_memory WHERE user_id=? AND key=?",
             (user_id, key),
         )
         existing = await cursor.fetchone()
+
+        metadata_json = json.dumps(metadata or {}, ensure_ascii=False)
+
         if existing:
             await conn.execute(
-                "UPDATE core_memory SET value=?, importance=?, updated_at=? WHERE entry_id=?",
-                (value, importance, now, existing["entry_id"]),
+                """UPDATE core_memory SET value=?, importance=?, memory_kind=?,
+                   expires_at=?, source=?, metadata=?, updated_at=?
+                   WHERE entry_id=?""",
+                (value, importance, memory_kind, expires_at, source, metadata_json,
+                 now, existing["entry_id"]),
             )
             entry_id = existing["entry_id"]
         else:
             cursor = await conn.execute(
-                "INSERT INTO core_memory (user_id, key, value, importance, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (user_id, key, value, importance, now, now),
+                """INSERT INTO core_memory
+                   (user_id, key, value, importance, memory_kind, expires_at,
+                    source, metadata, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (user_id, key, value, importance, memory_kind, expires_at,
+                 source, metadata_json, now, now),
             )
             entry_id = cursor.lastrowid
         await conn.commit()
@@ -115,6 +164,27 @@ class CoreMemory:
             key=row["key"],
             value=row["value"],
             importance=row["importance"],
+            memory_kind=row["memory_kind"] or "fact",
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
+
+    async def list_by_kind(
+        self,
+        user_id: str,
+        memory_kind: str,
+        min_importance: float = 0.0,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """List memories filtered by type."""
+        conn = await self._cm.get("memory.db")
+        rows = await (await conn.execute(
+            """SELECT key, value, importance, memory_kind, expires_at,
+                      created_at, updated_at
+               FROM core_memory
+               WHERE user_id=? AND memory_kind=? AND importance >= ?
+               ORDER BY importance DESC, updated_at DESC
+               LIMIT ?""",
+            (user_id, memory_kind, min_importance, limit),
+        )).fetchall()
+        return [dict(r) for r in rows]
