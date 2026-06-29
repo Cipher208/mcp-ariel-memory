@@ -141,6 +141,7 @@ docker-compose up
 | **Saga Pattern** | Multi-step operations with compensation, timeout, watchdog |
 | **Dashboard** | HTML dashboard with stats, facts, episodes, audit log |
 | **Auth** | API keys + Bearer tokens, encrypted at rest |
+| **Rate Limiting** | Per-user limits on write operations (100 req/min default) |
 | **Backup** | Auto-backups with jitter, restore, cleanup |
 | **Metrics** | Prometheus-compatible metrics endpoint |
 | **Read-Only Replica** | SQLite read-only replica for queries |

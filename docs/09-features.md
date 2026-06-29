@@ -747,6 +747,13 @@ print(result)
 
 Async SQLite-based per-user rate limiting + WebSocket connection limiting.
 
+**Integration**: All write operations in `mcp_server/tools_layer.py` are automatically rate-limited via `_check_rate_limit()`. Read operations (recall, query, stats, context_inject) are not rate-limited.
+
+**Response when limit exceeded**:
+```json
+{"error": "rate_limit_exceeded", "remaining": 0, "reset_in": 45}
+```
+
 ### Class: `RateLimiter`
 
 ```python

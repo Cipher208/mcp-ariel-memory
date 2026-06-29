@@ -2,6 +2,21 @@
 
 All layer tools accept a `layer` parameter: `"user"` or `"agent"`.
 
+## Rate Limiting
+
+Write operations are rate-limited per user (default: 100 requests/minute). Read operations are not rate-limited.
+
+When limit exceeded, tools return:
+```json
+{"error": "rate_limit_exceeded", "remaining": 0, "reset_in": 45}
+```
+
+Configure in `config.yaml`:
+```yaml
+security:
+  rate_limit_per_user: 100
+```
+
 ---
 
 ## Layer Tools (11 tools)
