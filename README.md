@@ -98,6 +98,20 @@ Or with Docker:
 }
 ```
 
+### Hermes Agent
+
+Add to Hermes config (YAML format):
+
+```yaml
+mcpServers:
+  ariel-memory:
+    command: npx
+    args:
+      - mcp-ariel-memory
+      - --transport
+      - stdio
+```
+
 ### HTTP Server
 
 ```bash

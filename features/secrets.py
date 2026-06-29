@@ -59,8 +59,21 @@ def _load_dotenv() -> None:
         pass
 
 
+def _save_dotenv(key: str, value: str) -> None:
+    """Save a key-value pair to .env file."""
+    env_path = Path(".env")
+    try:
+        with open(env_path, "a") as f:
+            f.write(f"\n{key}={value}\n")
+    except Exception:
+        pass
+
+
 def _load_master_key() -> bytes:
-    """Load or derive master key from keyring, .env, config, or environment."""
+    """Load or derive master key from keyring, .env, config, or environment.
+
+    If no key is found, auto-generates one and saves to .env for dev convenience.
+    """
     if not _HAS_NACL:
         raise ImportError("pynacl is required for encryption. Install with: pip install pynacl")
 
@@ -98,7 +111,22 @@ def _load_master_key() -> bytes:
             memlimit=argon2id.MEMLIMIT_MODERATE,
         )
 
-    raise RuntimeError("No master key found. Set MCP_MASTER_KEY in .env, env var, OS keychain, or config.yaml")
+    # Auto-generate key for dev convenience
+    import secrets as _secrets
+
+    auto_key = _secrets.token_hex(32)
+    logger.warning(
+        "No master key found. Auto-generating key and saving to .env. "
+        "For production, use keyring or set MCP_MASTER_KEY explicitly."
+    )
+    _save_dotenv(_ENV_VAR, auto_key)
+    return argon2id.kdf(
+        size=_MASTER_KEY_LEN,
+        password=auto_key.encode("utf-8"),
+        salt=_KDF_SALT,
+        opslimit=argon2id.OPSLIMIT_MODERATE,
+        memlimit=argon2id.MEMLIMIT_MODERATE,
+    )
 
 
 _master_cache: dict[str, bytes] = {}

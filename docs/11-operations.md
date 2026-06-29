@@ -48,6 +48,35 @@ python -m mcp_ariel_memory --transport http --port 8000 --dashboard
 Specification: `openapi.yaml` (OpenAPI 3.1.0).
 
 ```bash
+# Generate OpenAPI spec
+python -c "from mcp_server.schema import generate_openapi_spec; import json; print(json.dumps(generate_openapi_spec(), indent=2))"
+```
+
+## MCP Protocol
+
+### Initialization
+
+After connecting to the server, send `initialize` request, then wait for `initialized` notification before calling `tools/list`:
+
+```json
+// 1. Client sends initialize
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}
+
+// 2. Server responds
+{"jsonrpc":"2.0","id":1,"result":{"capabilities":{"tools":{}}}}
+
+// 3. Client sends initialized notification (REQUIRED before tools/list)
+{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}
+
+// 4. Now safe to call tools/list
+{"jsonrpc":"2.0","id":2,"method":"tools/list"}
+```
+
+### Tool Call
+
+```json
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"memory_remember","arguments":{"layer":"user","key":"name","value":"Alice"}}}
+```
 # View in Swagger UI
 npx swagger-ui-serve openapi.yaml
 ```
