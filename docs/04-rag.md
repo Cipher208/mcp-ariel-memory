@@ -120,6 +120,9 @@ binary:
   mode: "naive"          # naive | supervised_path
   dim: 384               # Embedding dimension
   thresholds_path: "~/.mcp-ariel-memory/thresholds.npy"  # For supervised mode
+rag:
+  storage:
+    keep_float_blobs: true  # Set false to save disk (float embeddings only needed for threshold training)
 ```
 
 ### How It Works
@@ -550,6 +553,55 @@ chunks = rag._chunk_text("First paragraph.\n\nSecond paragraph.\n\nThird paragra
 # With overlap
 chunks = rag._chunk_text("A" * 1000, max_size=500, overlap=100)
 # ["A...A", "...A...A", "...A"]  # overlap between chunks
+```
+
+---
+
+## MultiSourceRAG
+
+`rag/multi_source.py` — Unified search across RAG chunks and Wiki entries with deduplication and reranking.
+
+### Constructor
+
+```python
+MultiSourceRAG(rag: RAGEngine, wiki: FileWiki, cm: AsyncConnectionManager = None)
+```
+
+### `search()`
+
+```python
+async def search(
+    self,
+    query: str,
+    user_id: str = "default",
+    limit: int = 10,
+    include_rag: bool = True,
+    include_wiki: bool = True,
+    strategy: str = "hybrid",
+) -> List[Dict[str, Any]]
+```
+
+Searches both RAG and Wiki sources, deduplicates by `(title, content[:50])`, and reranks by score.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `query` | `str` | — | Search query |
+| `user_id` | `str` | `"default"` | Filter by owner |
+| `limit` | `int` | `10` | Maximum results |
+| `include_rag` | `bool` | `True` | Include RAG results |
+| `include_wiki` | `bool` | `True` | Include Wiki results |
+| `strategy` | `str` | `"hybrid"` | RAG search strategy |
+
+The MCP tool `memory_search_rrf` uses MultiSourceRAG under the hood when `sources="all"`.
+
+```python
+from rag.multi_source import MultiSourceRAG
+from rag.engine import RAGEngine
+from wiki.file_wiki import FileWiki
+
+ms = MultiSourceRAG(rag=RAGEngine(layer="user"), wiki=FileWiki(layer="user"))
+results = await ms.search("memory architecture", user_id="alice", limit=5)
+# Merged + deduplicated results from RAG and Wiki
 ```
 
 ---

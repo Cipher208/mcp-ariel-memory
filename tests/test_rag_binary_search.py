@@ -85,3 +85,31 @@ async def test_search_mib_filters_by_user(rag):
     assert len(bob_results) == 1
     assert "alice" in alice_results[0]["content"].lower()
     assert "bob" in bob_results[0]["content"].lower()
+
+
+@pytest.mark.asyncio
+async def test_search_works_without_float_embeddings(tmp_path):
+    """Search should work even when float embeddings are not stored."""
+    cm = AsyncConnectionManager(base_dir=str(tmp_path))
+    r = RAGEngine(cm=cm, layer="user", binary_dim=8)
+    await r.init_db()
+    await r.ingest_text("test", "content for testing", user_id="u")
+    # Verify float is stored by default
+    conn = await r._cm.get("memory.db")
+    row = await (await conn.execute("SELECT embedding FROM rag_chunks LIMIT 1")).fetchone()
+    assert row["embedding"] is not None
+
+    # Disable float storage
+    from config import config
+
+    config._data.setdefault("rag", {}).setdefault("storage", {})["keep_float_blobs"] = False
+    try:
+        await r.ingest_text("test2", "second document for testing", user_id="u")
+        conn2 = await r._cm.get("memory.db")
+        row2 = await (await conn2.execute("SELECT embedding FROM rag_chunks ORDER BY id DESC LIMIT 1")).fetchone()
+        assert row2["embedding"] is None
+        # Search still works
+        results = await r.search("testing", user_id="u", strategy="fts", limit=5)
+        assert len(results) >= 1
+    finally:
+        config._data["rag"]["storage"]["keep_float_blobs"] = True

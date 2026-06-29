@@ -58,6 +58,8 @@ rag:
   embedding_model: "BAAI/bge-small-en-v1.5"
   chunk_size: 500
   search_limit: 10
+  storage:
+    keep_float_blobs: true  # Set false to save disk (float embeddings only needed for threshold training)
 
 # === Binary Embeddings (MIB) ===
 binary:

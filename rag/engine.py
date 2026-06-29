@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Literal, Optional
 
 from shared.connection import AsyncConnectionManager, connection_manager
+from config import config as _config
 
 logger = logging.getLogger(__name__)
 
@@ -164,8 +165,9 @@ class RAGEngine:
         from shared.embeddings import embed_texts
 
         embeddings = await embed_texts(chunks)
+        keep_floats = _config.get("rag", "storage", "keep_float_blobs", default=True)
         for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
-            float_blob = struct.pack("%df" % len(emb), *emb) if emb else None
+            float_blob = struct.pack("%df" % len(emb), *emb) if emb and keep_floats else None
             bin_blob = self._binary_for(emb) if emb and _HAS_BINARY else None
             await conn.execute(
                 "INSERT INTO rag_chunks (page_id, chunk_index, content, embedding, bin_embedding) VALUES (?, ?, ?, ?, ?)",
@@ -212,8 +214,9 @@ class RAGEngine:
         from shared.embeddings import embed_texts
 
         embeddings = await embed_texts(chunks)
+        keep_floats = _config.get("rag", "storage", "keep_float_blobs", default=True)
         for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
-            float_blob = struct.pack("%df" % len(emb), *emb) if emb else None
+            float_blob = struct.pack("%df" % len(emb), *emb) if emb and keep_floats else None
             bin_blob = self._binary_for(emb) if emb and _HAS_BINARY else None
             await conn.execute(
                 "INSERT INTO rag_chunks (page_id, chunk_index, content, embedding, bin_embedding) VALUES (?, ?, ?, ?, ?)",
