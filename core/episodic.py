@@ -109,6 +109,16 @@ class EpisodicMemory:
         await conn.commit()
         return archived_count
 
+    async def count(self, user_id: str) -> int:
+        """Count episodes for a user (fast COUNT query)."""
+        conn = await self._cm.get("memory.db")
+        cursor = await conn.execute(
+            "SELECT COUNT(*) as cnt FROM episodes WHERE user_id=?",
+            (user_id,),
+        )
+        row = await cursor.fetchone()
+        return row["cnt"] if row else 0
+
     def _row_to_episode(self, row) -> Episode:
         return Episode(
             episode_id=row["episode_id"],
