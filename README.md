@@ -134,7 +134,9 @@ docker-compose up
 | **19 MCP Tools** | Layer tools (11): remember, recall, forget, session, episode, graph, stats, context. Ops tools (8): api_key, backup, saga, data, replica, cleanup, purge, search |
 | **Two-Layer Memory** | L1 ReflexBuffer → L2 SessionStore → L3 EpisodicMemory → L4 CoreMemory |
 | **Envelope Encryption** | libsodium secretbox (AES-256-GCM) for API keys, tokens, saga state |
-| **Hybrid Search** | FTS5 + vector similarity via Reciprocal Rank Fusion (RRF) |
+| **Unified Search API** | Single `search()` method with 4 strategies: `fts`, `mib`, `hybrid`, `auto` |
+| **Hybrid Search** | FTS5 + binary embeddings via Reciprocal Rank Fusion (RRF) with Scorer |
+| **Supervised Thresholds** | Per-dimension MIB thresholds trained on labeled data (+10-15% recall) |
 | **Knowledge Graph** | Epistemic graph (facts, decisions) + Temporal graph (timeline) |
 | **Wiki System** | 14 types (7 user + 7 agent), .md files as source of truth, FTS5 index |
 | **24 Hooks** | 12 user hooks + 12 agent hooks, integrated into tool pipeline |

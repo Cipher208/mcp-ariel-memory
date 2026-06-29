@@ -2,6 +2,102 @@
 
 Hybrid search (FTS5 + binary embeddings) with entity routing, conflict detection, and graph-based retrieval. All database operations use `AsyncConnectionManager` (aiosqlite) with WAL journal mode.
 
+## Unified Search API
+
+The RAG engine provides a **single `search()` method** with pluggable strategies. All strategies share the same result format and can be combined with the unified `Scorer` for advanced ranking.
+
+### Search Strategies
+
+| Strategy | Description | When to Use |
+|----------|-------------|-------------|
+| `fts` | Full-text search via FTS5 with LIKE fallback | Short queries (<3 words), keyword-heavy searches |
+| `mib` | Binary embedding similarity (Hamming distance) | Semantic similarity, concept-based queries |
+| `hybrid` | Combines FTS5 + MIB with Scorer ranking | General-purpose, best recall |
+| `auto` | Automatically selects `fts` for short queries, `hybrid` for longer ones | Default for most use cases |
+
+### Configuration (config.yaml)
+
+```yaml
+rag:
+  fts_enabled: true
+  vec_enabled: true
+  search_strategy: "hybrid"  # Default strategy
+  embedding_model: "BAAI/bge-small-en-v1.5"
+  chunk_size: 500
+  search_limit: 10
+```
+
+### Usage
+
+```python
+from rag.engine import RAGEngine
+
+rag = RAGEngine(layer="user")
+
+# FTS-only search (fast, keyword-based)
+results = await rag.search("redis configuration", strategy="fts")
+
+# MIB-only search (semantic similarity)
+results = await rag.search("memory management patterns", strategy="mib")
+
+# Hybrid search with Scorer (best recall)
+results = await rag.search("how to configure caching", strategy="hybrid")
+
+# Auto strategy (recommended)
+results = await rag.search("redis", strategy="auto")  # Uses FTS (short query)
+results = await rag.search("how to set up redis caching layer", strategy="auto")  # Uses hybrid
+```
+
+---
+
+## Scoring Modes
+
+The unified `Scorer` blends multiple signals into a single `final_score` for ranking results.
+
+### Scoring Dimensions
+
+| Dimension | Weight | Description |
+|-----------|--------|-------------|
+| `relevance` | 1.0 (default) | Blend of FTS5 rank + binary similarity |
+| `novelty` | 0.0 (default) | ITS-inspired surprise: `-log2(prior) / log2(N)` |
+| `type_boost` | 0.0 (default) | Wiki-type bonuses (error: 0.12, decision: 0.10, spec: 0.08) |
+
+### Scoring Weights
+
+```python
+from rag.scoring import Scorer, ScoringWeights
+
+# Default: relevance only
+scorer = Scorer(mode="rrf")
+
+# Custom weights
+weights = ScoringWeights(relevance=0.7, novelty=0.2, type_boost=0.1)
+scorer = Scorer(mode="rrf", weights=weights)
+```
+
+### Scoring Formula
+
+```
+final_score = w_relevance × relevance + w_novelty × novelty + w_type_boost × type_boost
+```
+
+Where:
+- `relevance = (rrf_score + bin_score) / 2` (if bin_score available)
+- `novelty = -log2(prior) / log2(total_retrievals)` (lower prior → higher novelty)
+- `type_boost` = predefined bonus based on `wiki_type`
+
+### Wiki-Type Boosts
+
+| Type | Boost | Description |
+|------|-------|-------------|
+| `error` | 0.12 | Error patterns, debugging notes |
+| `decision` | 0.10 | Architecture decisions, design choices |
+| `spec` | 0.08 | Specifications, requirements |
+| `code` | 0.05 | Code snippets, implementations |
+| `note` | 0.02 | General notes |
+
+---
+
 ## Binary Embeddings (MIB)
 
 The RAG engine uses **Maximally-Informative Binarization (MIB)** for fast vector search without requiring sqlite-vec. Embeddings are binarized to 48 bytes (384 dims → 384 bits → 48 bytes) and searched using Hamming distance.
@@ -42,8 +138,68 @@ binary:
 
 ---
 
+## Supervised Thresholds
+
+MIB binarization supports **supervised threshold training** for better accuracy than naive sign-based binarization.
+
+### Modes
+
+| Mode | Description | Accuracy |
+|------|-------------|----------|
+| `naive` | Threshold = 0.0 (sign of embedding) | Baseline |
+| `supervised_path` | Per-dimension thresholds trained on labeled data | +10-15% recall |
+
+### Training Thresholds
+
+```python
+import numpy as np
+from rag.quantize import train_supervised_thresholds
+
+# Train on labeled query-document pairs
+# queries: List[str], documents: List[str], labels: List[bool]
+thresholds = train_supervised_thresholds(queries, documents, labels, dim=384)
+
+# Save for production use
+np.save("~/.mcp-ariel-memory/thresholds.npy", thresholds)
+```
+
+### Using Supervised Thresholds
+
+```python
+from rag.engine import RAGEngine
+
+rag = RAGEngine(
+    layer="user",
+    binary_threshold_mode="supervised_path",
+    binary_thresholds_path="~/.mcp-ariel-memory/thresholds.npy"
+)
+
+# Or pass thresholds directly
+import numpy as np
+thresholds = np.load("thresholds.npy")
+rag = RAGEngine(layer="user", thresholds=thresholds)
+```
+
+### How Supervised Thresholds Work
+
+1. **Training**: Learn optimal per-dimension thresholds that maximize retrieval quality
+2. **Binarization**: Each dimension is binarized independently using its learned threshold
+3. **Search**: Hamming distance on binarized vectors (same as naive, but with better thresholds)
+
+### MIB Format
+
+- **Dimensions**: 384 (configurable via `binary_dim`)
+- **Storage**: 48 bytes per embedding (384 bits packed into bytes)
+- **Distance**: Hamming distance (popcount of XOR)
+
+---
+
 ## Table of Contents
 
+- [Unified Search API](#unified-search-api)
+- [Scoring Modes](#scoring-modes)
+- [Binary Embeddings (MIB)](#binary-embeddings-mib)
+- [Supervised Thresholds](#supervised-thresholds)
 - [RAGEngine](#ragengine)
 - [Strategy (Enum)](#strategy)
 - [RouterResult](#routerresult)
@@ -162,15 +318,16 @@ page_id2 = await rag.ingest_text("Details", "Deep dive into the layers", user_id
 ### `search()`
 
 ```python
-async def search(self, query: str, user_id: str = "default", limit: int = 10) -> List[Dict[str, Any]]
+async def search(self, query: str, user_id: str = "default", strategy: Optional[StrategyT] = None, limit: int = 10) -> List[Dict[str, Any]]
 ```
 
-Full-text search via FTS5 with LIKE fallback. Returns results ranked by FTS5 rank (or flat 0.5 for LIKE fallback).
+Unified search method with pluggable strategies. Routes to `_search_fts5()`, `_search_binary()`, or `_search_hybrid()` based on the `strategy` parameter.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `query` | `str` | — | Search query |
 | `user_id` | `str` | `"default"` | Filter by owner |
+| `strategy` | `StrategyT` | `None` (uses `self.search_strategy`) | `"fts"`, `"mib"`, `"hybrid"`, or `"auto"` |
 | `limit` | `int` | `10` | Maximum results |
 
 **Returns**: `List[Dict[str, Any]]` — Each dict contains:
@@ -179,13 +336,31 @@ Full-text search via FTS5 with LIKE fallback. Returns results ranked by FTS5 ran
 - `content` (str): Content (truncated to 500 chars)
 - `wiki_type` (str or None): Wiki category
 - `score` (float): Relevance score
-- `source` (str): `"fts5"` or `"like"`
+- `source` (str): `"fts5"`, `"like"`, `"mib"`, or `"rrf(fts+mib)"`
 
 ```python
 rag = RAGEngine(layer="user")
-results = await rag.search("memory architecture", user_id="alice", limit=5)
+
+# FTS-only search
+results = await rag.search("memory architecture", strategy="fts", limit=5)
 # [{"id": 1, "title": "Architecture", "content": "...", "score": 0.85, "source": "fts5"}]
+
+# MIB-only search (semantic similarity)
+results = await rag.search("caching patterns", strategy="mib", limit=5)
+# [{"id": 2, "title": "Cache", "content": "...", "score": 0.82, "source": "mib"}]
+
+# Hybrid search (best recall)
+results = await rag.search("how to configure caching", strategy="hybrid", limit=5)
+# [{"id": 1, "title": "Architecture", "content": "...", "score": 0.0325, "source": "rrf(fts+mib)"}]
+
+# Auto strategy (recommended)
+results = await rag.search("redis", strategy="auto", limit=5)
+# Uses FTS for short queries, hybrid for longer ones
 ```
+
+**Auto Strategy Logic**:
+- If query has ≤2 words → uses `fts`
+- Otherwise → uses `hybrid`
 
 ### `search_rrf()`
 

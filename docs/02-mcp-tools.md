@@ -279,12 +279,41 @@ result = await mcp.call_tool("memory_lucidity_purge", {
 
 ### `memory_search_rrf`
 
-Hybrid search using Reciprocal Rank Fusion (FTS5 + vector similarity).
+Hybrid search using Reciprocal Rank Fusion (FTS5 + vector similarity) with pluggable strategies.
 
-**Parameters:** `query`, `user_id`, `limit`
+**Parameters:** `query`, `user_id`, `limit`, `strategy`
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `query` | string | `""` | Search query |
+| `user_id` | string | `"default"` | User identifier |
+| `limit` | int | `10` | Max results |
+| `strategy` | string | `"hybrid"` | Search strategy: `"fts"`, `"mib"`, `"hybrid"`, or `"auto"` |
+
+**Strategies:**
+- `fts`: Full-text search via FTS5 (fast, keyword-based)
+- `mib`: Binary embedding similarity (semantic)
+- `hybrid`: Combined FTS5 + MIB with Scorer ranking (best recall)
+- `auto`: Automatically selects FTS for short queries, hybrid for longer ones
 
 ```python
+# FTS-only (fast keyword search)
 result = await mcp.call_tool("memory_search_rrf", {
-    "query": "python best practices", "user_id": "alice", "limit": 5
+    "query": "redis config", "user_id": "alice", "limit": 5, "strategy": "fts"
+})
+
+# MIB-only (semantic similarity)
+result = await mcp.call_tool("memory_search_rrf", {
+    "query": "memory management patterns", "user_id": "alice", "limit": 5, "strategy": "mib"
+})
+
+# Hybrid (best recall)
+result = await mcp.call_tool("memory_search_rrf", {
+    "query": "python best practices", "user_id": "alice", "limit": 5, "strategy": "hybrid"
+})
+
+# Auto (recommended)
+result = await mcp.call_tool("memory_search_rrf", {
+    "query": "how to set up caching", "user_id": "alice", "limit": 5, "strategy": "auto"
 })
 ```
