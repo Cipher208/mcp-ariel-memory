@@ -76,7 +76,7 @@ class RetrievalRouter:
 
         # Signal 2a: Wiki (FTS5 + relations)
         if self._is_wiki_query(q):
-            results = await self._rag.search_rrf(query, self.user_id, limit=3)
+            results = await self._rag.search(query, self.user_id, strategy="hybrid", limit=3)
             if results:
                 page_id = results[0]["id"]
                 relations = await self._rag.get_relations(page_id, depth=1)
@@ -122,7 +122,7 @@ class RetrievalRouter:
                         return RouterResult(Strategy.GRAPH, context, 0.8)
 
         # Signal 3: FTS5 + Vector (semantic)
-        results = await self._rag.search_rrf(query, self.user_id, limit=3)
+        results = await self._rag.search(query, self.user_id, strategy="hybrid", limit=3)
         if results:
             return RouterResult(Strategy.SEMANTIC, results, 0.8)
 

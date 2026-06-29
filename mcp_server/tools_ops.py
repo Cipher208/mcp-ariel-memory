@@ -288,5 +288,5 @@ def register_tools(mcp):
         metrics.inc("tool_calls")
         metrics.inc("tool_search_rrf")
         app = _get_ctx(ctx)
-        results = await app.user_rag.search_rrf(query, user_id, limit)
-        return {"results": results, "count": len(results), "method": "rrf"}
+        results = await app.user_rag.search(query, user_id, strategy="hybrid", limit=limit)
+        return {"results": results, "count": len(results), "method": "hybrid"}

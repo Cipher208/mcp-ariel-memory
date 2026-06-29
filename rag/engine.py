@@ -5,8 +5,9 @@ All DB operations via AsyncConnectionManager (aiosqlite).
 
 import hashlib
 import struct
+import warnings
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from shared.connection import AsyncConnectionManager, connection_manager
 
@@ -16,6 +17,8 @@ try:
     _HAS_BINARY = True
 except ImportError:
     _HAS_BINARY = False
+
+StrategyT = Literal["fts", "mib", "hybrid", "auto"]
 
 
 class RAGEngine:
@@ -27,6 +30,7 @@ class RAGEngine:
         binary_threshold_mode: str = "naive",
         binary_thresholds_path: Optional[str] = None,
         thresholds=None,
+        search_strategy: StrategyT = "fts",
     ):
         self._cm = cm or connection_manager
         self.layer = layer
@@ -36,6 +40,8 @@ class RAGEngine:
         self.binary_thresholds_path = binary_thresholds_path
         self._thresholds_cache = None
         self.thresholds = thresholds
+        self.search_strategy: StrategyT = search_strategy
+        self.scorer = None  # lazily set from rag.scoring if needed
 
     def _load_thresholds(self):
         """Load supervised thresholds if available. Returns None for naive mode."""
@@ -202,7 +208,31 @@ class RAGEngine:
         await conn.commit()
         return page_id
 
-    async def search(self, query: str, user_id: str = "default", limit: int = 10) -> list[dict[str, Any]]:
+    async def search(
+        self,
+        query: str,
+        user_id: str = "default",
+        strategy: Optional[StrategyT] = None,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        strategy = strategy or self.search_strategy
+        if strategy == "auto":
+            strategy = self._auto_strategy(query)
+        if strategy == "fts":
+            return await self._search_fts5(query, user_id, limit)
+        elif strategy == "mib":
+            return await self._search_binary(query, user_id, limit)
+        elif strategy == "hybrid":
+            return await self._search_hybrid(query, user_id, limit)
+        else:
+            raise ValueError(f"unknown strategy: {strategy!r}")
+
+    def _auto_strategy(self, query: str) -> str:
+        if len(query.split()) <= 2:
+            return "fts"
+        return "hybrid"
+
+    async def _search_fts5(self, query: str, user_id: str = "default", limit: int = 10) -> list[dict[str, Any]]:
         conn = await self._cm.get("memory.db")
         if self._fts_available:
             try:
@@ -228,7 +258,6 @@ class RAGEngine:
             except Exception:
                 pass
 
-        # Fallback: LIKE search
         cur = await conn.execute(
             "SELECT id, title, content, wiki_type FROM rag_pages WHERE user_id=? AND (title LIKE ? OR content LIKE ?) LIMIT ?",
             (user_id, "%%%s%%" % query, "%%%s%%" % query, limit),
@@ -246,7 +275,17 @@ class RAGEngine:
             for r in rows
         ]
 
-    async def search_binary(
+    async def _search_hybrid(self, query: str, user_id: str = "default", limit: int = 10) -> list[dict[str, Any]]:
+        fts = await self._search_fts5(query, user_id, limit * 3)
+        mib = await self._search_binary(query, user_id, limit * 3)
+        candidates = self._materialize_candidates(fts + mib)
+        if self.scorer is not None:
+            ranked = await self.scorer.rank(query, candidates, user_id)
+        else:
+            ranked = sorted(candidates, key=lambda c: -c.rrf_score)
+        return [self._format_result(c) for c in ranked][:limit]
+
+    async def _search_binary(
         self,
         query: str,
         user_id: str = "default",
@@ -299,15 +338,13 @@ class RAGEngine:
         scored.sort(key=lambda x: (-x["score"], x["id"]))
         return scored[:limit]
 
-    async def search_rrf(self, query: str, user_id: str = "default", limit: int = 10, k: int = 60) -> list[dict[str, Any]]:
-        # FTS5 results
-        fts_results = await self.search(query, user_id, limit=limit * 3)
+    async def _search_rrf(self, query: str, user_id: str = "default", limit: int = 10, k: int = 60) -> list[dict[str, Any]]:
+        fts_results = await self._search_fts5(query, user_id, limit=limit * 3)
         fts_ranks = {doc["id"]: rank for rank, doc in enumerate(fts_results)}
 
-        # Binary search results (instead of slow float32 linear scan)
         bin_ranks = {}
         try:
-            bin_results = await self.search_binary(query, user_id=user_id, limit=limit * 3)
+            bin_results = await self._search_binary(query, user_id=user_id, limit=limit * 3)
             bin_ranks = {r["id"]: rank for rank, r in enumerate(bin_results)}
         except Exception:
             pass
@@ -345,6 +382,53 @@ class RAGEngine:
                     }
                 )
         return results
+
+    def _materialize_candidates(self, results: list[dict[str, Any]]) -> list:
+        """Convert raw search dicts to ScoredCandidate objects for the Scorer."""
+        from rag.scoring import ScoredCandidate
+
+        seen: dict[int, ScoredCandidate] = {}
+        for r in results:
+            rid = r["id"]
+            if rid in seen:
+                existing = seen[rid]
+                if r.get("source") == "mib" and existing.bin_score is None:
+                    existing.bin_score = r["score"]
+                existing.rrf_score = max(existing.rrf_score, r["score"])
+            else:
+                seen[rid] = ScoredCandidate(
+                    id=rid,
+                    page_id=r.get("page_id", rid),
+                    title=r["title"],
+                    content=r["content"],
+                    wiki_type=r.get("wiki_type"),
+                    rrf_score=r["score"],
+                    bin_score=r["score"] if r.get("source") == "mib" else None,
+                    source=r.get("source", ""),
+                )
+        return list(seen.values())
+
+    def _format_result(self, c) -> dict[str, Any]:
+        """Convert a ScoredCandidate back to a result dict."""
+        content = c.content
+        if len(content) > 500:
+            content = content[:500] + "..."
+        return {
+            "id": c.id,
+            "title": c.title,
+            "content": content,
+            "wiki_type": c.wiki_type,
+            "score": c.final_score if c.final_score else c.rrf_score,
+            "source": c.source,
+        }
+
+    async def search_rrf(self, *args, **kwargs) -> list[dict[str, Any]]:
+        warnings.warn("search_rrf() deprecated; use search(strategy='hybrid')", DeprecationWarning, stacklevel=2)
+        return await self.search(strategy="hybrid", *args, **kwargs)
+
+    async def search_binary(self, *args, **kwargs) -> list[dict[str, Any]]:
+        warnings.warn("search_binary() deprecated; use search(strategy='mib')", DeprecationWarning, stacklevel=2)
+        return await self.search(strategy="mib", *args, **kwargs)
 
     async def get_relations(self, page_id: int, depth: int = 1) -> list[dict[str, Any]]:
         conn = await self._cm.get("memory.db")
