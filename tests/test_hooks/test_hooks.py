@@ -24,7 +24,12 @@ def test_user_hooks_importance():
 
 
 def test_agent_hooks_error():
+    import asyncio
+    from graph.epistemic import EpistemicGraph
     from hooks.agent_hooks import AgentHooks
+
+    eg = EpistemicGraph(layer="agent")
+    asyncio.run(eg.init_db())
 
     ah = AgentHooks("test_hooks")
     r = ah._error_occurred({"error": "NullPointerException"})

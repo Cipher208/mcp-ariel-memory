@@ -12,6 +12,7 @@ def test_epistemic_add_query():
 
     async def t():
         g = EpistemicGraph(layer="test_graph")
+        await g.init_db()
         n = await g.add_node("t", "Likes Python", "fact", ["fact_about_user"], 0.9)
         assert n > 0
         nodes = await g.query_by_tag("t", "fact_about_user")

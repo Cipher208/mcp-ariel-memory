@@ -46,7 +46,9 @@ async def _setup_rag(tmp_path: str, n_chunks: int = 500) -> RAGEngine:
 
     for i in range(n_chunks):
         topic = topics[i % len(topics)]
-        text = f"Chunk {i}: {topic}. This is a detailed explanation of {topic} with practical examples and considerations for production environments."
+        text = (
+            f"Chunk {i}: {topic}. This is a detailed explanation of {topic} with practical examples and considerations for production environments."
+        )
         await rag.ingest_text(f"doc_{i}", text, user_id="bench")
 
     return rag
