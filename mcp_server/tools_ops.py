@@ -160,30 +160,34 @@ def register_tools(mcp):
         """
         metrics.inc("tool_calls")
         metrics.inc("tool_cleanup")
-        results = {}
 
         from features.compression import MemoryCompressor
-
-        mc = MemoryCompressor()
-        results["dedup_core"] = await mc.deduplicate_core(user_id)
-        results["compress_episodes"] = await mc.compress_episodes(user_id, 0.3)
-
-        from shared.dream_buffer import dream_buffer
-
-        results["dream_buffer_cleanup"] = await dream_buffer.cleanup_old(24, 500)
-
         from features.audit_trail import AuditTrail
-
-        at = AuditTrail()
-        archive_dir = str(Path.home() / ".mcp-ariel-memory" / "archives")
-        results["audit_archive"] = await at.archive_and_prune(retention_days, archive_dir)
-
         from features.backup_cron import backup_cron
-
-        results["backup_cleanup"] = await backup_cron.cleanup_old()
-
+        from shared.dream_buffer import dream_buffer
         from shared.saga import saga_watchdog
 
+        mc = MemoryCompressor()
+        at = AuditTrail()
+        archive_dir = str(Path.home() / ".mcp-ariel-memory" / "archives")
+
+        results = {}
+
+        dedup_task = mc.deduplicate_core(user_id)
+        compress_task = mc.compress_episodes(user_id, 0.3)
+        dream_task = dream_buffer.cleanup_old(24, 500)
+        audit_task = at.archive_and_prune(retention_days, archive_dir)
+        backup_task = backup_cron.cleanup_old()
+
+        dedup_r, compress_r, dream_r, audit_r, backup_r = await asyncio.gather(
+            dedup_task, compress_task, dream_task, audit_task, backup_task
+        )
+
+        results["dedup_core"] = dedup_r
+        results["compress_episodes"] = compress_r
+        results["dream_buffer_cleanup"] = dream_r
+        results["audit_archive"] = audit_r
+        results["backup_cleanup"] = backup_r
         results["saga_cleanup"] = saga_watchdog.cleanup_completed()
 
         return results
@@ -203,53 +207,68 @@ def register_tools(mcp):
         metrics.inc("tool_calls")
         metrics.inc("tool_lucidity_purge")
         app = _get_ctx(ctx)
-        results = {}
         cutoff = time.time() - (hours * 3600)
 
-        conn = await app.mm.user_memory(user_id).l4._get_conn()
-        try:
-            cursor = conn.execute("DELETE FROM core_memory WHERE user_id=? AND created_at > ?", (user_id, cutoff))
-            results["core_memory"] = cursor.rowcount
-            conn.commit()
-        finally:
-            conn.close()
+        async def _delete_core():
+            conn = await app.mm.user_memory(user_id).l4._get_conn()
+            try:
+                cursor = conn.execute("DELETE FROM core_memory WHERE user_id=? AND created_at > ?", (user_id, cutoff))
+                result = cursor.rowcount
+                conn.commit()
+                return result
+            finally:
+                conn.close()
 
-        conn = await app.mm.user_memory(user_id).l3._get_conn()
-        try:
-            cursor = conn.execute("DELETE FROM episodes WHERE user_id=? AND created_at > ?", (user_id, cutoff))
-            results["episodes"] = cursor.rowcount
-            conn.commit()
-        finally:
-            conn.close()
+        async def _delete_episodes():
+            conn = await app.mm.user_memory(user_id).l3._get_conn()
+            try:
+                cursor = conn.execute("DELETE FROM episodes WHERE user_id=? AND created_at > ?", (user_id, cutoff))
+                result = cursor.rowcount
+                conn.commit()
+                return result
+            finally:
+                conn.close()
 
-        from shared.dream_buffer import DreamBuffer
+        async def _delete_staging():
+            from shared.dream_buffer import DreamBuffer
+            db = DreamBuffer()
+            return db.clear_staging(user_id)
 
-        db = DreamBuffer()
-        results["staging"] = db.clear_staging(user_id)
+        async def _delete_audit():
+            from features.audit_trail import AuditTrail
+            at = AuditTrail()
+            conn = at._get_conn()
+            try:
+                cursor = conn.execute("DELETE FROM audit_log WHERE user_id=? AND timestamp > ?", (user_id, cutoff))
+                result = cursor.rowcount
+                conn.commit()
+                return result
+            finally:
+                conn.close()
 
-        from features.audit_trail import AuditTrail
+        async def _delete_graph():
+            from graph.epistemic import EpistemicGraph
+            eg = EpistemicGraph(layer="user")
+            conn = eg._get_conn()
+            try:
+                cursor = conn.execute("DELETE FROM epi_nodes WHERE user_id=? AND created_at > ?", (user_id, cutoff))
+                result = cursor.rowcount
+                conn.commit()
+                return result
+            finally:
+                conn.close()
 
-        at = AuditTrail()
-        conn = at._get_conn()
-        try:
-            cursor = conn.execute("DELETE FROM audit_log WHERE user_id=? AND timestamp > ?", (user_id, cutoff))
-            results["audit"] = cursor.rowcount
-            conn.commit()
-        finally:
-            conn.close()
+        core_r, episodes_r, staging_r, audit_r, graph_r = await asyncio.gather(
+            _delete_core(), _delete_episodes(), _delete_staging(), _delete_audit(), _delete_graph()
+        )
 
-        from graph.epistemic import EpistemicGraph
-
-        eg = EpistemicGraph(layer="user")
-        conn = eg._get_conn()
-        try:
-            cursor = conn.execute("DELETE FROM epi_nodes WHERE user_id=? AND created_at > ?", (user_id, cutoff))
-            results["graph_nodes"] = cursor.rowcount
-            conn.commit()
-        finally:
-            conn.close()
-
-        return results
+        return {
+            "core_memory": core_r,
+            "episodes": episodes_r,
+            "staging": staging_r,
+            "audit": audit_r,
+            "graph_nodes": graph_r,
+        }
 
     @mcp.tool()
     async def memory_search_rrf(

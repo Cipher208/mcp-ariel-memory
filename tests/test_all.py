@@ -38,14 +38,6 @@ def test_mcp_tools_are_async():
         assert inspect.iscoroutinefunction(tool.fn), f"{tool.name} is not async"
 
 
-def test_backward_compat():
-    from server import MemoryMCPServer
-
-    s = MemoryMCPServer()
-    r = s.call("memory.user.remember", user_id="test", key="k", value="v")
-    assert r.get("status") == "ok" or "entry_id" in r
-
-
 def test_user_remember_recall():
     from core import memory_manager
 

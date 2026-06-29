@@ -35,6 +35,7 @@ class CoreMemory:
             CREATE INDEX IF NOT EXISTS idx_core_user ON core_memory(user_id);
             CREATE INDEX IF NOT EXISTS idx_core_key ON core_memory(key);
             CREATE UNIQUE INDEX IF NOT EXISTS idx_core_user_key ON core_memory(user_id, key);
+            CREATE INDEX IF NOT EXISTS idx_core_created ON core_memory(created_at);
         """,
         )
 
