@@ -1439,16 +1439,19 @@ if is_encrypted_blob(Path("~/.mcp-ariel-memory/api_keys.json")):
 ### Setup
 
 ```bash
-# Option 1: Environment variable
+# Option 1: Environment variable (simplest)
 export MCP_MASTER_KEY="your-32-byte-hex-key"
 
-# Option 2: config.yaml
+# Option 2: config.yaml (⚠️ contains plaintext key — add to .gitignore)
 crypto:
   master_key_hex: "your-32-byte-hex-key"
 
 # Option 3: OS keychain (recommended for production)
+pip install keyring
 python -c "from features.secrets import install_master_key_to_keychain; install_master_key_to_keychain('your-key')"
 ```
+
+**Security:** Keyring is recommended for production. Environment variables may appear in process listings. Config files may be committed accidentally.
 
 ### Legacy Migration
 

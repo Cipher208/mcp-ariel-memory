@@ -1076,6 +1076,15 @@ backup:
   wiki_sync_interval_minutes: 30
 ```
 
+### Security Warning
+
+`config.yaml` may contain `crypto.master_key_hex` in plaintext. For production:
+
+1. Use OS keychain instead (recommended) — `pip install keyring`
+2. Or set `MCP_MASTER_KEY` environment variable
+3. Never commit `config.yaml` with real keys to version control
+4. Add `config.yaml` to `.gitignore` if it contains secrets
+
 ### File Locations
 
 | File | Path |

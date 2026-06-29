@@ -1,8 +1,8 @@
 """Envelope-encrypt JSON secrets (api_keys, bearer tokens, saga state).
 
 Master key resolution order:
-1. crypto.master_key_hex in config.yaml
-2. OS keychain (keyring library)
+1. OS keychain (keyring library) — recommended for production
+2. crypto.master_key_hex in config.yaml
 3. MCP_MASTER_KEY environment variable (argon2id KDF)
 4. Fail loud if none available
 """
@@ -36,27 +36,27 @@ _MAC_SIZE = 16
 
 
 def _load_master_key() -> bytes:
-    """Load or derive master key from config, keyring, or environment."""
+    """Load or derive master key from keyring, config, or environment."""
     if not _HAS_NACL:
         raise ImportError("pynacl is required for encryption. Install with: pip install pynacl")
 
-    # Try config first
-    try:
-        from config import config
-
-        cfg_key = config.get("crypto", "master_key_hex", default="")
-        if cfg_key:
-            return bytes.fromhex(cfg_key)
-    except Exception:
-        pass
-
-    # Try OS keychain
+    # Try OS keychain first (recommended for production)
     try:
         import keyring
 
         stored = keyring.get_password(_KEYRING_SERVICE, _KEYRING_USERNAME)
         if stored:
             return bytes.fromhex(stored)
+    except Exception:
+        pass
+
+    # Try config
+    try:
+        from config import config
+
+        cfg_key = config.get("crypto", "master_key_hex", default="")
+        if cfg_key:
+            return bytes.fromhex(cfg_key)
     except Exception:
         pass
 
