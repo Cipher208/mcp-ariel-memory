@@ -235,6 +235,61 @@ def _get_migrations() -> list[Migration]:
 
     migrations.append(Migration(4, "rag_chunks_index", v4_rag_chunks_index))
 
+    async def v5_typed_memory(conn):
+        """Add memory_kind column and memory_kind_registry table."""
+        try:
+            # Registry table
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS memory_kind_registry (
+                    kind TEXT PRIMARY KEY,
+                    display_name TEXT NOT NULL,
+                    default_importance REAL NOT NULL,
+                    decay_rate REAL NOT NULL,
+                    never_archive INTEGER NOT NULL DEFAULT 0,
+                    requires_expires_at INTEGER NOT NULL DEFAULT 0,
+                    boost_on_keywords TEXT NOT NULL DEFAULT '',
+                    description TEXT
+                )
+            """)
+            # Seed 13 types
+            await conn.execute("""
+                INSERT OR IGNORE INTO memory_kind_registry VALUES
+                ('instruction','Instruction',0.9,0.0,1,0,'обязательно,важно,critical,never forget,rule,инструкция','Правило/инструкция, не подлежит забыванию'),
+                ('fact','Fact',0.5,0.01,0,0,'факт,fact,имя,возраст,день рождения','Атомарный факт'),
+                ('decision','Decision',0.7,0.005,0,0,'решение,decided,chose,decision','Принятое решение'),
+                ('goal','Goal',0.8,0.005,0,1,'цель,goal,plan,к концу','Цель с дедлайном'),
+                ('preference','Preference',0.7,0.003,0,0,'предпочитаю,prefer,like,нравится,не люблю','Предпочтение'),
+                ('commitment','Commitment',0.85,0.0,1,1,'обещаю,обязуюсь,commit,promise,согласен','Обязательство'),
+                ('relationship','Relationship',0.6,0.002,0,0,'знаком,друг,коллега,knows,friend','Связь'),
+                ('observation','Observation',0.4,0.02,0,0,'видел,заметил,noticed,observed','Наблюдение'),
+                ('rule','Rule',0.85,0.0,1,0,'запрещено,нельзя,do not,forbidden,rule','Жёсткое правило'),
+                ('todo','Todo',0.6,0.005,0,1,'todo,сделать,do later,remind','Задача с дедлайном'),
+                ('question','Open Question',0.5,0.05,0,0,'вопрос,?,уточнить,ask later','Открытый вопрос'),
+                ('hypothesis','Hypothesis',0.45,0.03,0,0,'возможно,наверное,probably,hypothesis','Гипотеза'),
+                ('context','Context',0.3,0.05,0,0,'контекст,background,context','Фоновый контекст')
+            """)
+        except sqlite3.OperationalError:
+            pass
+        # Add memory_kind to core_memory
+        try:
+            await conn.execute("ALTER TABLE core_memory ADD COLUMN memory_kind TEXT")
+        except sqlite3.OperationalError:
+            pass
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_core_memory_kind ON core_memory(user_id, memory_kind)")
+        # Add memory_kind to episodes
+        try:
+            await conn.execute("ALTER TABLE episodes ADD COLUMN memory_kind TEXT")
+        except sqlite3.OperationalError:
+            pass
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_kind ON episodes(user_id, memory_kind)")
+        # Add memory_kind to rag_chunks (for type boost in search)
+        try:
+            await conn.execute("ALTER TABLE rag_chunks ADD COLUMN memory_kind TEXT")
+        except sqlite3.OperationalError:
+            pass
+
+    migrations.append(Migration(5, "typed_memory", v5_typed_memory))
+
     return migrations
 
 

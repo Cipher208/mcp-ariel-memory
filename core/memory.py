@@ -30,13 +30,16 @@ class CoreMemory:
             CREATE TABLE IF NOT EXISTS core_memory (
                 entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL,
-                importance REAL DEFAULT 0.5, created_at REAL NOT NULL, updated_at REAL NOT NULL
+                importance REAL DEFAULT 0.5, memory_kind TEXT, expires_at REAL,
+                source TEXT DEFAULT 'manual', metadata TEXT,
+                created_at REAL NOT NULL, updated_at REAL NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_core_user ON core_memory(user_id);
             CREATE INDEX IF NOT EXISTS idx_core_key ON core_memory(key);
             CREATE UNIQUE INDEX IF NOT EXISTS idx_core_user_key ON core_memory(user_id, key);
             CREATE INDEX IF NOT EXISTS idx_core_created ON core_memory(created_at);
             CREATE INDEX IF NOT EXISTS idx_core_updated ON core_memory(updated_at);
+            CREATE INDEX IF NOT EXISTS idx_core_memory_kind ON core_memory(user_id, memory_kind);
         """,
         )
 
