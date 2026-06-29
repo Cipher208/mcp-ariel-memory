@@ -362,7 +362,9 @@ results = await rag.search("redis", strategy="auto", limit=5)
 - If query has ≤2 words → uses `fts`
 - Otherwise → uses `hybrid`
 
-### `search_rrf()`
+### `search_rrf()` — Deprecated
+
+> **Deprecated**: Use `search(query, strategy="hybrid")` instead.
 
 ```python
 async def search_rrf(self, query: str, user_id: str = "default", limit: int = 10, k: int = 60) -> List[Dict[str, Any]]
@@ -395,7 +397,9 @@ results = await rag.search_rrf("memory architecture", user_id="alice", limit=5)
 
 **Fallback**: If vector search is unavailable, falls back to pure FTS5.
 
-### `search_binary()`
+### `search_binary()` — Deprecated
+
+> **Deprecated**: Use `search(query, strategy="mib")` instead.
 
 ```python
 async def search_binary(self, query: str, user_id: str = "default", limit: int = 10) -> List[Dict[str, Any]]

@@ -189,7 +189,7 @@ async def test_rag_rrf():
     await rag.init_db()
 
     await rag.ingest_text("Test Doc", "Hello world", user_id="test_integ")
-    results = await rag.search_rrf("Hello", user_id="test_integ", limit=5)
+    results = await rag.search("Hello", user_id="test_integ", strategy="hybrid", limit=5)
     assert isinstance(results, list)
 
 

@@ -44,14 +44,14 @@ def test_rag_relations():
     asyncio.run(t())
 
 
-def test_rag_rrf():
+def test_rag_hybrid():
     from rag.engine import RAGEngine
 
     async def t():
         rag = RAGEngine(layer="test_rrf2")
         await rag.ingest_text("A", "Content A", user_id="t")
         await rag.ingest_text("B", "Content B", user_id="t")
-        results = await rag.search_rrf("Content", user_id="t", limit=3)
+        results = await rag.search("Content", user_id="t", strategy="hybrid", limit=3)
         assert len(results) > 0
 
     asyncio.run(t())
