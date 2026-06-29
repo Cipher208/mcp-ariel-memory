@@ -297,7 +297,11 @@ def register_tools(mcp):
         include_wiki = sources in ("all", "wiki")
 
         results = await app.user_multi.search(
-            query, user_id=user_id, strategy=strategy, limit=limit,
-            include_rag=include_rag, include_wiki=include_wiki,
+            query,
+            user_id=user_id,
+            strategy=strategy,
+            limit=limit,
+            include_rag=include_rag,
+            include_wiki=include_wiki,
         )
         return {"results": results, "count": len(results), "strategy": strategy, "sources": sources}

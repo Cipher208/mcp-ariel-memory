@@ -21,19 +21,26 @@ class TestScoringWeights:
 
 class TestScoredCandidate:
     def test_required_fields(self):
-        c = ScoredCandidate(
-            id=1, page_id=10, title="T", content="C", wiki_type=None, rrf_score=0.5
-        )
+        c = ScoredCandidate(id=1, page_id=10, title="T", content="C", wiki_type=None, rrf_score=0.5)
         assert c.id == 1
         assert c.final_score == 0.0
         assert c.debug == {}
 
     def test_optional_fields(self):
         c = ScoredCandidate(
-            id=1, page_id=10, title="T", content="C",
-            wiki_type="error", rrf_score=0.8, bin_score=0.7,
-            hamming=120, source="mib", memory_kind="fact",
-            degraded=True, novelty=0.3, type_boost=0.12,
+            id=1,
+            page_id=10,
+            title="T",
+            content="C",
+            wiki_type="error",
+            rrf_score=0.8,
+            bin_score=0.7,
+            hamming=120,
+            source="mib",
+            memory_kind="fact",
+            degraded=True,
+            novelty=0.3,
+            type_boost=0.12,
         )
         assert c.bin_score == 0.7
         assert c.hamming == 120
@@ -64,8 +71,13 @@ class TestScorerRelevance:
     def test_rrf_with_bin(self):
         scorer = Scorer()
         c = ScoredCandidate(
-            id=1, page_id=1, title="T", content="C", wiki_type=None,
-            rrf_score=0.6, bin_score=0.8,
+            id=1,
+            page_id=1,
+            title="T",
+            content="C",
+            wiki_type=None,
+            rrf_score=0.6,
+            bin_score=0.8,
         )
         score = scorer._relevance_score(c)
         assert abs(score - 0.7) < 1e-9

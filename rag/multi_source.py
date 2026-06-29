@@ -3,6 +3,7 @@
 Repository pattern: merges results from RAG engine and Wiki search,
 deduplicates by (title, content_prefix), and reranks by score.
 """
+
 from __future__ import annotations
 
 import logging
@@ -40,9 +41,7 @@ class MultiSourceRAG:
 
         if include_rag:
             try:
-                rag_results = await self.rag.search(
-                    query, user_id=user_id, strategy=strategy, limit=limit * 2
-                )
+                rag_results = await self.rag.search(query, user_id=user_id, strategy=strategy, limit=limit * 2)
                 results.extend(rag_results)
             except Exception as e:
                 logger.warning("RAG search failed: %s", e)
@@ -52,16 +51,18 @@ class MultiSourceRAG:
                 wiki_hits = await self.wiki.search(query, user_id=user_id, limit=limit * 2)
                 for w in wiki_hits:
                     # Disjoint id-space: wiki uses negative ids to avoid collision with rag_pages.id
-                    results.append({
-                        "id": -int(w.get("entry_id", 0)),
-                        "page_id": None,
-                        "title": w.get("title", ""),
-                        "content": w.get("content", ""),
-                        "wiki_type": f"wiki:{w.get('wiki_type', 'general')}",
-                        "score": float(w.get("rank") or 0.5),
-                        "source": "wiki_fts",
-                        "memory_kind": None,
-                    })
+                    results.append(
+                        {
+                            "id": -int(w.get("entry_id", 0)),
+                            "page_id": None,
+                            "title": w.get("title", ""),
+                            "content": w.get("content", ""),
+                            "wiki_type": f"wiki:{w.get('wiki_type', 'general')}",
+                            "score": float(w.get("rank") or 0.5),
+                            "source": "wiki_fts",
+                            "memory_kind": None,
+                        }
+                    )
             except Exception as e:
                 logger.warning("Wiki search failed: %s", e)
 

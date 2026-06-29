@@ -50,6 +50,7 @@ class RAGEngine:
         """Get RRF k parameter from config (default 60)."""
         try:
             from config import config
+
             return int(config.get("rag", "rrf_k", default=60))
         except Exception:
             return 60
@@ -95,8 +96,7 @@ class RAGEngine:
             metrics.inc("rag_fts5_unavailable_total")
             metrics.gauge("rag_fts5_enabled", 0)
             logger.warning(
-                "[rag] SQLite build lacks FTS5; lexical search will use LIKE fallback. "
-                "Install sqlite3 with FTS5 support for better search quality."
+                "[rag] SQLite build lacks FTS5; lexical search will use LIKE fallback. Install sqlite3 with FTS5 support for better search quality."
             )
 
         await self._cm.execute_script(

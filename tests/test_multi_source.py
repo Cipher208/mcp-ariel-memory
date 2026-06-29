@@ -28,6 +28,7 @@ class TestMultiSourceRAG:
 
         m = MultiSourceRAG(FakeRAG(), FakeWiki())
         import asyncio
+
         result = asyncio.run(m.search("test"))
         assert result == []
 
@@ -37,6 +38,7 @@ class TestMultiSourceRAG:
         rag = FakeRAG([{"id": 1, "title": "RAG result", "content": "content", "score": 0.8, "source": "fts"}])
         m = MultiSourceRAG(rag, FakeWiki())
         import asyncio
+
         result = asyncio.run(m.search("test", include_wiki=False))
         assert len(result) == 1
         assert result[0]["source"] != "wiki_fts"
@@ -47,6 +49,7 @@ class TestMultiSourceRAG:
         wiki = FakeWiki([{"entry_id": 1, "title": "Wiki result", "content": "wiki content", "wiki_type": "diary"}])
         m = MultiSourceRAG(FakeRAG(), wiki)
         import asyncio
+
         result = asyncio.run(m.search("test", include_rag=False))
         assert len(result) == 1
         assert result[0]["source"] == "wiki_fts"
@@ -60,6 +63,7 @@ class TestMultiSourceRAG:
         wiki = FakeWiki([{"entry_id": 1, "title": "Same", "content": "Same content here", "wiki_type": "diary"}])
         m = MultiSourceRAG(rag, wiki)
         import asyncio
+
         result = asyncio.run(m.search("test"))
         assert len(result) == 1  # Deduped
 
@@ -70,6 +74,7 @@ class TestMultiSourceRAG:
         wiki = FakeWiki([{"entry_id": 1, "title": "High", "content": "b", "rank": 0.9}])
         m = MultiSourceRAG(rag, wiki)
         import asyncio
+
         result = asyncio.run(m.search("test"))
         assert result[0]["title"] == "High"  # Higher score first
 
@@ -79,6 +84,7 @@ class TestMultiSourceRAG:
         rag = FakeRAG([{"id": i, "title": f"t{i}", "content": f"c{i}", "score": 0.5} for i in range(20)])
         m = MultiSourceRAG(rag, FakeWiki())
         import asyncio
+
         result = asyncio.run(m.search("test", limit=5))
         assert len(result) == 5
 
@@ -87,11 +93,13 @@ class TestMultiSourceRAG:
 
         class FailingRAG:
             cm = None
+
             async def search(self, **kwargs):
                 raise RuntimeError("DB error")
 
         m = MultiSourceRAG(FailingRAG(), FakeWiki([{"entry_id": 1, "title": "W", "content": "C"}]))
         import asyncio
+
         result = asyncio.run(m.search("test"))
         assert len(result) == 1  # Wiki still works
 
@@ -104,5 +112,6 @@ class TestMultiSourceRAG:
 
         m = MultiSourceRAG(FakeRAG([{"id": 1, "title": "R", "content": "C"}]), FailingWiki())
         import asyncio
+
         result = asyncio.run(m.search("test"))
         assert len(result) == 1  # RAG still works
