@@ -29,6 +29,7 @@ from lifecycle.consolidation import ConsolidationEngine
 from lifecycle.emotion_trigger import EmotionTrigger
 from lifecycle.forgetting import ForgettingSystem
 from rag.engine import RAGEngine
+from rag.multi_source import MultiSourceRAG
 from shared.cache import MemoryCache
 from shared.read_only import read_only_replica
 from wiki.file_wiki import FileWiki
@@ -42,6 +43,8 @@ class AppContext:
         self.agent_wiki = FileWiki(layer="agent")
         self.user_rag = RAGEngine(layer="user")
         self.agent_rag = RAGEngine(layer="agent")
+        self.user_multi = MultiSourceRAG(self.user_rag, self.user_wiki)
+        self.agent_multi = MultiSourceRAG(self.agent_rag, self.agent_wiki)
         self.user_graph = EpistemicGraph(layer="user")
         self.agent_graph = EpistemicGraph(layer="agent")
         self.temporal = TemporalGraph()

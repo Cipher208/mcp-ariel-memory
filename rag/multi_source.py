@@ -15,7 +15,7 @@ class MultiSourceRAG:
     def __init__(self, rag, wiki, cm=None):
         self.rag = rag
         self.wiki = wiki
-        self.cm = cm or (rag.cm if rag else None)
+        self.cm = cm
 
     async def search(
         self,
