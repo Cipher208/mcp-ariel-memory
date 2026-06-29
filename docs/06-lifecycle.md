@@ -55,7 +55,14 @@ fs = ForgettingSystem(cm=cm, layer="system")
 
 ### `async decay_importance() → int`
 
-Apply exponential decay to all memory importance scores. Uses the formula:
+Apply type-aware exponential decay to all memory importance scores. Uses per-type decay rates from `memory_types.py`:
+
+- **instruction, rule, commitment**: never decay (decay_rate = 0)
+- **fact**: standard decay (0.01)
+- **observation**: fast decay (0.02)
+- **context**: very fast decay (0.05)
+
+Formula: `importance *= exp(-decay_rate * days)`
 
 ```
 importance = max(0.01, importance × e^(-decay_rate × days_since_update))
@@ -82,7 +89,11 @@ print(f"Decayed {affected} entries")
 
 ### `async archive_old_entries() → int`
 
-Move entries older than `archive_days` with importance below `archive_min_importance` to the archive. Uses `ArchivedMemories.archive()` for persistent archival, then deletes the original rows from `core_memory`.
+Type-aware archival. Respects `never_archive` flag for instruction/rule/commitment types:
+
+- **Never archived**: instruction, rule, commitment (regardless of age/importance)
+- **Archived by expiration**: goal, todo, commitment with expired `expires_at`
+- **Archived by age**: other types older than `archive_days` with importance below threshold
 
 **Parameters:** None
 
@@ -308,42 +319,37 @@ ce = ConsolidationEngine(cm=cm)
 
 ### `async consolidate_staging(user_id, staging_items, min_importance=0.7) → Dict[str, int]`
 
-Promote staging items to core memory. Items with importance below `min_importance` are skipped. Each promoted item is saved via `CoreMemory.save()` with a key derived from its content (first 30 chars, lowered, spaces replaced with underscores, prefixed with `staging_`).
+Type-aware promotion. Staging items with `memory_kind` are promoted with type-specific thresholds:
+
+- **instruction, rule, commitment**: promoted even at 0.3+ importance (lower threshold)
+- **Other types**: standard threshold applies
+
+Each item is saved via `CoreMemory.save()` with auto-classification if `memory_kind` is not specified.
 
 **Parameters:**
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `user_id` | `str` | — | User identifier. |
-| `staging_items` | `List[Dict[str, Any]]` | — | List of staging dicts. Each must have `"content"` (str) and optionally `"importance"` (float, default 0.7). |
-| `min_importance` | `float` | `0.7` | Minimum importance threshold. Items below this are skipped. |
+| `staging_items` | `List[Dict[str, Any]]` | — | List with `"content"`, optionally `"importance"` (float), `"memory_kind"` (str). |
+| `min_importance` | `float` | `0.7` | Standard threshold. Lowered for instruction/rule/commitment. |
 
-**Returns:** `Dict[str, int]`
-
-| Key | Description |
-|-----|-------------|
-| `"promoted"` | Number of items promoted to core. |
-| `"skipped"` | Number of items skipped (below threshold). |
+**Returns:** `Dict[str, int]` — `{"promoted": N, "skipped": N}`
 
 **Example:**
 
 ```python
-from lifecycle.consolidation import ConsolidationEngine
-
 ce = ConsolidationEngine()
 
 staging_items = [
-    {"content": "User prefers dark mode", "importance": 0.8},
-    {"content": "Discussed vacation plans", "importance": 0.9},
-    {"content": "Mentioned lunch", "importance": 0.3},  # below threshold
+    {"content": "User prefers dark mode", "importance": 0.8, "memory_kind": "preference"},
+    {"content": "Never delete backups", "importance": 0.35, "memory_kind": "instruction"},
+    {"content": "Mentioned lunch", "importance": 0.3},  # below threshold for fact
 ]
 
 result = await ce.consolidate_staging("alice", staging_items, min_importance=0.7)
-print(result)
-# {"promoted": 2, "skipped": 1}
-
-# Promoted items in core_memory:
-#   key="staging_user_prefers_dark_mode",  value="User prefers dark mode",  importance=0.8
+# {"promoted": 2, "skipped": 1}  — instruction promoted despite low importance
+```
 #   key="staging_discussed_vacation_plan", value="Discussed vacation plans", importance=0.9
 ```
 

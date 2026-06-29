@@ -401,7 +401,7 @@ from core.memory import CoreMemory
 cm = CoreMemory()
 ```
 
-### `async save(user_id, key, value, importance=0.5) -> int`
+### `async save(user_id, key, value, importance=0.5, memory_kind=None, expires_at=None, source="manual", metadata=None) -> int`
 
 Save or update a fact. **UPSERT**: if key exists for user, updates value and importance; otherwise inserts new entry.
 
@@ -410,14 +410,60 @@ Save or update a fact. **UPSERT**: if key exists for user, updates value and imp
 | `user_id` | `str` | — | User identifier |
 | `key` | `str` | — | Fact key (unique per user) |
 | `value` | `str` | — | Fact value |
-| `importance` | `float` | `0.5` | Importance score (0.0 - 1.0) |
+| `importance` | `float` | `0.5` | Importance score (0.0 - 1.0). Auto-filled from type policy if None |
+| `memory_kind` | `str` | `None` | Type category. Auto-classified from text if None |
+| `expires_at` | `float` | `None` | Expiration timestamp. Required for goal/todo/commitment types |
+| `source` | `str` | `"manual"` | Source of the memory (e.g., "manual", "staging_promotion", "episode_promotion") |
+| `metadata` | `dict` | `None` | Additional metadata as JSON |
+
+**Typed Memory Categories:**
+
+| Type | Default Importance | Decay Rate | Never Archive | Requires Expires |
+|------|-------------------|------------|---------------|------------------|
+| `instruction` | 0.9 | 0.0 | Yes | No |
+| `fact` | 0.5 | 0.01 | No | No |
+| `decision` | 0.7 | 0.005 | No | No |
+| `goal` | 0.8 | 0.005 | No | Yes |
+| `preference` | 0.7 | 0.003 | No | No |
+| `commitment` | 0.85 | 0.0 | Yes | Yes |
+| `relationship` | 0.6 | 0.002 | No | No |
+| `observation` | 0.4 | 0.02 | No | No |
+| `rule` | 0.85 | 0.0 | Yes | No |
+| `todo` | 0.6 | 0.005 | No | Yes |
+| `question` | 0.5 | 0.05 | No | No |
+| `hypothesis` | 0.45 | 0.03 | No | No |
+| `context` | 0.3 | 0.05 | No | No |
 
 ```python
 # Insert new fact
 entry_id = await cm.save("alice", "name", "Alice", importance=0.9)
 
+# Insert with type
+entry_id = await cm.save("alice", "rule", "Never delete backups",
+                         memory_kind="rule", importance=0.85)
+
 # Update existing fact (upsert)
 entry_id = await cm.save("alice", "name", "Alice Smith", importance=0.95)
+
+# Auto-classification from text
+entry_id = await cm.save("alice", "goal", "Learn Rust by December",
+                         memory_kind=None)  # Auto-detects "goal" from keywords
+```
+
+### `async list_by_kind(user_id, memory_kind, min_importance=0.0, limit=50) -> list[dict]`
+
+List memories filtered by type.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `user_id` | `str` | — | User identifier |
+| `memory_kind` | `str` | — | Type to filter by |
+| `min_importance` | `float` | `0.0` | Minimum importance threshold |
+| `limit` | `int` | `50` | Maximum results |
+
+```python
+rules = await cm.list_by_kind("alice", "rule", min_importance=0.5)
+# [{"key": "rule", "value": "Never delete backups", "importance": 0.85, ...}]
 ```
 
 ### `async get(user_id, key) -> Optional[CoreEntry]`

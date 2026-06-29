@@ -320,6 +320,17 @@ def _get_migrations() -> list[Migration]:
 
     migrations.append(Migration(6, "core_memory_columns", v6_core_memory_columns))
 
+    async def v7_drop_float_embeddings(conn):
+        """Drop float embedding column to save disk space (keep binary only)."""
+        try:
+            # Check if we should drop (config-driven via keep_float_blobs)
+            await conn.execute("ALTER TABLE rag_chunks DROP COLUMN embedding")
+            logger.info("Dropped float embedding column from rag_chunks")
+        except sqlite3.OperationalError:
+            pass  # Column may already be dropped
+
+    migrations.append(Migration(7, "drop_float_embeddings", v7_drop_float_embeddings))
+
     return migrations
 
 
