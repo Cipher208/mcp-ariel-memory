@@ -285,7 +285,7 @@ def register_tools(mcp):
             query: Search query
             user_id: User identifier
             limit: Max results (default 10)
-            strategy: "fts", "mib", or "hybrid" (default)
+            strategy: "fts" (keyword), "mib" (semantic), "hybrid" (combined), or "auto" (auto-select)
         """
         metrics.inc("tool_calls")
         metrics.inc("tool_search_rrf")
