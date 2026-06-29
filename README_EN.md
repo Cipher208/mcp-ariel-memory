@@ -243,14 +243,14 @@ Message → L1 (ReflexBuffer, ring buffer, 50 items)
 | 09 | [Features](docs/09-features.md) | Auth, Backup, Dashboard, Audit, RateLimit |
 | 10 | [Shared](docs/10-shared.md) | Cache, Saga+Watchdog, Middleware, Embeddings, Metrics |
 | 11 | [Operations](docs/11-operations.md) | Transports, Dashboard, Auth, Backup, Configuration |
-| 12 | [Testing](docs/12-testing.md) | pytest (237 tests), project structure |
+| 12 | [Testing](docs/12-testing.md) | pytest (239 tests), project structure |
 
 ---
 
 ## Testing
 
 ```bash
-# Run all tests (237 passed)
+# Run all tests (239 passed)
 pytest tests/ -v
 
 # Run only integration tests
@@ -278,7 +278,7 @@ layers: { user: { enabled: true }, agent: { enabled: true } }
 limits: { l1_buffer_size: 50, l4_core_limit: 5000 }
 hooks: { user: { message_received: true }, agent: { error_occurred: true } }
 forgetting: { decay_rate: 0.01, archive_threshold_days: 90 }
-rag: { fts_enabled: true, vec_enabled: true, rrf_k: 60 }
+rag: { fts_enabled: true, vec_enabled: true }
 embeddings: { model: "BAAI/bge-small-en-v1.5" }
 wiki:
   user: { diary: true, external_dirs: ["/path/to/notes"] }

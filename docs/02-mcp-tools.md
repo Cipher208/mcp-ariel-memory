@@ -281,7 +281,7 @@ result = await mcp.call_tool("memory_lucidity_purge", {
 
 Hybrid search using Reciprocal Rank Fusion (FTS5 + vector similarity) with pluggable strategies.
 
-**Parameters:** `query`, `user_id`, `limit`, `strategy`
+**Parameters:** `query`, `user_id`, `limit`, `strategy`, `sources`
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -289,6 +289,7 @@ Hybrid search using Reciprocal Rank Fusion (FTS5 + vector similarity) with plugg
 | `user_id` | string | `"default"` | User identifier |
 | `limit` | int | `10` | Max results |
 | `strategy` | string | `"hybrid"` | Search strategy: `"fts"`, `"mib"`, `"hybrid"`, or `"auto"` |
+| `sources` | string | `"all"` | Search sources: `"all"` (RAG + Wiki), `"rag"` (RAG only), `"wiki"` (Wiki only) |
 
 **Strategies:**
 - `fts`: Full-text search via FTS5 (fast, keyword-based)

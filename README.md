@@ -237,7 +237,7 @@ Message → L1 (ReflexBuffer, ring buffer, 50 items)
 | 01 | [Architecture](docs/01-architecture.md) | Stack, two-layer model, L1-L4, consolidation |
 | 02 | [MCP Tools](docs/02-mcp-tools.md) | All 19 tools with parameters and examples |
 | 03 | [Core Memory](docs/03-core.md) | ReflexBuffer, SessionStore, EpisodicMemory, CoreMemory |
-| 04 | [Search (RAG)](docs/04-rag.md) | FTS5 + fallback, RRF, RetrievalRouter, ConflictResolver |
+| 04 | [Search (RAG)](docs/04-rag.md) | Unified search, Scorer, supervised thresholds |
 | 05 | [Knowledge Graph](docs/05-graph.md) | EpistemicGraph, TemporalGraph |
 | 06 | [Lifecycle](docs/06-lifecycle.md) | Forgetting, EmotionTrigger, Consolidation |
 | 07 | [Hooks](docs/07-hooks.md) | 24 hooks (12 user + 12 agent) |

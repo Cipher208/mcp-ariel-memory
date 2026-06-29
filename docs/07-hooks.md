@@ -357,6 +357,8 @@ score = uh._calculate_importance("ok")
 
 12 hooks for agent identity events, plus `_importance_gate` for filtering.
 
+> **Note:** `_importance_gate` is called directly from `mcp_server/tools_layer.py` (not registered in the hook registry). It is invoked on every `memory_remember(layer="agent")` call to filter low-importance messages.
+
 ### `AgentHooks._importance_gate(ctx: Dict[str, Any]) -> Dict[str, Any]`
 
 Filters agent messages by importance using agent-specific keywords.

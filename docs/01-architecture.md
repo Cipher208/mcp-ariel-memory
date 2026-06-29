@@ -8,10 +8,10 @@
 | Transports | stdio + Streamable HTTP |
 | Storage | **Single `memory.db` file** (~21 tables) |
 | Async DB | asyncio + sqlite3 via to_thread |
-| Search | FTS5 + sqlite-vec (optional) + RRF |
+| Search | FTS5 + MIB binary embeddings (Hamming) + RRF |
 | Hooks | 24 hooks, integrated into tool pipeline |
 | Docker | Dockerfile + docker-compose |
-| Tests | pytest + pytest-asyncio (229 tests) |
+| Tests | pytest + pytest-asyncio (239 tests) |
 | CI/CD | GitHub Actions |
 
 ## Two-Layer Model
@@ -57,7 +57,7 @@ Message → L1 (buffer)
          → L4 (consolidation, if weight > 0.7)
 ```
 
-## Database Tables (21)
+## Database Tables (20)
 
 | Table | Module | Purpose |
 |-------|--------|---------|
@@ -81,4 +81,5 @@ Message → L1 (buffer)
 | `wiki_index` | wiki/file_wiki.py | Wiki FTS5 index |
 | `memory_conflicts` | rag/conflict.py | Memory conflicts |
 | `migration_log` | shared/migrations.py | Migration history |
-| `api_keys` | features/auth.py | API keys |
+
+> **Note:** API keys are stored in `~/.mcp-ariel-memory/api_keys.json` (encrypted), not in a SQLite table.

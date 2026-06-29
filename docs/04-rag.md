@@ -221,6 +221,8 @@ RAGEngine(
     binary_dim: int = 384,
     binary_threshold_mode: str = "naive",
     binary_thresholds_path: Optional[str] = None,
+    thresholds: Optional[np.ndarray] = None,
+    search_strategy: StrategyT = "fts",
 )
 ```
 
@@ -231,6 +233,8 @@ RAGEngine(
 | `binary_dim` | `int` | `384` | Embedding dimension for binary quantization |
 | `binary_threshold_mode` | `str` | `"naive"` | Binarization mode: `"naive"` (sign) or `"supervised_path"` (per-dim thresholds from file) |
 | `binary_thresholds_path` | `str` | `None` | Path to `.npy` file with supervised thresholds |
+| `thresholds` | `np.ndarray` | `None` | Pre-loaded supervised thresholds array (skips file loading) |
+| `search_strategy` | `StrategyT` | `"fts"` | Default search strategy: `"fts"`, `"mib"`, `"hybrid"`, or `"auto"` |
 
 ```python
 from rag.engine import RAGEngine

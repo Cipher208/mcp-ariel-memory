@@ -1095,6 +1095,45 @@ print(stats)
 
 ---
 
+## Secrets (`features/secrets.py`)
+
+Envelope encryption for sensitive data (API keys, bearer tokens, saga state) using libsodium secretbox (AES-256-GCM).
+
+### Master Key Resolution Order
+
+1. OS keychain (keyring library) — recommended for production
+2. `.env` file in project root (`MCP_MASTER_KEY=...`)
+3. `crypto.master_key_hex` in `config.yaml`
+4. `MCP_MASTER_KEY` environment variable (argon2id KDF)
+5. **Auto-generate** if none available (dev convenience — key saved to `.env`)
+
+### Functions
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `encrypt_json(data)` | `(dict\|list) -> bytes` | Encrypt JSON to `nonce(24B) \|\| ciphertext` |
+| `decrypt_json(blob)` | `(bytes) -> Any` | Decrypt blob back to JSON dict/list |
+| `is_encrypted_blob(path)` | `(Path) -> bool` | Check if file is encrypted (not plain JSON) |
+| `install_master_key_to_keychain(hex_key)` | `(str) -> None` | Store key in OS keychain (one-time setup) |
+
+### Usage
+
+```python
+from features.secrets import encrypt_json, decrypt_json
+
+encrypted = encrypt_json({"api_key": "sk-..."})
+decrypted = decrypt_json(encrypted)
+# {"api_key": "sk-..."}
+```
+
+### Security Notes
+
+- Uses argon2id KDF when deriving key from environment variable (memory-hard, resistant to GPU attacks)
+- Auto-generated keys are logged as a warning — production should use keyring
+- File format: `[nonce 24B][ciphertext]` — no plaintext metadata leaked
+
+---
+
 ## Configuration
 
 ### config.yaml

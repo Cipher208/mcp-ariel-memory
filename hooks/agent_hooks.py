@@ -82,20 +82,6 @@ class AgentHooks:
 
         return {"importance": min(1.0, score), "bypass": score < 0.3}
 
-    def _register_all(self):
-        hook_registry.register("error_occurred", self._error_occurred)
-        hook_registry.register("decision_made", self._decision_made)
-        hook_registry.register("self_correction", self._self_correction)
-        hook_registry.register("personality_shift", self._personality_shift)
-        hook_registry.register("emotion_context", self._emotion_context)
-        hook_registry.register("wiki_agent", self._wiki_agent)
-        hook_registry.register("consolidation", self._consolidation)
-        hook_registry.register("forgetting_ritual", self._forgetting_ritual)
-        hook_registry.register("auto_context", self._auto_context)
-        hook_registry.register("retrieval_router", self._retrieval_router)
-        hook_registry.register("conflict_resolver", self._conflict_resolver)
-        hook_registry.register("emotion", self._emotion)
-
     def _error_occurred(self, ctx: dict[str, Any]) -> dict[str, Any]:
         error = ctx.get("error", "")
         node_id = _run_async(self.graph.add_node(self.user_id, error, "error_analysis", ["error_pattern"], 0.8))
