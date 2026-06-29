@@ -660,13 +660,50 @@ print(len(result.context)) # number of context items
 ### Constructor
 
 ```python
-RetrievalRouter(layer: str = "user", user_id: str = "default")
+RetrievalRouter(layer: str = "user", user_id: str = "default",
+                keyword_overrides: Dict = None, recent_max_chars: int = 60)
 ```
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `layer` | `str` | `"user"` | Memory layer |
 | `user_id` | `str` | `"default"` | Owner user ID |
+| `keyword_overrides` | `Dict` | `None` | Override keyword sets from config |
+| `recent_max_chars` | `int` | `60` | Max query length for recent-context routing |
+
+### Keywords (B2.1-B2.3)
+
+The router uses bilingual (RU + EN) keyword tables for routing decisions:
+
+| Signal | RU Keywords | EN Keywords |
+|--------|-------------|-------------|
+| Recent | это, почему, как, только что, ранее, опять, сейчас, вчера, утром, снова | this, why, how, earlier, just now, again, now, yesterday, recently |
+| Wiki | документация, настроить, архитектура, руководство, гайд, инструкция | tutorial, how to, guide, manual, rtfm, wiki, configure, setup |
+| Graph | связи, связано, граф, паттерн, взаимосвязь, зависит | depends on, linked to, follows from, error_pattern, decision, learned |
+
+Keywords can be overridden via `keyword_overrides` parameter.
+
+### Entity Extraction (B2.4)
+
+The router extracts named entities using regex patterns (RU names, English names, files, tech, languages). Short tokens like `AI`, `ML`, `JS` are preserved unless they appear in the entity stopwords list:
+
+```python
+_ENTITY_STOPWORDS = {"ai", "ml", "js", "ts", "go", "rs", "py", "ci", "cd", ...}
+```
+
+### Route Priorities (B2.5)
+
+Route priorities are data-driven via `_ROUTE_TABLE`:
+
+```python
+_ROUTE_TABLE = [
+    {"strategy": "L1_BUFFER", "keywords": "recent", "confidence": 0.9},
+    {"strategy": "WIKI", "keywords": "wiki", "confidence": 0.95},
+    {"strategy": "GRAPH", "keywords": "entity", "confidence": 0.85},
+    {"strategy": "GRAPH", "keywords": "graph", "confidence": 0.85},
+    {"strategy": "SEMANTIC", "keywords": None, "confidence": 0.8},
+]
+```
 
 ```python
 from rag.router import RetrievalRouter

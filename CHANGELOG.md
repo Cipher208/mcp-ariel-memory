@@ -34,6 +34,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - `GET /alive` — liveness heartbeat for container orchestrators.
 - Graceful shutdown — SIGTERM/SIGINT handler stops backup_cron, saga_watchdog, read_only_replica.
 - `demo.py` — launch demo script creating test data and showing all features.
+- Router bilingual keywords — RU + EN for recent, wiki, graph (B2.1-B2.3).
+- Router entity extraction — stopword whitelist instead of length filter (B2.4).
+- Router data-driven priorities — `_ROUTE_TABLE` config (B2.5).
 
 ### Added
 - `AgentHooks._importance_gate` with agent-specific keywords (error, decision, principle, lesson, pattern).
