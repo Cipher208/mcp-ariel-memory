@@ -1,24 +1,10 @@
 """Basic tests for mcp-ariel-memory (async)."""
 
 import asyncio
-import os
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
-
-
-@pytest.fixture(autouse=True, scope="session")
-def master_key_env():
-    """Set master key for all tests."""
-    os.environ["MCP_MASTER_KEY"] = "test-secret-for-unit-tests-only"
-    from features import secrets
-
-    secrets._master_cache.clear()
-    yield
-    os.environ.pop("MCP_MASTER_KEY", None)
 
 
 # Ensure migrations run before any test

@@ -37,10 +37,14 @@ class APIKeyAuth:
                 stacklevel=2,
             )
             legacy = json.loads(blob.decode("utf-8"))
-            self._save(legacy)
-            return legacy
         except Exception:
             return {}
+        # Rotate outside try/except — _save failure must not mask the loaded data
+        try:
+            self._save(legacy)
+        except Exception:
+            pass
+        return legacy
 
     def _save(self, data: dict[str, dict] = None) -> None:
         """Atomic write: tmp + rename + chmod 600."""
@@ -50,9 +54,17 @@ class APIKeyAuth:
         ciphertext = encrypt_json(data)
         with open(tmp_file, "wb") as f:
             f.write(ciphertext)
-        os.chmod(tmp_file, 0o600)
+            f.flush()
+            os.fsync(f.fileno())
+        try:
+            os.chmod(tmp_file, 0o600)
+        except OSError:
+            pass
         tmp_file.replace(self.keys_file)
-        os.chmod(self.keys_file, 0o600)
+        try:
+            os.chmod(self.keys_file, 0o600)
+        except OSError:
+            pass
 
     def create_key(self, user_id: str, label: str = "") -> str:
         key = "ak_" + secrets.token_hex(24)
@@ -147,9 +159,17 @@ class BearerAuth:
         tmp_file = self.token_file.with_suffix(".json.tmp")
         with open(tmp_file, "wb") as f:
             f.write(ciphertext)
-        os.chmod(tmp_file, 0o600)
+            f.flush()
+            os.fsync(f.fileno())
+        try:
+            os.chmod(tmp_file, 0o600)
+        except OSError:
+            pass
         tmp_file.replace(self.token_file)
-        os.chmod(self.token_file, 0o600)
+        try:
+            os.chmod(self.token_file, 0o600)
+        except OSError:
+            pass
 
     def verify(self, auth_header: str) -> bool:
         if not auth_header:

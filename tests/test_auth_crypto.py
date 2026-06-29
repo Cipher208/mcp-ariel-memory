@@ -3,19 +3,6 @@
 import json
 import os
 
-import pytest
-
-
-@pytest.fixture(autouse=True, scope="session")
-def master_key_env():
-    """Set master key BEFORE importing any auth modules."""
-    os.environ["MCP_MASTER_KEY"] = "integration-test-secret"
-    from features import secrets
-
-    secrets._master_cache.clear()
-    yield
-    os.environ.pop("MCP_MASTER_KEY", None)
-
 
 def test_legacy_plain_json_gets_rotated(tmp_path):
     """If file is plain JSON, it should be auto-encrypted on load."""
