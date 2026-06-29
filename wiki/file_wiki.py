@@ -77,6 +77,7 @@ class FileWiki:
             CREATE UNIQUE INDEX IF NOT EXISTS idx_wiki_path ON wiki_index(file_path);
             CREATE INDEX IF NOT EXISTS idx_wiki_layer ON wiki_index(layer);
             CREATE INDEX IF NOT EXISTS idx_wiki_type ON wiki_index(wiki_type);
+            CREATE INDEX IF NOT EXISTS idx_wiki_updated ON wiki_index(updated_at);
         """,
         )
         conn = await self._cm.get("memory.db")

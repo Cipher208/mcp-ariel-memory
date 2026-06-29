@@ -79,6 +79,7 @@ class UserWiki:
             CREATE INDEX IF NOT EXISTS idx_uwiki_type ON user_wiki(wiki_type);
             CREATE INDEX IF NOT EXISTS idx_uwiki_user_type ON user_wiki(user_id, wiki_type);
             CREATE INDEX IF NOT EXISTS idx_uwiki_source ON user_wiki(source);
+            CREATE INDEX IF NOT EXISTS idx_uwiki_updated ON user_wiki(updated_at);
         """,
         )
         conn = await self._cm.get("memory.db")

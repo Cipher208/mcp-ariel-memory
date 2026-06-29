@@ -85,6 +85,7 @@ class AgentWiki:
             CREATE INDEX IF NOT EXISTS idx_awiki_type ON agent_wiki(wiki_type);
             CREATE INDEX IF NOT EXISTS idx_awiki_user_type ON agent_wiki(user_id, wiki_type);
             CREATE INDEX IF NOT EXISTS idx_awiki_source ON agent_wiki(source);
+            CREATE INDEX IF NOT EXISTS idx_awiki_updated ON agent_wiki(updated_at);
         """,
         )
         conn = await self._cm.get("memory.db")
