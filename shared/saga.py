@@ -187,6 +187,7 @@ class Saga:
 
     async def _compensate(self, failed_step: int) -> None:
         self._status = SagaStatus.COMPENSATING
+        self._save_state()
         logger.info("Saga '%s' compensating from step %d" % (self.name, failed_step))
 
         for i in range(failed_step - 1, -1, -1):
@@ -221,7 +222,7 @@ class Saga:
             "status": self._status.value,
             "current_step": self._current_step,
             "started_at": self._started_at,
-            "data": self._data,
+            "data": self._data.copy(),
             "steps": [{"name": s.name, "status": s.status.value, "result": s.result} for s in self._steps],
         }
 
