@@ -591,9 +591,9 @@ result = ah._emotion({"emotion": "satisfaction"})
 
 ---
 
-## Integration in mcp_server.py
+## Integration in mcp_server
 
-### memory_user_remember — calls 2 hooks:
+### memory_remember (layer="user") — calls 2 hooks:
 
 ```python
 # 1. importance_gate — noise filter
@@ -607,7 +607,7 @@ if should_save:
     await app.mm.user_memory(user_id).l3.save(...)
 ```
 
-### memory_agent_remember — automatically logs to graph:
+### memory_remember (layer="agent") — automatically logs to graph:
 
 ```python
 if "error" in key:

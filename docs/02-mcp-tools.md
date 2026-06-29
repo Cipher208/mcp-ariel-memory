@@ -1,226 +1,259 @@
-# MCP Tools — Full Reference (37 tools)
+# MCP Tools — Full Reference (19 tools)
 
-## User Layer (10 tools)
+All layer tools accept a `layer` parameter: `"user"` or `"agent"`.
 
-### `memory_user_remember`
+---
+
+## Layer Tools (11 tools)
+
+### `memory_remember`
 
 Save a fact to L4 CoreMemory.
 
 **Parameters:**
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
+| `layer` | string | `"user"` | `"user"` or `"agent"` |
 | `user_id` | string | `"default"` | User identifier |
-| `key` | string | `""` | Fact key (e.g. `"name"`, `"lang"`) |
+| `key` | string | `""` | Fact key (e.g. `"name"`, `"principle"`) |
 | `value` | string | `""` | Value |
 | `importance` | float | `0.5` | Importance 0.0–1.0 |
 
 **Response:** `{"status": "ok", "entry_id": 42}`
 
-**Examples:**
 ```python
-# Name
-await mcp.call_tool("memory_user_remember", {
-    "user_id": "alice", "key": "name", "value": "Alice", "importance": 0.9
+# User fact
+await mcp.call_tool("memory_remember", {
+    "layer": "user", "user_id": "alice",
+    "key": "name", "value": "Alice", "importance": 0.9
 })
 
-# Programming language
-await mcp.call_tool("memory_user_remember", {
-    "user_id": "alice", "key": "primary_language", "value": "Python", "importance": 0.8
-})
-
-# Upsert (update existing)
-await mcp.call_tool("memory_user_remember", {
-    "user_id": "alice", "key": "name", "value": "Alice Smith", "importance": 0.95
+# Agent principle
+await mcp.call_tool("memory_remember", {
+    "layer": "agent", "user_id": "main",
+    "key": "principle", "value": "YAGNI", "importance": 0.9
 })
 ```
 
-### `memory_user_recall`
+### `memory_recall`
 
-Search user memory (L3 + L4).
+Search memory across L3 (episodes) and L4 (facts).
 
-**Parameters:** `user_id`, `query`, `limit` (default 10)
+**Parameters:** `layer`, `user_id`, `query`, `limit` (default 10)
 
 **Response:** `{"results": [{"key": "name", "value": "Alice", "importance": 0.9}], "count": 1}`
 
 ```python
-result = await mcp.call_tool("memory_user_recall", {
-    "user_id": "alice", "query": "name"
+result = await mcp.call_tool("memory_recall", {
+    "layer": "user", "user_id": "alice", "query": "name"
 })
 ```
 
-### `memory_user_forget`
+### `memory_forget`
 
 Delete a fact from L4.
 
-**Parameters:** `user_id`, `key`
+**Parameters:** `layer`, `user_id`, `key`
 
 **Response:** `{"deleted": true}` or `{"deleted": false}`
 
 ```python
-await mcp.call_tool("memory_user_forget", {"user_id": "alice", "key": "hobby"})
+await mcp.call_tool("memory_forget", {"layer": "user", "user_id": "alice", "key": "hobby"})
 ```
 
-### `memory_user_session_start`
+### `memory_session_start`
 
 Start a new session.
 
+**Parameters:** `layer`, `user_id`
+
 **Response:** `{"session_id": "sess_alice_1782036546_0b6ec91f"}`
 
-### `memory_user_session_end`
+### `memory_session_end`
 
 End a session with summary.
 
-**Parameters:** `user_id`, `session_id`, `summary`
+**Parameters:** `layer`, `user_id`, `session_id`, `summary`
 
-### `memory_user_episode_save`
+### `memory_episode_save`
 
 Save an important episode to L3.
 
 **Parameters:**
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
+| `layer` | string | `"user"` | `"user"` or `"agent"` |
 | `summary` | string | `""` | Episode description |
 | `weight` | float | `0.5` | Emotional weight 0.0–1.0 |
-| `tags` | list[str] | `None` | Tags (e.g. `["greeting", "work"]`) |
+| `tags` | list[str] | `None` | Tags (e.g. `["greeting", "decision"]`) |
 
 ```python
-await mcp.call_tool("memory_user_episode_save", {
-    "user_id": "alice", "summary": "User changed jobs",
-    "weight": 0.8, "tags": ["work", "life_change"]
+await mcp.call_tool("memory_episode_save", {
+    "layer": "user", "user_id": "alice",
+    "summary": "User changed jobs", "weight": 0.8, "tags": ["work"]
 })
 ```
 
-### `memory_user_episode_recall`
+### `memory_episode_recall`
 
 Find episodes (all or by tag).
 
-**Parameters:** `user_id`, `tag` (optional), `limit`
+**Parameters:** `layer`, `user_id`, `tag` (optional), `limit`
 
 ```python
-result = await mcp.call_tool("memory_user_episode_recall", {"user_id": "alice", "tag": "work"})
+result = await mcp.call_tool("memory_episode_recall", {
+    "layer": "user", "user_id": "alice", "tag": "work"
+})
 ```
 
-### `memory_user_graph_add`
+### `memory_graph_add`
 
 Add node to epistemic graph.
 
-**Parameters:** `content`, `node_type` (default `"fact"`), `tags`
+**Parameters:** `layer`, `user_id`, `content`, `node_type` (default `"fact"`), `tags`
 
-### `memory_user_graph_query`
+### `memory_graph_query`
 
 Query graph by tag or type.
 
-**Parameters:** `user_id`, `tag`, `node_type`, `limit`
+**Parameters:** `layer`, `user_id`, `tag`, `node_type`, `limit`
 
-### `memory_user_stats`
+### `memory_stats`
 
 Memory statistics across all layers.
+
+**Parameters:** `layer`, `user_id`
 
 **Response:**
 ```json
 {
-  "l1_buffer": 5,
-  "l2_sessions": 12,
-  "l3_episodes": 8,
-  "l4_facts": 45,
-  "wiki_pages": 20,
-  "graph_nodes": 30
+  "l1_buffer": 5, "l2_sessions": 12, "l3_episodes": 8,
+  "l4_facts": 45, "wiki_pages": 20, "graph_nodes": 30
 }
+```
+
+### `memory_context_inject`
+
+Compressed summary for prompt injection (L4 top-10 + L3 top-3 + L1 recent-5 + wiki-3).
+
+**Parameters:** `layer`, `user_id`
+
+```python
+result = await mcp.call_tool("memory_context_inject", {
+    "layer": "user", "user_id": "alice"
+})
+# {"context": "FACTS: name=Alice\nEPISODES: Met team...\nRECENT: user: Hello\nWIKI: [diary] Day 1",
+#  "l4_facts_count": 10, "l3_episodes_count": 3, ...}
 ```
 
 ---
 
-## Agent Layer (10 tools)
+## Operations Tools (8 tools)
 
-Same as user tools but for agent identity.
+### `memory_api_key`
 
-| Tool | Description |
-|------|-------------|
-| `memory_agent_remember` | Save decision/error/principle |
-| `memory_agent_recall` | Search agent memory |
-| `memory_agent_forget` | Delete agent fact |
-| `memory_agent_session_start` | Start agent session |
-| `memory_agent_session_end` | End agent session |
-| `memory_agent_episode_save` | Save agent episode |
-| `memory_agent_episode_recall` | Find agent episodes |
-| `memory_agent_graph_add` | Add agent graph node |
-| `memory_agent_graph_query` | Query agent graph |
-| `memory_agent_stats` | Agent statistics |
+Manage API keys.
 
----
+**Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `action` | string | `"list"` | `"create"`, `"revoke"`, or `"list"` |
+| `user_id` | string | `"default"` | User to create key for |
+| `label` | string | `""` | Optional label |
+| `api_key` | string | `""` | Key to revoke |
 
-## Auth (3 tools)
+```python
+# Create
+result = await mcp.call_tool("memory_api_key", {
+    "action": "create", "user_id": "alice", "label": "prod"
+})
+# {"api_key": "ak_...", "user_id": "alice", "label": "prod"}
 
-| Tool | Parameters | Response |
-|------|-----------|----------|
-| `memory_create_api_key` | `user_id`, `label` | `{"api_key": "ak_..."}` |
-| `memory_revoke_api_key` | `api_key` | `{"revoked": true}` |
-| `memory_list_api_keys` | — | `{"keys": [...]}` |
+# List
+result = await mcp.call_tool("memory_api_key", {"action": "list"})
+```
 
----
+### `memory_backup`
 
-## Backup (4 tools)
+Manage backups.
 
-| Tool | Parameters | Response |
-|------|-----------|----------|
-| `memory_backup_now` | — | `{"path": "..."}` |
-| `memory_backup_list` | — | `{"backups": [...]}` |
-| `memory_backup_restore` | `backup_name` | `{"restored": [...]}` |
-| `memory_backup_status` | — | `{"running": true, "jitter_seconds": 3600, ...}` |
+**Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `action` | string | `"status"` | `"now"`, `"list"`, `"restore"`, or `"status"` |
+| `backup_name` | string | `""` | Backup to restore |
 
----
+```python
+# Create backup
+result = await mcp.call_tool("memory_backup", {"action": "now"})
 
-## Saga (2 tools)
+# List backups
+result = await mcp.call_tool("memory_backup", {"action": "list"})
+```
 
-### `memory_saga_consolidate`
+### `memory_saga`
 
-Consolidation saga: gather → distill → promote. Auto-rollback + watchdog.
+Run sagas with auto-rollback on failure.
 
-### `memory_saga_backup`
+**Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `action` | string | `"consolidate"` | `"consolidate"` or `"backup"` |
+| `user_id` | string | `"default"` | User identifier (consolidate only) |
 
-Backup saga: copy → verify. Auto-rollback + persistence.
+```python
+# Consolidation: gather → distill → promote
+result = await mcp.call_tool("memory_saga", {
+    "action": "consolidate", "user_id": "alice"
+})
 
----
+# Backup: copy → verify
+result = await mcp.call_tool("memory_saga", {"action": "backup"})
+```
 
-## Replica (1 tool)
+### `memory_data`
+
+Import/export memory data.
+
+**Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `action` | string | `"list"` | `"export"`, `"import"`, or `"list"` |
+| `user_id` | string | `"default"` | User to export |
+| `file_path` | string | `""` | File to import |
+| `target_user_id` | string | `""` | Import as this user |
+
+```python
+# Export
+result = await mcp.call_tool("memory_data", {
+    "action": "export", "user_id": "alice"
+})
+
+# Import
+result = await mcp.call_tool("memory_data", {
+    "action": "import", "file_path": "/path/to/export.json", "target_user_id": "bob"
+})
+```
 
 ### `memory_sync_replica`
 
-Sync read-only replica.
+Sync read-only replica for dashboard/metrics.
 
-**Parameters:** `replica_path`
-
----
-
-## Import/Export (3 tools)
-
-| Tool | Parameters | Response |
-|------|-----------|----------|
-| `memory_export` | `user_id`, `format` | Exports memory to JSON/JSONL |
-| `memory_import` | `user_id`, `data`, `format` | Imports memory from JSON/JSONL |
-| `memory_list_exports` | — | Lists available exports |
-
----
-
-## Maintenance (1 tool)
+**Response:** `{"synced": {...}, "ready": true}`
 
 ### `memory_cleanup`
 
-Full cleanup: deduplication, archival, staging, audit, backup, sagas.
+Full cleanup: deduplicate, archive, clean staging.
 
-**Parameters:** `user_id`, `older_than_days` (default 30)
-
----
-
-## Emergency (1 tool)
+**Parameters:** `user_id`, `retention_days` (default 30)
 
 ### `memory_lucidity_purge`
 
-Emergency purge of all user data from last N hours (data leak scenario).
+Emergency purge of all user data from last N hours.
 
 **Parameters:** `user_id`, `hours` (default 24)
 
-**Cleans:** core_memory, episodes, staging, audit_log, graph_nodes from last N hours.
+**Cleans:** core_memory, episodes, staging, audit_log, graph_nodes.
 
 ```python
 result = await mcp.call_tool("memory_lucidity_purge", {
@@ -229,29 +262,9 @@ result = await mcp.call_tool("memory_lucidity_purge", {
 # {"core_memory": 15, "episodes": 8, "staging": 12, "audit": 50, "graph_nodes": 5}
 ```
 
----
-
-## Context Injection (1 tool)
-
-### `memory_user_context_inject`
-
-Compressed summary for prompt injection (L4 top-10 + L3 top-3 + L1 recent-5 + wiki-3).
-
-**Parameters:** `user_id`
-
-```python
-result = await mcp.call_tool("memory_user_context_inject", {"user_id": "alice"})
-# {"context": "FACTS: name=Alice\nEPISODES: Met team...\nRECENT: user: Hello\nWIKI: [diary] Day 1",
-#  "l4_facts_count": 10, "l3_episodes_count": 3, ...}
-```
-
----
-
-## Hybrid Search (1 tool)
-
 ### `memory_search_rrf`
 
-Hybrid search using Reciprocal Rank Fusion (FTS5 + vector similarity). Falls back to LIKE if FTS5 unavailable.
+Hybrid search using Reciprocal Rank Fusion (FTS5 + vector similarity).
 
 **Parameters:** `query`, `user_id`, `limit`
 

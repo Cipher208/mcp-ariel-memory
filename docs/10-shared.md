@@ -575,8 +575,8 @@ Logs tool name, user ID, and elapsed time. Stores elapsed time in `ctx.metadata[
 
 ```python
 from shared.middleware import AuditMiddleware
-# Output: "Tool call: memory_user_remember (user=alice)"
-# Output: "Tool completed: memory_user_remember in 0.042s"
+# Output: "Tool call: memory_remember (user=alice)"
+# Output: "Tool completed: memory_remember in 0.042s"
 ```
 
 ### Class: `ImportanceGateMiddleware`
@@ -594,7 +594,7 @@ class ImportanceGateMiddleware(Middleware):
 | `technical_weight` | `float` | `0.3` | Bonus for technical keywords. |
 | `question_weight` | `float` | `0.2` | Bonus for questions. |
 
-Only active for `memory_user_remember`, `memory_agent_remember`, `memory_user_episode_save`, `memory_agent_episode_save`. Filters out low-importance content.
+Only active for `memory_remember` (layer="user"), `memory_episode_save` (layer="user"). Filters out low-importance content.
 
 ### `ImportanceGateMiddleware.calculate_score`
 
@@ -681,7 +681,7 @@ from shared.middleware import MiddlewarePipeline, MiddlewareContext, ValidationM
 pipeline = MiddlewarePipeline()
 pipeline.add(ValidationMiddleware())
 
-ctx = MiddlewareContext(tool_name="memory_user_remember", user_id="alice", args={"key": "test"})
+ctx = MiddlewareContext(tool_name="memory_remember", user_id="alice", args={"key": "test"})
 result = await pipeline.execute(ctx, my_handler)
 ```
 

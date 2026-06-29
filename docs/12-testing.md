@@ -13,7 +13,7 @@ python -m pytest tests/test_auth_crypto.py -v
 uv run mcp dev mcp_server.py
 ```
 
-**Status:** 158/158 pytest + 37/37 MCP tools. Python 3.10–3.13 CI matrix. Single `memory.db` file. Envelope encryption for sensitive data.
+**Status:** 158/158 pytest + 19/19 MCP tools. Python 3.10–3.13 CI matrix. Single `memory.db` file. Envelope encryption for sensitive data.
 
 ## Test Fixtures
 
@@ -42,7 +42,7 @@ mcp-ariel-memory/
 ├── openapi.yaml
 ├── .github/workflows/ci.yml
 ├── config.yaml / config.py
-├── mcp_server.py              # MCP SDK (37 async tools)
+├── mcp_server/                 # MCP SDK (19 unified tools)
 ├── server.py                  # Legacy sync wrapper
 ├── docs/                      # 13 documents
 ├── tests/                     # 158 pytest tests

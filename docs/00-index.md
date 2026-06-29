@@ -46,7 +46,7 @@ python -m mcp_server --transport stdio
 | # | Document | Description |
 |---|----------|-------------|
 | 01 | [Architecture](01-architecture.md) | Stack, two-layer model, L1-L4, consolidation, 21 DB tables |
-| 02 | [MCP Tools](02-mcp-tools.md) | All 37 tools with parameters and examples |
+| 02 | [MCP Tools](02-mcp-tools.md) | All 19 tools with parameters and examples |
 | 03 | [Core Memory](03-core.md) | ReflexBuffer, SessionStore, EpisodicMemory, CoreMemory |
 | 04 | [Search (RAG)](04-rag.md) | FTS5 + fallback, RRF, RetrievalRouter, ConflictResolver |
 | 05 | [Knowledge Graph](05-graph.md) | EpistemicGraph, TemporalGraph |

@@ -11,14 +11,14 @@
 | Search | FTS5 + sqlite-vec (optional) + RRF |
 | Hooks | 24 hooks, integrated into tool pipeline |
 | Docker | Dockerfile + docker-compose |
-| Tests | pytest + pytest-asyncio (56 tests) |
+| Tests | pytest + pytest-asyncio (158 tests) |
 | CI/CD | GitHub Actions |
 
 ## Two-Layer Model
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│               MCP Server (37 async tools)            │
+│               MCP Server (19 async tools)            │
 │  FastMCP + stdio/HTTP transports + auth              │
 ├──────────────────────┬──────────────────────────────┤
 │   Layer 1: User      │   Layer 2: Agent             │
