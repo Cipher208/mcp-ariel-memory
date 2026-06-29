@@ -113,15 +113,26 @@ def main():
     parser.add_argument("--host", default="0.0.0.0", help="HTTP host (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=8000, help="HTTP port (default: 8000)")
     parser.add_argument("--dashboard", action="store_true", help="Enable dashboard + metrics endpoints")
+    parser.add_argument("--no-auth", action="store_true", help="Disable auth for development")
     args = parser.parse_args()
+
+    if args.no_auth:
+        os.environ["MCP_AUTH_DISABLED"] = "1"
 
     if args.transport == "http":
         if args.dashboard:
             _run_with_dashboard(args.host, args.port)
         else:
-            mcp.settings.host = args.host
-            mcp.settings.port = args.port
-            mcp.run(transport="streamable-http")
+            try:
+                mcp.settings.host = args.host
+                mcp.settings.port = args.port
+                mcp.run(transport="streamable-http")
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(
+                    "HTTP transport failed: %s. Try with --dashboard flag.", e
+                )
+                raise
     else:
         mcp.run(transport="stdio")
 
@@ -298,6 +309,12 @@ def _run_with_dashboard(host: str, port: int):
 
     class AuthMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request, call_next):
+            # Skip auth for MCP endpoint and health checks
+            if request.url.path in ("/mcp", "/health"):
+                return await call_next(request)
+            # Skip auth if disabled
+            if os.environ.get("MCP_AUTH_DISABLED"):
+                return await call_next(request)
             auth = request.headers.get("Authorization", "")
             if auth and not bearer_auth.verify(auth):
                 from starlette.responses import JSONResponse
