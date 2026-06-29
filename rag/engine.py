@@ -167,8 +167,8 @@ class RAGEngine:
         embeddings = await embed_texts(chunks)
         keep_floats = _config.get("rag", "storage", "keep_float_blobs", default=True)
         for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
-            float_blob = struct.pack("%df" % len(emb), *emb) if emb and keep_floats else None
-            bin_blob = self._binary_for(emb) if emb and _HAS_BINARY else None
+            float_blob = struct.pack("%df" % len(emb), *emb) if emb and len(emb) > 0 and keep_floats else None
+            bin_blob = self._binary_for(emb) if emb and len(emb) > 0 and _HAS_BINARY else None
             await conn.execute(
                 "INSERT INTO rag_chunks (page_id, chunk_index, content, embedding, bin_embedding) VALUES (?, ?, ?, ?, ?)",
                 (page_id, i, chunk, float_blob, bin_blob),
@@ -216,8 +216,8 @@ class RAGEngine:
         embeddings = await embed_texts(chunks)
         keep_floats = _config.get("rag", "storage", "keep_float_blobs", default=True)
         for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
-            float_blob = struct.pack("%df" % len(emb), *emb) if emb and keep_floats else None
-            bin_blob = self._binary_for(emb) if emb and _HAS_BINARY else None
+            float_blob = struct.pack("%df" % len(emb), *emb) if emb and len(emb) > 0 and keep_floats else None
+            bin_blob = self._binary_for(emb) if emb and len(emb) > 0 and _HAS_BINARY else None
             await conn.execute(
                 "INSERT INTO rag_chunks (page_id, chunk_index, content, embedding, bin_embedding) VALUES (?, ?, ?, ?, ?)",
                 (page_id, i, chunk, float_blob, bin_blob),
