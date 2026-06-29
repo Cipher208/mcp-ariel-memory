@@ -1,6 +1,7 @@
 """Layer tools — unified user/agent memory operations.
 
 All tools accept a `layer` parameter: "user" or "agent".
+Rate limiting is applied to all write operations.
 """
 
 from mcp.server.fastmcp import Context
@@ -38,6 +39,21 @@ def _get_hooks(app, layer: str):
     return app.user_hooks
 
 
+async def _check_rate_limit(app, user_id: str) -> dict | None:
+    """Check rate limit. Returns error dict if exceeded, None if ok."""
+    try:
+        result = await app.rate_limiter.check(user_id)
+        if not result.get("allowed", True):
+            return {
+                "error": "rate_limit_exceeded",
+                "remaining": result.get("remaining", 0),
+                "reset_in": result.get("reset_in", 60),
+            }
+    except Exception:
+        pass
+    return None
+
+
 def register_tools(mcp):
     @mcp.tool()
     async def memory_remember(
@@ -60,6 +76,10 @@ def register_tools(mcp):
         app = _get_ctx(ctx)
         metrics.inc("tool_calls")
         metrics.inc("tool_remember")
+
+        rate_limit = await _check_rate_limit(app, user_id)
+        if rate_limit:
+            return rate_limit
 
         hooks = _get_hooks(app, layer)
         gate = hooks._importance_gate({"text": value})
@@ -124,6 +144,11 @@ def register_tools(mcp):
         app = _get_ctx(ctx)
         metrics.inc("tool_calls")
         metrics.inc("tool_forget")
+
+        rate_limit = await _check_rate_limit(app, user_id)
+        if rate_limit:
+            return rate_limit
+
         deleted = await _get_memory(app, layer, user_id).forget(key)
         return {"deleted": deleted}
 
@@ -142,6 +167,11 @@ def register_tools(mcp):
         app = _get_ctx(ctx)
         metrics.inc("tool_calls")
         metrics.inc("tool_session_start")
+
+        rate_limit = await _check_rate_limit(app, user_id)
+        if rate_limit:
+            return rate_limit
+
         session_id = await _get_memory(app, layer, user_id).l2.create_session(user_id)
         return {"session_id": session_id}
 
@@ -164,6 +194,11 @@ def register_tools(mcp):
         app = _get_ctx(ctx)
         metrics.inc("tool_calls")
         metrics.inc("tool_session_end")
+
+        rate_limit = await _check_rate_limit(app, user_id)
+        if rate_limit:
+            return rate_limit
+
         await _get_memory(app, layer, user_id).l2.close_session(session_id, summary)
         return {"status": "ok"}
 
@@ -188,6 +223,11 @@ def register_tools(mcp):
         app = _get_ctx(ctx)
         metrics.inc("tool_calls")
         metrics.inc("tool_episode_save")
+
+        rate_limit = await _check_rate_limit(app, user_id)
+        if rate_limit:
+            return rate_limit
+
         episode_id = await _get_memory(app, layer, user_id).l3.save(user_id, summary, weight, tags)
         return {"episode_id": episode_id}
 
@@ -238,6 +278,11 @@ def register_tools(mcp):
         app = _get_ctx(ctx)
         metrics.inc("tool_calls")
         metrics.inc("tool_graph_add")
+
+        rate_limit = await _check_rate_limit(app, user_id)
+        if rate_limit:
+            return rate_limit
+
         node_id = await _get_graph(app, layer).add_node(user_id, content, node_type, tags)
         return {"node_id": node_id}
 
