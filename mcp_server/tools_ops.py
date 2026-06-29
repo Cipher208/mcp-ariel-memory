@@ -276,6 +276,7 @@ def register_tools(mcp):
         query: str = "",
         user_id: str = "default",
         limit: int = 10,
+        strategy: str = "hybrid",
         ctx: Context = None,
     ) -> dict:
         """Hybrid search using Reciprocal Rank Fusion (FTS5 + vector similarity).
@@ -284,9 +285,10 @@ def register_tools(mcp):
             query: Search query
             user_id: User identifier
             limit: Max results (default 10)
+            strategy: "fts", "mib", or "hybrid" (default)
         """
         metrics.inc("tool_calls")
         metrics.inc("tool_search_rrf")
         app = _get_ctx(ctx)
-        results = await app.user_rag.search(query, user_id, strategy="hybrid", limit=limit)
-        return {"results": results, "count": len(results), "method": "hybrid"}
+        results = await app.user_rag.search(query, user_id=user_id, strategy=strategy, limit=limit)
+        return {"results": results, "count": len(results), "strategy": strategy}
