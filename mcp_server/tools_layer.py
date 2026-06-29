@@ -6,11 +6,14 @@ Caching is applied to context_inject and recall.
 """
 
 import hashlib
+import logging
 import time
 
 from mcp.server.fastmcp import Context
 
 from shared.metrics import metrics
+
+logger = logging.getLogger(__name__)
 
 
 def _get_ctx(ctx: Context):
@@ -126,9 +129,12 @@ def register_tools(mcp):
             return rate_limit
 
         hooks = _get_hooks(app, layer)
-        gate = hooks._importance_gate({"text": value})
-        if gate.get("bypass"):
-            return {"status": "skipped", "reason": "below_importance_threshold"}
+        try:
+            gate = hooks._importance_gate({"text": value})
+            if gate.get("bypass"):
+                return {"status": "skipped", "reason": "below_importance_threshold"}
+        except Exception as e:
+            logger.warning("Hook _importance_gate failed: %s", e)
 
         mem = _get_memory(app, layer, user_id)
 

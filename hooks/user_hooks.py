@@ -97,12 +97,23 @@ class UserHooks:
         if not text:
             return 0.0
         score = 0.3
+        # Length heuristics
         if len(text) > 15:
-            score += 0.2
+            score += 0.15
         if len(text) > 100:
             score += 0.1
+        # Semantic keywords
+        keywords = ["important", "critical", "urgent", "preference", "favorite", "hate", "love"]
+        for kw in keywords:
+            if kw in text.lower():
+                score += 0.1
+                break
+        # Structure signals
         if "?" in text:
-            score += 0.2
+            score += 0.15
         if text.count("\n") > 2:
             score += 0.1
+        # Emotional markers
+        if any(c in text for c in ["!", "?"]):
+            score += 0.05
         return min(1.0, score)

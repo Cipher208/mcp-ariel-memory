@@ -3,6 +3,7 @@ Agent Layer Hooks - 12 hooks for agent identity events
 """
 
 import asyncio
+import logging
 from typing import Any
 
 from graph.epistemic import EpistemicGraph
@@ -12,6 +13,8 @@ from rag.conflict import ConflictResolver
 from rag.router import RetrievalRouter
 
 from .registry import hook_registry
+
+logger = logging.getLogger(__name__)
 
 
 def _run_async(coro):
@@ -36,6 +39,40 @@ class AgentHooks:
         self.user_id = user_id
         self.graph = EpistemicGraph(layer="agent")
         self._register_all()
+
+    def _register_all(self):
+        hook_registry.register("error_occurred", self._error_occurred)
+        hook_registry.register("decision_made", self._decision_made)
+        hook_registry.register("self_correction", self._self_correction)
+        hook_registry.register("personality_shift", self._personality_shift)
+        hook_registry.register("emotion_context", self._emotion_context)
+        hook_registry.register("wiki_agent", self._wiki_agent)
+        hook_registry.register("consolidation", self._consolidation)
+        hook_registry.register("forgetting_ritual", self._forgetting_ritual)
+        hook_registry.register("auto_context", self._auto_context)
+        hook_registry.register("retrieval_router", self._retrieval_router)
+        hook_registry.register("conflict_resolver", self._conflict_resolver)
+        hook_registry.register("emotion", self._emotion)
+
+    def _importance_gate(self, ctx: dict[str, Any]) -> dict[str, Any]:
+        """Filter agent messages by importance. Agent-specific keywords boost score."""
+        text = ctx.get("text", "")
+        if not text:
+            return {"importance": 0.0, "bypass": True}
+
+        score = 0.2
+        # Agent-specific keywords
+        agent_keywords = ["error", "decision", "principle", "lesson", "pattern"]
+        for kw in agent_keywords:
+            if kw in text.lower():
+                score += 0.15
+        # General heuristics
+        if len(text) > 50:
+            score += 0.1
+        if "?" in text:
+            score += 0.1
+
+        return {"importance": min(1.0, score), "bypass": score < 0.3}
 
     def _register_all(self):
         hook_registry.register("error_occurred", self._error_occurred)
