@@ -8,8 +8,6 @@ from pathlib import Path
 
 from mcp.server.fastmcp import Context, FastMCP
 
-from shared.metrics import metrics
-
 _data_dir = os.environ.get("MCP_MEMORY_DATA_DIR", str(Path.home() / ".mcp-ariel-memory"))
 os.environ.setdefault("MCP_MEMORY_DATA_DIR", _data_dir)
 
@@ -18,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import config
 from core import MemoryManager
 from features.audit_trail import AuditTrail
-from features.auth import api_key_auth, bearer_auth
+from features.auth import bearer_auth
 from features.backup import BackupManager
 from features.backup_cron import backup_cron
 from features.import_export import ImportExport

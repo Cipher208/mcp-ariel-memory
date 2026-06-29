@@ -7,7 +7,6 @@ Caching is applied to context_inject and recall.
 
 import hashlib
 import time
-from functools import lru_cache
 
 from mcp.server.fastmcp import Context
 
