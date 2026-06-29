@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [1.0.0] - 2026-06-29
 
+### Breaking changes
+- **RAG API:** removed `RAGEngine.search_rrf()`, `.search_its()`, `.search_binary()`. Use unified `.search(query, strategy=...)` with `"fts"`, `"mib"`, or `"hybrid"` instead.
+
+### Migration guide
+```python
+# Before
+await engine.search_rrf("query", user_id="u")
+await engine.search_its("query", user_id="u")
+await engine.search_binary("query", user_id="u")
+
+# After
+await engine.search("query", user_id="u", strategy="hybrid")
+await engine.search("query", user_id="u", strategy="hybrid")
+await engine.search("query", user_id="u", strategy="mib")
+```
+
 ### Fixed
 - **P0** `AgentHooks._importance_gate` missing — `memory_remember(layer="agent")` crashed with `AttributeError`. Added method with agent-specific keyword scoring.
 - **P1** Backup cron `db_files` duplicated same filename 10x. Copy-paste error — now single entry.
