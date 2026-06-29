@@ -416,7 +416,8 @@ class RAGEngine:
                 existing = seen[rid]
                 if r.get("source") == "mib" and existing.bin_score is None:
                     existing.bin_score = r["score"]
-                existing.rrf_score = max(existing.rrf_score, r["score"])
+                if r["score"] is not None:
+                    existing.rrf_score = max(existing.rrf_score or 0.0, r["score"])
             else:
                 seen[rid] = ScoredCandidate(
                     id=rid,
@@ -424,7 +425,7 @@ class RAGEngine:
                     title=r["title"],
                     content=r["content"],
                     wiki_type=r.get("wiki_type"),
-                    rrf_score=r["score"],
+                    rrf_score=r["score"] or 0.0,
                     bin_score=r["score"] if r.get("source") == "mib" else None,
                     source=r.get("source", ""),
                 )
