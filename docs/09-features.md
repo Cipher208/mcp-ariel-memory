@@ -4,7 +4,7 @@
 
 ### APIKeyAuth
 
-API key authentication with file persistence. Keys are stored in `~/.mcp-ariel-memory/api_keys.json`.
+API key authentication with encrypted file persistence. Keys are stored in `~/.mcp-ariel-memory/api_keys.json` and encrypted at rest using libsodium secretbox (AES-256-GCM). Legacy plain JSON files are auto-rotated to encrypted format on first read.
 
 #### Class: `APIKeyAuth`
 
@@ -120,7 +120,7 @@ print(success)  # True
 
 ### BearerAuth
 
-Bearer token authentication — persistent (saved to file). Token survives server restarts.
+Bearer token authentication — persistent and encrypted. Token survives server restarts, stored encrypted at rest.
 
 #### Class: `BearerAuth`
 
