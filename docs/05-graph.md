@@ -34,7 +34,9 @@ g_agent = EpistemicGraph(layer="agent")
 async def init_db(self) -> None
 ```
 
-Creates `epi_nodes` and `epi_edges` tables with indexes. Runs automatically on first use. Handles migration (adds `layer` column if missing from older databases).
+Creates `epi_nodes`, `epi_edges`, and `epi_tags` tables with indexes. Runs automatically on first use. Handles migration (adds `layer` column if missing from older databases).
+
+Tags are stored in a separate `epi_tags` table for fast indexed lookups (migration v3).
 
 ```python
 await g.init_db()
@@ -92,7 +94,7 @@ async def query_by_tag(self, user_id: str, tag: str, limit: int = 20) -> List[Ep
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `user_id` | `str` | required | Filter by owner |
-| `tag` | `str` | required | Tag to match (JSON `LIKE` search) |
+| `tag` | `str` | required | Tag to match (uses epi_tags table with JOIN) |
 | `limit` | `int` | `20` | Max results |
 
 **Returns**: `List[EpistemicNode]` — sorted by confidence descending.

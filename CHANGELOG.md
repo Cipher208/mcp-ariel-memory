@@ -26,6 +26,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - `Saga._data` wasn't saved before `update()` — moved `step.data` assignment before `_data.update()` to preserve pre-step state.
 - `rag/engine.py` empty embedding guard — added `len(emb) > 0` check before `struct.pack`.
 - Missing indexes on `updated_at`/`timestamp` columns — added for `core_memory`, `user_wiki`, `agent_wiki`, `wiki_index`, `audit_log`.
+- `query_by_tag()` used `LIKE` on JSON — extracted tags to `epi_tags` table with indexed JOIN (1850 ops/s).
+- `_search_binary()` loaded all rows into memory — changed to batched `fetchmany(1000)`.
+- Missing `rag_chunks(page_id, chunk_index)` index — added for JOIN performance (3537 ops/s).
 
 ### Added
 - `AgentHooks._importance_gate` with agent-specific keywords (error, decision, principle, lesson, pattern).
@@ -42,6 +45,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - 6 new tests for `features/secrets.py` — `_load_master_key`, `_save_dotenv`, `_load_dotenv`, `_get_master_key` caching.
 - MultiSourceRAG documentation in `docs/04-rag.md`.
 - 5 database indexes on `updated_at`/`timestamp` columns.
+- `epi_tags` table with indexed JOIN for fast tag lookups (migration v3).
+- `rag_chunks(page_id, chunk_index)` index for JOINs (migration v4).
+- Batched embedding reads in `search_binary()` (fetchmany with BATCH_SIZE=1000).
+- Performance benchmarks: FTS 1817 ops/s, MIB 215 ops/s, hybrid 178 ops/s, epi_tags JOIN 1850 ops/s, rag_chunks JOIN 3537 ops/s.
 
 ### Changed
 - Dashboard `features.dashboard: false` by default (was `true`).

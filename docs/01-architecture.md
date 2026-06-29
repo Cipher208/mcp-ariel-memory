@@ -57,7 +57,7 @@ Message → L1 (buffer)
          → L4 (consolidation, if weight > 0.7)
 ```
 
-## Database Tables (20)
+## Database Tables (21)
 
 | Table | Module | Purpose |
 |-------|--------|---------|
@@ -74,6 +74,7 @@ Message → L1 (buffer)
 | `rag_relations` | rag/engine.py | RAG relations |
 | `epi_nodes` | graph/epistemic.py | Epistemic graph nodes |
 | `epi_edges` | graph/epistemic.py | Epistemic graph edges |
+| `epi_tags` | graph/epistemic.py | Epistemic node tags (fast JOIN lookup) |
 | `temporal_events` | graph/temporal.py | Temporal events |
 | `temporal_links` | graph/temporal.py | Temporal links |
 | `user_wiki` | wiki/user_wiki.py | User wiki entries |

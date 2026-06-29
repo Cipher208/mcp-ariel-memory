@@ -49,8 +49,8 @@ Shared `master_key_env` fixture in `tests/conftest.py` sets `MCP_MASTER_KEY` for
 
 | Operation | Speed | Notes |
 |-----------|-------|-------|
-| `epi_tags_join` | 1855 ops/s | Tag lookup via epi_tags table (was LIKE on JSON) |
-| `rag_chunks_join` | 3386 ops/s | rag_chunks + rag_pages JOIN (with index) |
+| `epi_tags_join` | 1850 ops/s | Tag lookup via epi_tags table (was LIKE on JSON) |
+| `rag_chunks_join` | 3537 ops/s | rag_chunks + rag_pages JOIN (with index) |
 
 ### Running Benchmarks
 
