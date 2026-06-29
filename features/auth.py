@@ -4,6 +4,7 @@ Bearer token and API keys are encrypted at rest using libsodium secretbox.
 """
 
 import json
+import logging
 import os
 import secrets
 import time
@@ -12,6 +13,8 @@ from pathlib import Path
 from typing import Any
 
 from features.secrets import encrypt_json, decrypt_json, is_encrypted_blob
+
+logger = logging.getLogger(__name__)
 
 
 class APIKeyAuth:
@@ -37,13 +40,14 @@ class APIKeyAuth:
                 stacklevel=2,
             )
             legacy = json.loads(blob.decode("utf-8"))
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to load %s: %s", self.keys_file, e)
             return {}
         # Rotate outside try/except — _save failure must not mask the loaded data
         try:
             self._save(legacy)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Failed to encrypt legacy file %s: %s", self.keys_file, e)
         return legacy
 
     def _save(self, data: dict[str, dict] = None) -> None:
@@ -54,8 +58,6 @@ class APIKeyAuth:
         ciphertext = encrypt_json(data)
         with open(tmp_file, "wb") as f:
             f.write(ciphertext)
-            f.flush()
-            os.fsync(f.fileno())
         try:
             os.chmod(tmp_file, 0o600)
         except OSError:
@@ -144,8 +146,8 @@ class BearerAuth:
                 if token:
                     self._save(token)
                 return token
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to load bearer token from %s: %s", self.token_file, e)
 
         # 3. Create new and save
         token = f"mt_{secrets.token_hex(32)}"
@@ -159,8 +161,6 @@ class BearerAuth:
         tmp_file = self.token_file.with_suffix(".json.tmp")
         with open(tmp_file, "wb") as f:
             f.write(ciphertext)
-            f.flush()
-            os.fsync(f.fileno())
         try:
             os.chmod(tmp_file, 0o600)
         except OSError:

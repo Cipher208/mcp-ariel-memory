@@ -4,17 +4,21 @@ import asyncio
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
-# Ensure migrations run before any test
-async def _setup():
-    from shared.migrations import migration_manager
+@pytest.fixture(autouse=True, scope="session")
+def run_migrations():
+    """Ensure migrations run before any test."""
 
-    await migration_manager.migrate()
+    async def _setup():
+        from shared.migrations import migration_manager
 
+        await migration_manager.migrate()
 
-asyncio.run(_setup())
+    asyncio.run(_setup())
 
 
 def test_mcp_tools_count():
