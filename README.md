@@ -2,7 +2,7 @@
 
 **Universal Two-Layer Memory MCP Server**
 
-A two-layer universal memory system for AI agents. Real MCP Python SDK, async, **37 tools**, stdio + HTTP transports, dashboard, metrics, authentication, automatic backups, external wiki folders, read-only replica.
+A two-layer universal memory system for AI agents. Real MCP Python SDK, async, **19 unified tools**, stdio + HTTP transports, dashboard, metrics, authentication, envelope encryption, automatic backups, external wiki folders, read-only replica.
 
 [![CI](https://github.com/Cipher208/mcp-ariel-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/Cipher208/mcp-ariel-memory/actions/workflows/ci.yml)
 
@@ -19,13 +19,16 @@ The server is built with the official MCP Python SDK (FastMCP), supports both st
 
 ### Key Capabilities
 
-- **37 MCP tools** covering memory CRUD, search, graph operations, and system management
+- **19 unified MCP tools** with `layer` parameter (user/agent) instead of 37 separate tools
+- **Envelope encryption** — all sensitive data (API keys, tokens, saga state) encrypted at rest with libsodium secretbox
+- **.env support** — set `MCP_MASTER_KEY` in `.env` file for easy local development
 - **Hybrid search** combining FTS5 full-text with vector similarity via Reciprocal Rank Fusion
 - **Knowledge graphs** for epistemic (facts/decisions) and temporal (timeline) relationships
 - **Wiki system** with 14 content types, .md files as source of truth, and external folder sync
 - **24 hooks** for intercepting memory operations at every stage
 - **Saga pattern** for multi-step operations with compensation and watchdog
 - **Platform-aware async** — aiosqlite on Linux/macOS, sync fallback on Windows
+- **Python 3.10–3.13** tested in CI matrix
 
 ## Installation
 
@@ -57,7 +60,7 @@ docker run -p 8000:8000 ariel-memory
 git clone https://github.com/Cipher208/mcp-ariel-memory.git
 cd mcp-ariel-memory
 pip install -e ".[all]"
-python -m mcp_server --transport stdio
+python -m mcp_server.server --transport stdio
 ```
 
 ---
@@ -96,7 +99,7 @@ Or with Docker:
 
 ```bash
 # Start HTTP server
-python -m mcp_server --transport http --port 8000
+python -m mcp_server.server --transport http --port 8000
 
 # Or with Docker
 docker run -p 8000:8000 ariel-memory --transport http --port 8000
@@ -128,15 +131,16 @@ docker-compose up
 
 | Feature | Description |
 |---------|-------------|
-| **37 MCP Tools** | User layer (10), Agent layer (10), Auth (3), Backup (4), Saga (2), Replica (1), Import/Export (3), Maintenance (1), Emergency (1), Search (1), Context (1) |
+| **19 MCP Tools** | Layer tools (11): remember, recall, forget, session, episode, graph, stats, context. Ops tools (8): api_key, backup, saga, data, replica, cleanup, purge, search |
 | **Two-Layer Memory** | L1 ReflexBuffer → L2 SessionStore → L3 EpisodicMemory → L4 CoreMemory |
+| **Envelope Encryption** | libsodium secretbox (AES-256-GCM) for API keys, tokens, saga state |
 | **Hybrid Search** | FTS5 + vector similarity via Reciprocal Rank Fusion (RRF) |
 | **Knowledge Graph** | Epistemic graph (facts, decisions) + Temporal graph (timeline) |
 | **Wiki System** | 14 types (7 user + 7 agent), .md files as source of truth, FTS5 index |
 | **24 Hooks** | 12 user hooks + 12 agent hooks, integrated into tool pipeline |
 | **Saga Pattern** | Multi-step operations with compensation, timeout, watchdog |
 | **Dashboard** | HTML dashboard with stats, facts, episodes, audit log |
-| **Auth** | API keys + Bearer tokens, persistent storage |
+| **Auth** | API keys + Bearer tokens, encrypted at rest |
 | **Backup** | Auto-backups with jitter, restore, cleanup |
 | **Metrics** | Prometheus-compatible metrics endpoint |
 | **Read-Only Replica** | SQLite read-only replica for queries |
@@ -155,6 +159,15 @@ Message → L1 (ReflexBuffer, ring buffer, 50 items)
          → EmotionTrigger (emotional analysis)
          → L3 (EpisodicMemory, SQLite, 1000 episodes)
          → L4 (CoreMemory, key-value, 5000 facts)
+```
+
+### Secret Resolution Order
+
+```
+1. OS keychain (keyring library) — recommended for production
+2. .env file (MCP_MASTER_KEY=...)
+3. config.yaml (crypto.master_key_hex)
+4. Environment variable (MCP_MASTER_KEY)
 ```
 
 ### Database Tables (21)
@@ -181,7 +194,6 @@ Message → L1 (ReflexBuffer, ring buffer, 50 items)
 | `wiki_index` | wiki/file_wiki.py | Wiki FTS5 index |
 | `memory_conflicts` | rag/conflict.py | Memory conflicts |
 | `migration_log` | shared/migrations.py | Migration history |
-| `api_keys` | features/auth.py | API keys |
 
 ---
 
@@ -190,7 +202,7 @@ Message → L1 (ReflexBuffer, ring buffer, 50 items)
 | # | Document | Description |
 |---|----------|-------------|
 | 01 | [Architecture](docs/01-architecture.md) | Stack, two-layer model, L1-L4, consolidation |
-| 02 | [MCP Tools](docs/02-mcp-tools.md) | All 37 tools with parameters and examples |
+| 02 | [MCP Tools](docs/02-mcp-tools.md) | All 19 tools with parameters and examples |
 | 03 | [Core Memory](docs/03-core.md) | ReflexBuffer, SessionStore, EpisodicMemory, CoreMemory |
 | 04 | [Search (RAG)](docs/04-rag.md) | FTS5 + fallback, RRF, RetrievalRouter, ConflictResolver |
 | 05 | [Knowledge Graph](docs/05-graph.md) | EpistemicGraph, TemporalGraph |
@@ -207,8 +219,11 @@ Message → L1 (ReflexBuffer, ring buffer, 50 items)
 ## Testing
 
 ```bash
-# Run all tests (104 passed)
+# Run all tests (158 passed)
 pytest tests/ -v
+
+# Run with parallel execution
+pytest tests/ -v -n auto
 
 # Run only integration tests
 pytest tests/test_integration.py -v
@@ -234,6 +249,24 @@ wiki:
   agent: { decision_log: true, external_dirs: ["/path/to/lore"] }
 auth: { api_keys_enabled: true, bearer_token_enabled: true }
 backup: { auto_backup: true, backup_interval_hours: 24 }
+
+# Security: master key (add config.yaml to .gitignore!)
+# crypto:
+#   master_key_hex: "your-32-byte-hex-key"
+```
+
+### Secrets Management
+
+```bash
+# Option 1: .env file (recommended for development)
+echo 'MCP_MASTER_KEY=your-32-byte-hex-key' > .env
+
+# Option 2: Environment variable
+export MCP_MASTER_KEY="your-32-byte-hex-key"
+
+# Option 3: OS keychain (recommended for production)
+pip install keyring
+python -c "from features.secrets import install_master_key_to_keychain; install_master_key_to_keychain('your-key')"
 ```
 
 ---
