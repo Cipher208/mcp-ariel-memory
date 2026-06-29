@@ -2,13 +2,16 @@
 Saga — pattern for multi-step operations with compensation (rollback).
 Includes watchdog for detecting stuck sagas and persistence for recovery.
 State files are encrypted at rest using envelope encryption.
+Supports retry with exponential backoff and idempotent step execution (B7).
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import threading
 import time
+import uuid
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from enum import Enum
@@ -34,7 +37,7 @@ class SagaStatus(str, Enum):
     FAILED = "failed"
     COMPENSATING = "compensating"
     COMPENSATED = "compensated"
-    STUCK = "stuck"  # detected by watchdog
+    STUCK = "stuck"
 
 
 @dataclass
@@ -42,22 +45,27 @@ class SagaStep:
     name: str
     action: Callable[[dict], Coroutine[Any, Any, dict]]
     compensation: Callable[[dict], Coroutine[Any, Any, None]] | None = None
-    timeout_seconds: int | None = None  # step timeout (None = use saga timeout)
+    timeout_seconds: int | None = None
+    retry_attempts: int = 0
+    retry_backoff: float = 0.5
+    retry_on: tuple = (ConnectionError, TimeoutError)
+    idempotency_key_fn: Callable[[dict], str] | None = None
     status: SagaStatus = SagaStatus.PENDING
     result: dict = field(default_factory=dict)
     data: dict = field(default_factory=dict)
 
 
 class Saga:
-    def __init__(self, name: str, timeout_seconds: int = 300):
+    def __init__(self, name: str, timeout_seconds: int = 300, saga_id: str | None = None):
         self.name = name
+        self._saga_id = saga_id or f"{name}_{uuid.uuid4().hex[:8]}"
         self.timeout_seconds = timeout_seconds
         self._steps: list[SagaStep] = []
         self._status = SagaStatus.PENDING
         self._data: dict = {}
         self._current_step = 0
         self._started_at: float = 0.0
-        self._saga_id: str = ""
+        self._completed_steps: list[int] = []
         SAGA_DIR.mkdir(parents=True, exist_ok=True)
 
     @property
@@ -68,18 +76,37 @@ class Saga:
     def data(self) -> dict:
         return self._data
 
+    @property
+    def saga_id(self) -> str:
+        return self._saga_id
+
     def add_step(
         self,
         name: str,
         action: Callable[[dict], Coroutine[Any, Any, dict]],
         compensation: Callable[[dict], Coroutine[Any, Any, None]] | None = None,
         timeout_seconds: int | None = None,
+        retry_attempts: int = 0,
+        retry_backoff: float = 0.5,
+        retry_on: tuple = (ConnectionError, TimeoutError),
+        idempotency_key_fn: Callable[[dict], str] | None = None,
     ) -> "Saga":
-        self._steps.append(SagaStep(name=name, action=action, compensation=compensation, timeout_seconds=timeout_seconds))
+        self._steps.append(
+            SagaStep(
+                name=name,
+                action=action,
+                compensation=compensation,
+                timeout_seconds=timeout_seconds,
+                retry_attempts=retry_attempts,
+                retry_backoff=retry_backoff,
+                retry_on=retry_on,
+                idempotency_key_fn=idempotency_key_fn,
+            )
+        )
         return self
 
     def _save_state(self):
-        """Save state to disk for crash recovery (encrypted if available)."""
+        """Save state to disk (encrypted if available)."""
         state_file = SAGA_DIR / (self._saga_id + ".json")
         state = {
             "name": self.name,
@@ -88,6 +115,7 @@ class Saga:
             "current_step": self._current_step,
             "started_at": self._started_at,
             "data": self._data,
+            "completed_steps": self._completed_steps,
             "steps": [{"name": s.name, "status": s.status.value, "result": s.result} for s in self._steps],
         }
         try:
@@ -108,7 +136,6 @@ class Saga:
                 blob = state_file.read_bytes()
                 if _HAS_ENCRYPTION and is_encrypted_blob(state_file):
                     return decrypt_json(blob)
-                # Legacy plain JSON
                 return json.loads(blob.decode("utf-8"))
             except Exception:
                 pass
@@ -123,14 +150,83 @@ class Saga:
             except Exception:
                 pass
 
-    async def execute(self, initial_data: dict | None = None) -> dict:
-        import uuid
+    # ─── Idempotency helpers ───
 
-        self._saga_id = self.name + "_" + uuid.uuid4().hex[:8]
+    def _compute_idempotency_key(self, step: SagaStep) -> str | None:
+        """Compute SHA-256 hash for idempotent step replay."""
+        if not step.idempotency_key_fn:
+            return None
+        try:
+            seed = step.idempotency_key_fn(self._data)
+        except Exception:
+            return None
+        raw = f"{step.name}|{seed}"
+        return hashlib.sha256(raw.encode()).hexdigest()
+
+    async def _is_already_completed(self, key: str) -> bool:
+        """Check idempotency log for completed step."""
+        from shared.connection import connection_manager
+
+        conn = await connection_manager.get("memory.db")
+        try:
+            row = await (
+                await conn.execute(
+                    "SELECT 1 FROM saga_step_log WHERE saga_id=? AND params_hash=? LIMIT 1",
+                    (self._saga_id, key),
+                )
+            ).fetchone()
+            return row is not None
+        except Exception:
+            return False
+
+    async def _get_cached_result(self, key: str) -> dict | None:
+        """Get cached result from idempotency log."""
+        from shared.connection import connection_manager
+
+        conn = await connection_manager.get("memory.db")
+        try:
+            row = await (
+                await conn.execute(
+                    "SELECT result_json FROM saga_step_log WHERE saga_id=? AND params_hash=?",
+                    (self._saga_id, key),
+                )
+            ).fetchone()
+            if row is None:
+                return None
+            result_blob = row["result_json"]
+            if isinstance(result_blob, (bytes, bytearray)):
+                return decrypt_json(bytes(result_blob))
+            return json.loads(result_blob) if result_blob else None
+        except Exception:
+            return None
+
+    async def _record_completed(self, key: str, step_name: str, result: dict) -> None:
+        """Record completed step in idempotency log."""
+        from shared.connection import connection_manager
+
+        conn = await connection_manager.get("memory.db")
+        try:
+            encrypted = encrypt_json(result) if _HAS_ENCRYPTION else json.dumps(result).encode()
+            await conn.execute(
+                """INSERT INTO saga_step_log (saga_id, step_name, params_hash, result_json, completed_at)
+                   VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(saga_id, step_name, params_hash) DO NOTHING""",
+                (self._saga_id, step_name, key, encrypted, time.time()),
+            )
+            await conn.commit()
+        except Exception as e:
+            logger.warning("Failed to record idempotency log: %s" % e)
+
+    # ─── Execute with retry + idempotency ───
+
+    async def execute(self, initial_data: dict | None = None) -> dict:
+        if not self._saga_id:
+            self._saga_id = self.name + "_" + uuid.uuid4().hex[:8]
         self._data = initial_data or {}
         self._status = SagaStatus.RUNNING
         self._current_step = 0
         self._started_at = time.time()
+        self._completed_steps = []
         self._save_state()
 
         logger.info("Saga '%s' started (id=%s)" % (self.name, self._saga_id))
@@ -141,37 +237,70 @@ class Saga:
                 step.status = SagaStatus.RUNNING
                 self._save_state()
 
-                try:
-                    # Support for nested sagas
-                    step_timeout = step.timeout_seconds or self.timeout_seconds
-                    if isinstance(step.action, Saga):
-                        inner = step.action
-                        step.result = await asyncio.wait_for(inner.execute(self._data), timeout=step_timeout)
-                    else:
-                        action_result = step.action(self._data)
-                        if hasattr(action_result, "__await__"):
-                            step.result = await asyncio.wait_for(action_result, timeout=step_timeout)
+                # B7: Idempotency check
+                idemp_key = self._compute_idempotency_key(step)
+                if idemp_key and await self._is_already_completed(idemp_key):
+                    cached = await self._get_cached_result(idemp_key)
+                    if cached is not None:
+                        step.result = cached
+                        step.status = SagaStatus.COMPLETED
+                        step.data = self._data.copy()
+                        self._data.update(step.result)
+                        self._completed_steps.append(i)
+                        self._save_state()
+                        logger.info("Saga '%s' step '%s' replayed from cache" % (self.name, step.name))
+                        continue
+
+                # B7: Retry loop with exponential backoff
+                attempt = 0
+                step_exc: Exception | None = None
+                while attempt <= step.retry_attempts:
+                    try:
+                        step_timeout = step.timeout_seconds or self.timeout_seconds
+                        if isinstance(step.action, Saga):
+                            result = await asyncio.wait_for(step.action.execute(self._data), timeout=step_timeout)
                         else:
-                            step.result = action_result
-                    step.data = self._data.copy()  # save state BEFORE updating _data
-                    self._data.update(step.result)
-                    step.status = SagaStatus.COMPLETED
-                    self._save_state()
-                    logger.info("Saga '%s' step '%s' completed" % (self.name, step.name))
+                            action_result = step.action(self._data)
+                            if hasattr(action_result, "__await__"):
+                                result = await asyncio.wait_for(action_result, timeout=step_timeout)
+                            else:
+                                result = action_result
+                        step.result = result if isinstance(result, dict) else {"value": result}
+                        step_exc = None
+                        break
+                    except step.retry_on as exc:
+                        step_exc = exc
+                        attempt += 1
+                        if attempt <= step.retry_attempts:
+                            delay = step.retry_backoff * (2 ** (attempt - 1))
+                            logger.warning(
+                                "Saga '%s' step '%s' retry %d/%d in %.1fs: %s" % (self.name, step.name, attempt, step.retry_attempts, delay, exc)
+                            )
+                            await asyncio.sleep(delay)
+                    except Exception as exc:
+                        step_exc = exc
+                        break
 
-                except asyncio.TimeoutError:
+                if step_exc is not None:
                     step.status = SagaStatus.FAILED
-                    logger.error("Saga '%s' step '%s' timed out" % (self.name, step.name))
+                    if attempt > step.retry_attempts:
+                        logger.error("Saga '%s' step '%s' failed after %d retries: %s" % (self.name, step.name, step.retry_attempts, step_exc))
+                    else:
+                        logger.error("Saga '%s' step '%s' failed: %s" % (self.name, step.name, step_exc))
                     await self._compensate(i)
                     self._save_state()
-                    raise TimeoutError("Saga step '%s' timed out" % step.name)
+                    raise step_exc
 
-                except Exception as e:
-                    step.status = SagaStatus.FAILED
-                    logger.error("Saga '%s' step '%s' failed: %s" % (self.name, step.name, e))
-                    await self._compensate(i)
-                    self._save_state()
-                    raise
+                # Record in idempotency log
+                if idemp_key:
+                    await self._record_completed(idemp_key, step.name, step.result)
+
+                step.data = self._data.copy()
+                self._data.update(step.result)
+                step.status = SagaStatus.COMPLETED
+                self._completed_steps.append(i)
+                self._save_state()
+                logger.info("Saga '%s' step '%s' completed" % (self.name, step.name))
 
             self._status = SagaStatus.COMPLETED
             self._cleanup_state()
@@ -195,7 +324,6 @@ class Saga:
             if step.status != SagaStatus.COMPLETED:
                 continue
 
-            # Nested sagas: compensate all completed steps of the inner saga
             if isinstance(step.action, Saga):
                 inner = step.action
                 for j in range(len(inner._steps) - 1, -1, -1):
@@ -265,7 +393,12 @@ class SagaWatchdog:
 
         for state_file in SAGA_DIR.glob("*.json"):
             try:
-                state = json.loads(state_file.read_text(encoding="utf-8"))
+                blob = state_file.read_bytes()
+                if _HAS_ENCRYPTION and is_encrypted_blob(state_file):
+                    state = decrypt_json(blob)
+                else:
+                    state = json.loads(blob.decode("utf-8"))
+
                 status = state.get("status", "")
                 started_at = state.get("started_at", 0)
                 saga_name = state.get("name", "unknown")
@@ -275,7 +408,10 @@ class SagaWatchdog:
                     if age > self.max_age_seconds:
                         state["status"] = "stuck"
                         state["stuck_reason"] = "timeout_after_%ds" % int(age)
-                        state_file.write_text(json.dumps(state, indent=2, default=str), encoding="utf-8")
+                        if _HAS_ENCRYPTION:
+                            state_file.write_bytes(encrypt_json(state))
+                        else:
+                            state_file.write_text(json.dumps(state, indent=2, default=str), encoding="utf-8")
                         logger.warning("Saga '%s' marked as STUCK (age=%ds)" % (saga_name, int(age)))
 
             except Exception as e:
@@ -288,7 +424,12 @@ class SagaWatchdog:
 
         for state_file in SAGA_DIR.glob("*.json"):
             try:
-                state = json.loads(state_file.read_text(encoding="utf-8"))
+                blob = state_file.read_bytes()
+                if _HAS_ENCRYPTION and is_encrypted_blob(state_file):
+                    state = decrypt_json(blob)
+                else:
+                    state = json.loads(blob.decode("utf-8"))
+
                 if state.get("status") in ("stuck", "failed", "running"):
                     age = time.time() - state.get("started_at", 0)
                     stuck.append(
@@ -312,14 +453,21 @@ class SagaWatchdog:
             return None
 
         try:
-            state = json.loads(state_file.read_text(encoding="utf-8"))
+            blob = state_file.read_bytes()
+            if _HAS_ENCRYPTION and is_encrypted_blob(state_file):
+                state = decrypt_json(blob)
+            else:
+                state = json.loads(blob.decode("utf-8"))
+
             if state.get("status") != "stuck":
                 return {"error": "Saga is not stuck, status: %s" % state.get("status")}
 
-            # Mark as requiring manual intervention
             state["status"] = "manual_review_required"
             state["recovered_at"] = time.time()
-            state_file.write_text(json.dumps(state, indent=2, default=str), encoding="utf-8")
+            if _HAS_ENCRYPTION:
+                state_file.write_bytes(encrypt_json(state))
+            else:
+                state_file.write_text(json.dumps(state, indent=2, default=str), encoding="utf-8")
 
             return {"status": "manual_review_required", "state": state}
         except Exception as e:
@@ -333,7 +481,12 @@ class SagaWatchdog:
 
         for state_file in SAGA_DIR.glob("*.json"):
             try:
-                state = json.loads(state_file.read_text(encoding="utf-8"))
+                blob = state_file.read_bytes()
+                if _HAS_ENCRYPTION and is_encrypted_blob(state_file):
+                    state = decrypt_json(blob)
+                else:
+                    state = json.loads(blob.decode("utf-8"))
+
                 if state.get("status") in ("completed", "compensated", "stuck", "failed", "manual_review_required"):
                     if state.get("started_at", 0) < cutoff:
                         state_file.unlink()
@@ -352,7 +505,6 @@ saga_watchdog = SagaWatchdog()
 
 
 async def _consolidation_gather(data: dict) -> dict:
-    """Gather staging memories."""
     mm = data.get("_mm")
     if not mm:
         return {"staging_count": 0}
@@ -364,7 +516,6 @@ async def _consolidation_gather(data: dict) -> dict:
 
 
 async def _consolidation_distill(data: dict) -> dict:
-    """Filter out unimportant items."""
     items = data.get("staging_items", [])
     important = [i for i in items if i.get("importance", 0) > 0.3]
     data["important_items"] = important
@@ -372,7 +523,6 @@ async def _consolidation_distill(data: dict) -> dict:
 
 
 async def _consolidation_promote(data: dict) -> dict:
-    """Promote important items to L4."""
     mm = data.get("_mm")
     if not mm:
         return {"promoted": 0}
@@ -388,7 +538,6 @@ async def _consolidation_promote(data: dict) -> dict:
 
 
 async def _consolidation_compensate(data: dict) -> None:
-    """Rollback: delete promoted entries from core_memory."""
     mm = data.get("_mm")
     if not mm:
         return
@@ -404,9 +553,6 @@ async def _consolidation_compensate(data: dict) -> None:
 
 
 def create_consolidation_saga(user_id: str, mm=None) -> Saga:
-    """Consolidation saga: gather → distill → promote.
-    Takes mm (memory_manager) to avoid circular imports.
-    """
     saga = Saga("consolidation_%s" % user_id)
     saga.add_step("gather", _consolidation_gather, _consolidation_compensate)
     saga.add_step("distill", _consolidation_distill, _consolidation_compensate)
@@ -415,7 +561,6 @@ def create_consolidation_saga(user_id: str, mm=None) -> Saga:
 
 
 async def _backup_copy_db(data: dict) -> dict:
-    """Copy the database."""
     import shutil
     from pathlib import Path
 
@@ -430,7 +575,6 @@ async def _backup_copy_db(data: dict) -> dict:
 
 
 async def _backup_verify(data: dict) -> dict:
-    """Verify backup integrity."""
     from pathlib import Path
 
     backup_path = Path(data.get("backup_path", ""))
@@ -439,7 +583,6 @@ async def _backup_verify(data: dict) -> dict:
 
 
 async def _backup_compensate(data: dict) -> None:
-    """Rollback: delete failed backup."""
     import shutil
     from pathlib import Path
 
@@ -449,7 +592,6 @@ async def _backup_compensate(data: dict) -> None:
 
 
 def create_backup_saga() -> Saga:
-    """Backup saga: copy → verify."""
     saga = Saga("backup")
     saga.add_step("copy", _backup_copy_db, _backup_compensate)
     saga.add_step("verify", _backup_verify)
