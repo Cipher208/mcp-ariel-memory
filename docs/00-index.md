@@ -87,7 +87,7 @@ python -m mcp_server --transport http --port 8000
 
 - **Version:** 1.0.0
 - **MCP Tools:** 19
-- **Tests:** 266 passed
+- **Tests:** 290 passed
 - **Python files:** 70
 - **DB tables:** 21
 - **Hooks:** 24

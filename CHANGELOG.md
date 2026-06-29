@@ -42,6 +42,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Saga retry with exponential backoff (B7) — `retry_attempts`, `retry_backoff`, `retry_on` per step.
 - Saga idempotent step replay (B7) — `idempotency_key_fn` + `saga_step_log` table prevents duplicate effects.
 - `saga_crypto.py` — atomic encrypted state writes with legacy JSON rotation.
+- **Typed Memory** — 13 categories (instruction, fact, decision, goal, preference, commitment, relationship, observation, rule, todo, question, hypothesis, context) with per-type retention, decay, and retrieval boost.
+- `shared/memory_types.py` — `MemoryKind` enum, `TypePolicy`, `apply_decay()`, `can_archive()`, `kind_for_text()` heuristic.
+- `CoreMemory.save()` now accepts `memory_kind`, `expires_at`, `source`, `metadata` params.
+- `ForgettingSystem` type-aware: instruction/rule/commitment never decay/archive.
+- `ConsolidationEngine` type-aware: low importance instruction/rule/commitment still promote.
+- RAG `_apply_type_boost()` boosts results based on query keywords matching type.
+- `typed_export.py` CLI — export, reclassify, backfill bulk operations.
+- Migration v5: `memory_kind` column, `memory_kind_registry` with 13 seed types.
+- Migration v6: `expires_at`, `source`, `metadata` columns in `core_memory`.
+- 30 new tests: memory_types (16), forgetting (5), consolidation (3), backward compat (6).
 
 ### Added
 - `AgentHooks._importance_gate` with agent-specific keywords (error, decision, principle, lesson, pattern).
@@ -68,7 +78,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Test suite: deprecated `search_rrf()` / `search_binary()` calls migrated to unified `search(strategy=...)`.
 - `docs/07-hooks.md`: added `AgentHooks._importance_gate` documentation.
 - `docs/11-operations.md`: added `--no-auth`, auto-generated keys, dashboard flag docs.
-- Test count: 266 passing (was 239).
+- Test count: 290 passing (was 239).
 
 ### Docs
 - MCP initialization protocol in `docs/11-operations.md`.
