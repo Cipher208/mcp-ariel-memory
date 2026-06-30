@@ -121,6 +121,42 @@ The demo script:
 - Creates a backup
 - Shows timing results
 
+## Importance Scheduler
+
+Background daemon that periodically re-scores memory importance based on retrieval usage.
+
+**Config (config.yaml):**
+
+```yaml
+importance:
+  scheduler:
+    enabled: true
+    interval_seconds: 1800  # every 30 minutes
+    delta_threshold: 0.15   # only update if score changed >15%
+    only_recent_days: 30    # only process recent memories
+```
+
+**How it works:**
+1. Queries recent memories from `core_memory`
+2. Calculates new score using `ImportanceScorer` (8 signals)
+3. Compares with stored importance
+4. If delta > threshold → updates and logs to `importance_audit`
+
+**Manual run:**
+
+```python
+from lifecycle.importance_scheduler import importance_scheduler
+import asyncio
+stats = asyncio.run(importance_scheduler.run_once())
+print(stats)  # {"rescored": 5, "skipped": 3, "errors": 0}
+```
+
+**Diagnostic script:**
+
+```bash
+python -m features.typed_export backfill  # backfill memory_kind
+```
+
 ## MCP Protocol
 
 ### Initialization
