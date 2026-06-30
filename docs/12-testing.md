@@ -3,7 +3,7 @@
 ## Testing
 
 ```bash
-# All tests (246 tests)
+# All tests (313 tests)
 python -m pytest tests/ -v
 
 # Single test file
@@ -13,7 +13,7 @@ python -m pytest tests/test_auth_crypto.py -v
 uv run mcp dev mcp_server.server
 ```
 
-**Status:** 246/246 pytest + 19/19 MCP tools. Python 3.10–3.13 CI matrix. Single `memory.db` file. Envelope encryption for sensitive data.
+**Status:** 313/313 pytest + 19/19 MCP tools. Python 3.10–3.13 CI matrix. Single `memory.db` file. Envelope encryption for sensitive data.
 
 ## Test Fixtures
 
@@ -98,7 +98,7 @@ mcp-ariel-memory/
 │   ├── quantize.py            # MIB binarization + supervised thresholds
 │   └── ...
 ├── docs/                      # 13 documents
-├── tests/                     # 246 pytest tests
+├── tests/                     # 313 pytest tests
 │   ├── conftest.py            # Shared fixtures (master_key_env)
 │   ├── test_all.py            # Core integration tests
 │   ├── test_auth_backup.py    # Auth + backup + config tests
@@ -108,7 +108,17 @@ mcp-ariel-memory/
 │   ├── test_rag_scoring.py    # Scorer unit tests
 │   ├── test_rag_search_facade.py  # Unified search tests
 │   ├── test_threshold_training.py  # Supervised threshold tests
-│   ├── benchmark_memory.py    # Core operation benchmarks (remember, recall, encrypt)
+│   ├── test_memory_types.py   # Typed memory (16 tests)
+│   ├── test_typed_forgetting.py  # Type-aware forgetting (5 tests)
+│   ├── test_typed_consolidation.py  # Type-aware consolidation (3 tests)
+│   ├── test_importance_v2.py  # Importance scorer (15 tests)
+│   ├── test_importance_scheduler.py  # Scheduler (4 tests)
+│   ├── test_importance_middleware.py  # Middleware (4 tests)
+│   ├── test_saga_retry.py     # Saga retry (4 tests)
+│   ├── test_saga_idempotency.py  # Saga idempotency (2 tests)
+│   ├── test_rag_no_legacy_api.py  # Deprecated API removal (3 tests)
+│   ├── test_conflict_bm25.py  # BM25 conflict similarity (7 tests)
+│   ├── benchmark_memory.py    # Core operation benchmarks
 │   ├── benchmark_perf.py      # Performance benchmarks (FTS, MIB, hybrid, tags, joins)
 │   └── ...
 ├── core/                      # L1-L4 (async via AsyncConnectionManager)
