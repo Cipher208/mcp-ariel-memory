@@ -76,18 +76,23 @@ class ImportanceScheduler:
 
         cm = connection_manager
         conn = await cm.get("memory.db")
-        users = await (await conn.execute(
-                "SELECT DISTINCT user_id FROM core_memory WHERE updated_at > ?",
-                (time.time() - self.cfg.only_recent_days * 86400,),
-            )).fetchall()
 
-        for u in users[: self.cfg.user_batch_size]:
-            uid = u["user_id"]
-            try:
-                await self._rescore_user(uid, conn, stats)
-            except Exception as exc:
-                logger.error("rescore for user=%s failed: %s", uid, exc)
-                stats["errors"] += 1
+        # Batched user processing
+        cursor = await conn.execute(
+            "SELECT DISTINCT user_id FROM core_memory WHERE updated_at > ?",
+            (time.time() - self.cfg.only_recent_days * 86400,),
+        )
+        while True:
+            batch = await cursor.fetchmany(self.cfg.user_batch_size)
+            if not batch:
+                break
+            for u in batch:
+                uid = u["user_id"]
+                try:
+                    await self._rescore_user(uid, conn, stats)
+                except Exception as exc:
+                    logger.error("rescore for user=%s failed: %s", uid, exc)
+                    stats["errors"] += 1
 
         await conn.commit()
         return stats

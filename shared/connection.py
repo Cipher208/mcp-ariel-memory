@@ -168,6 +168,8 @@ class AsyncConnectionManager:
         await conn.execute("PRAGMA busy_timeout=5000")
         await conn.execute("PRAGMA synchronous=NORMAL")
         await conn.execute("PRAGMA foreign_keys=ON")
+        await conn.execute("PRAGMA cache_size=-64000")  # 64MB page cache
+        await conn.execute("PRAGMA temp_store=MEMORY")
         return conn
 
     async def _get_sync_conn(self, db_path: str) -> _SyncConnectionWrapper:
@@ -180,6 +182,8 @@ class AsyncConnectionManager:
             conn.execute("PRAGMA busy_timeout=5000")
             conn.execute("PRAGMA synchronous=NORMAL")
             conn.execute("PRAGMA foreign_keys=ON")
+            conn.execute("PRAGMA cache_size=-64000")  # 64MB page cache
+            conn.execute("PRAGMA temp_store=MEMORY")
             return conn
 
         raw_conn = await asyncio.to_thread(_connect)

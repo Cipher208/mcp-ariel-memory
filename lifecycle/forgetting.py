@@ -31,20 +31,24 @@ class ForgettingSystem:
         try:
             now = time.time()
             conn = await self._cm.get("memory.db")
-            rows = await (await conn.execute(
+            cursor = await conn.execute(
                 "SELECT entry_id, memory_kind, importance, updated_at FROM core_memory"
-            )).fetchall()
+            )
 
             updates: list[tuple[float, int]] = []
-            for r in rows:
-                kind_str = r["memory_kind"] or "fact"
-                if not validate_kind(kind_str):
-                    continue
-                kind = MemoryKind(kind_str)
-                days = (now - float(r["updated_at"])) / 86400.0
-                new_imp = apply_decay(float(r["importance"]), kind, days)
-                if abs(new_imp - float(r["importance"])) > 1e-3:
-                    updates.append((new_imp, int(r["entry_id"])))
+            while True:
+                rows = await cursor.fetchmany(1000)
+                if not rows:
+                    break
+                for r in rows:
+                    kind_str = r["memory_kind"] or "fact"
+                    if not validate_kind(kind_str):
+                        continue
+                    kind = MemoryKind(kind_str)
+                    days = (now - float(r["updated_at"])) / 86400.0
+                    new_imp = apply_decay(float(r["importance"]), kind, days)
+                    if abs(new_imp - float(r["importance"])) > 1e-3:
+                        updates.append((new_imp, int(r["entry_id"])))
 
             if not updates:
                 return 0
