@@ -80,28 +80,28 @@ class AuditMiddleware(Middleware):
 
 
 class ImportanceGateMiddleware(Middleware):
-    """Noise filter — only passes important messages.
-    Full version from agent_core/cognitive/importance_gate.py"""
+    """Noise filter using ImportanceScorer — only passes important messages."""
 
-    def __init__(self, min_length: int = 15, threshold: float = 0.3, technical_weight: float = 0.3, question_weight: float = 0.2):
+    def __init__(
+        self,
+        min_length: int = 15,
+        threshold: float = 0.3,
+        technical_weight: float = 0.3,
+        question_weight: float = 0.2,
+        scorer=None,
+        memory_kind_hint: str = None,
+    ):
         self._min_length = min_length
         self._threshold = threshold
         self._technical_weight = technical_weight
         self._question_weight = question_weight
-        import re
+        self.memory_kind_hint = memory_kind_hint
 
-        self._technical_pattern = re.compile(
-            r"\b(баг|функция|класс|ошибка|конфиг|redis|sqlite|api|endpoint|"
-            r"модуль|сервис|деплой|тест|репозиторий|коммит|branch|merge|"
-            r"database|query|schema|migration|cache|queue|handler|middleware|"
-            r"async|await|payload|metadata|event|state|saga|fsa)\b",
-            re.IGNORECASE,
-        )
-        self._noise_pattern = re.compile(
-            r"^(ок|да|нет|понял|хорошо|спасибо|ага|угу|йес|норм|ясно|"
-            r"ok|yes|no|thanks|got it|fine|well|cool|great|nice)$",
-            re.IGNORECASE,
-        )
+        if scorer is None:
+            from shared.importance import ImportanceScorer
+            self._scorer = ImportanceScorer()
+        else:
+            self._scorer = scorer
 
     async def process(self, ctx: MiddlewareContext, next: MiddlewareNext) -> Any:
         if ctx.tool_name not in (
@@ -112,36 +112,28 @@ class ImportanceGateMiddleware(Middleware):
         ):
             return await next(ctx)
 
-        text = ctx.args.get("value", ctx.args.get("summary", ""))
-        importance = ctx.args.get("importance", 0.5)
+        text = ctx.args.get("text", ctx.args.get("value", ctx.args.get("summary", "")))
 
-        if importance < self._threshold:
-            ctx.metadata["bypassed"] = True
-            return {"status": "skipped", "reason": "below_importance_threshold"}
+        kind = ctx.args.get("memory_kind", self.memory_kind_hint)
+        signals = self._scorer.score(text=text, kind=kind, is_technical_context=self._technical_weight > 0)
+        score = signals.total()
 
+        ctx.metadata["importance_signals"] = signals
+
+        if score < self._threshold:
+            ctx.blocked = True
+            ctx.block_reason = f"below_importance_threshold({score:.2f})"
+            from shared.metrics import metrics
+            metrics.inc("importance_bypassed_total")
+            return ctx
+
+        ctx.args["importance"] = score
         return await next(ctx)
 
     def calculate_score(self, text: str) -> float:
-        """Full importance calculation from the original."""
-        if not text:
-            return 0.0
-        if self._noise_pattern.match(text):
-            return 0.1
-
-        score = 0.3
-        if len(text) > self._min_length:
-            score += 0.2
-        if len(text) > 100:
-            score += 0.1
-        if "?" in text:
-            score += self._question_weight
-        if self._technical_pattern.search(text):
-            score += self._technical_weight
-        if text.count("\n") > 2:
-            score += 0.1
-        if any(c.isdigit() for c in text) and len(text) > 30:
-            score += 0.1
-        return min(1.0, score)
+        """Calculate importance score using ImportanceScorer."""
+        signals = self._scorer.score(text=text, kind=self.memory_kind_hint)
+        return signals.total()
 
 
 class ValidationMiddleware(Middleware):

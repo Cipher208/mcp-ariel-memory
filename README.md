@@ -252,7 +252,7 @@ Message → L1 (ReflexBuffer, ring buffer, 50 items)
 ## Testing
 
 ```bash
-# Run all tests (290 passed)
+# Run all tests (312 passed)
 pytest tests/ -v
 
 # Run with parallel execution

@@ -331,6 +331,30 @@ def _get_migrations() -> list[Migration]:
 
     migrations.append(Migration(7, "drop_float_embeddings", v7_drop_float_embeddings))
 
+    async def v8_importance_audit(conn):
+        """Create importance_audit table for scheduler logging."""
+        try:
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS importance_audit (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    chunk_id INTEGER,
+                    source TEXT NOT NULL,
+                    old_importance REAL,
+                    new_importance REAL,
+                    signal_breakdown TEXT,
+                    reason TEXT,
+                    rescored_at REAL NOT NULL
+                )
+            """)
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_importance_audit_user ON importance_audit(user_id, rescored_at DESC)"
+            )
+        except sqlite3.OperationalError:
+            pass
+
+    migrations.append(Migration(8, "importance_audit", v8_importance_audit))
+
     return migrations
 
 

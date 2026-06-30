@@ -94,7 +94,7 @@ await engine.search("query", user_id="u", strategy="mib")
 - Test suite: deprecated `search_rrf()` / `search_binary()` calls migrated to unified `search(strategy=...)`.
 - `docs/07-hooks.md`: added `AgentHooks._importance_gate` documentation.
 - `docs/11-operations.md`: added `--no-auth`, auto-generated keys, dashboard flag docs.
-- Test count: 290 passing (was 239).
+- Test count: 312 passing (was 290).
 
 ### Docs
 - MCP initialization protocol in `docs/11-operations.md`.
