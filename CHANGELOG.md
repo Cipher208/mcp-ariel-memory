@@ -67,7 +67,15 @@ await engine.search("query", user_id="u", strategy="mib")
 - `typed_export.py` CLI — export, reclassify, backfill bulk operations.
 - Migration v5: `memory_kind` column, `memory_kind_registry` with 13 seed types.
 - Migration v6: `expires_at`, `source`, `metadata` columns in `core_memory`.
+- Migration v7: drop float embeddings column.
+- Migration v8: `importance_audit` table for scheduler logging.
 - 30 new tests: memory_types (16), forgetting (5), consolidation (3), backward compat (6).
+- **Importance v2** — 8-signal scorer (base, length, question, tech_keyword, emotional, novelty, retrieval_signal, noise_penalty) with configurable weights.
+- `ImportanceScheduler` — background daemon for periodic re-scoring based on retrieval usage.
+- `ImportanceGateMiddleware` — uses `ImportanceScorer` instead of naive heuristic.
+- `Scorer.update_weights()` — bandit-style weight updates for online learning.
+- 23 new importance tests (15 unit + 4 scheduler + 4 middleware).
+- `test_rag_no_legacy_api.py` — confirms deprecated methods are removed.
 
 ### Added
 - `AgentHooks._importance_gate` with agent-specific keywords (error, decision, principle, lesson, pattern).
@@ -94,7 +102,7 @@ await engine.search("query", user_id="u", strategy="mib")
 - Test suite: deprecated `search_rrf()` / `search_binary()` calls migrated to unified `search(strategy=...)`.
 - `docs/07-hooks.md`: added `AgentHooks._importance_gate` documentation.
 - `docs/11-operations.md`: added `--no-auth`, auto-generated keys, dashboard flag docs.
-- Test count: 312 passing (was 290).
+- Test count: 312 passing (was 239).
 
 ### Docs
 - MCP initialization protocol in `docs/11-operations.md`.

@@ -558,6 +558,74 @@ result = await saga.execute()
 
 ---
 
+## Importance Scorer (`shared/importance.py`)
+
+Multi-signal importance scoring with 8 independent signals, all normalized to [0,1].
+
+### Class: `ImportanceScorer`
+
+```python
+class ImportanceScorer:
+    def __init__(self, technical_keywords_ru: Iterable[str] = _TECH_KEYWORDS_RU,
+                 technical_keywords_en: Iterable[str] = _TECH_KEYWORDS_EN,
+                 weights: Optional[Dict[str, float]] = None)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `technical_keywords_ru` | `Iterable[str]` | RU tech keywords | Custom RU keywords for tech detection |
+| `technical_keywords_en` | `Iterable[str]` | EN tech keywords | Custom EN keywords for tech detection |
+| `weights` | `Dict[str, float]` | `None` | Override signal weights |
+
+### `score()` method
+
+```python
+def score(self, text: str, kind: Optional[str] = None,
+          retrieval_count: int = 0, seen_before: bool = False,
+          emotion_weight: float = 0.0,
+          is_technical_context: bool = False) -> ImportanceSignals
+```
+
+| Signal | Description | Range |
+|--------|-------------|-------|
+| `base` | Default importance from type policy | 0.0–1.0 |
+| `length` | S-curve bonus (caps at 800 chars) | 0.0–1.0 |
+| `question` | Bonus per `?` character | 0.0–1.0 |
+| `tech_keyword` | Count of tech keywords found | 0.0–1.0 |
+| `emotional` | Boost for instruction/rule/commitment | 0.0–1.0 |
+| `novelty` | 0.7 for new, 0.0 for seen | 0.0–0.7 |
+| `retrieval_signal` | Log-scale retrieval frequency | 0.0–1.0 |
+| `noise_penalty` | 0.95 for "ok", "да", etc. | 0.0–0.95 |
+
+### Class: `ImportanceSignals`
+
+```python
+@dataclass
+class ImportanceSignals:
+    base: float = 0.0
+    length: float = 0.0
+    question: float = 0.0
+    tech_keyword: float = 0.0
+    emotional: float = 0.0
+    novelty: float = 0.0
+    retrieval_signal: float = 0.0
+    noise_penalty: float = 0.0
+    weights: Dict[str, float] = field(default_factory=dict)
+
+    def total(self) -> float: ...
+```
+
+```python
+from shared.importance import ImportanceScorer
+
+scorer = ImportanceScorer()
+signals = scorer.score("Redis cluster crash on JWT endpoint", kind="decision")
+print(signals.total())  # 0.45
+print(signals.tech_keyword)  # 0.75
+```
+
+---
+
 ## Middleware (`shared/middleware.py`)
 
 Chain-of-responsibility pipeline for intercepting and modifying tool requests. Default pipeline order: Validation → RateLimit → ImportanceGate → Audit → Dedup.
@@ -634,7 +702,9 @@ from shared.middleware import AuditMiddleware
 ```python
 class ImportanceGateMiddleware(Middleware):
     def __init__(self, min_length: int = 15, threshold: float = 0.3,
-                 technical_weight: float = 0.3, question_weight: float = 0.2)
+                 technical_weight: float = 0.3, question_weight: float = 0.2,
+                 scorer: Optional[ImportanceScorer] = None,
+                 memory_kind_hint: Optional[str] = None)
 ```
 
 | Parameter | Type | Default | Description |
@@ -643,8 +713,10 @@ class ImportanceGateMiddleware(Middleware):
 | `threshold` | `float` | `0.3` | Minimum importance score to pass. |
 | `technical_weight` | `float` | `0.3` | Bonus for technical keywords. |
 | `question_weight` | `float` | `0.2` | Bonus for questions. |
+| `scorer` | `ImportanceScorer` | `None` | Custom scorer instance. |
+| `memory_kind_hint` | `str` | `None` | Override memory kind for scoring. |
 
-Only active for `memory_remember` (layer="user"), `memory_episode_save` (layer="user"). Filters out low-importance content.
+Uses `ImportanceScorer` (8-signal model) instead of naive heuristic. Only active for `memory_remember` and `memory_episode_save` tool calls.
 
 ### `ImportanceGateMiddleware.calculate_score`
 
@@ -652,7 +724,7 @@ Only active for `memory_remember` (layer="user"), `memory_episode_save` (layer="
 def calculate_score(self, text: str) -> float
 ```
 
-Full importance calculation. Factors: length, questions, technical keywords, line breaks, numbers. Returns 0.0–1.0.
+Calculate importance score using ImportanceScorer. Returns 0.0–1.0.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|

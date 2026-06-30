@@ -6,7 +6,7 @@
 |-----------|-----------|
 | MCP protocol | Python MCP SDK v1.28 (FastMCP) |
 | Transports | stdio + Streamable HTTP |
-| Storage | **Single `memory.db` file** (~20 tables) |
+| Storage | **Single `memory.db` file** (~23 tables) |
 | Async DB | asyncio + sqlite3 via to_thread |
 | Search | FTS5 + MIB binary embeddings (Hamming) + RRF |
 | Hooks | 24 hooks, integrated into tool pipeline |
@@ -57,7 +57,7 @@ Message → L1 (buffer)
          → L4 (consolidation, if weight > 0.7)
 ```
 
-## Database Tables (21)
+## Database Tables (23)
 
 | Table | Module | Purpose |
 |-------|--------|---------|
@@ -81,6 +81,8 @@ Message → L1 (buffer)
 | `agent_wiki` | wiki/agent_wiki.py | Agent wiki entries |
 | `wiki_index` | wiki/file_wiki.py | Wiki FTS5 index |
 | `memory_conflicts` | rag/conflict.py | Memory conflicts |
+| `memory_kind_registry` | shared/memory_types.py | Typed memory categories |
+| `importance_audit` | lifecycle/importance_scheduler.py | Importance rescore audit log |
 | `migration_log` | shared/migrations.py | Migration history |
 
 > **Note:** API keys are stored in `~/.mcp-ariel-memory/api_keys.json` (encrypted), not in a SQLite table.
