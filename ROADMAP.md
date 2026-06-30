@@ -29,6 +29,10 @@
 - [ ] **Auto-strategy** — make `auto` strategy smarter (based on query analytics)
 - [ ] **Query expansion** — add synonyms for FTS5
 
+## 4. Wiki Restructuring
+
+- [ ] **Unify wiki system** — merge `file_wiki.py`, `user_wiki.py`, `agent_wiki.py` into one `WikiManager` with layer-based separation. Current 3 separate classes duplicate logic. Goal: single FTS5 index, shared sync logic, configurable per-layer behavior.
+
 ## 4. Bug Fixes & Cleanup
 
 - [x] **Deprecated API cleanup** — removed `search_rrf()`, `search_binary()` (A7)
