@@ -50,7 +50,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - run: pip install -e ".[dev,binary]"
+      - run: pip install -e ".[dev,binary]" aiosqlite
       - run: pytest tests/ -v --tb=long
 
   build:
