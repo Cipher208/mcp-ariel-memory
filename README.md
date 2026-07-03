@@ -21,7 +21,7 @@ The server is built with the official MCP Python SDK (FastMCP), supports both st
 
 - **19 unified MCP tools** with `layer` parameter (user/agent) instead of 37 separate tools
 - **Envelope encryption** — all sensitive data (API keys, tokens, saga state) encrypted at rest with libsodium secretbox
-- **.env support** — set `MCP_MASTER_KEY` in `.env` file for easy local development
+- **Keychain-first security** — master key resolved from OS keychain (keyring) first, `.env` only for local dev. Production: use keyring or vault sidecar
 - **Unified Search API** — single `search()` method with 4 strategies: `fts`, `mib`, `hybrid`, `auto`
 - **MultiSourceRAG** — unified search across RAG + Wiki with deduplication and reranking
 - **ITS-inspired scoring** — novelty component using document frequency as prior for better ranking
@@ -30,7 +30,7 @@ The server is built with the official MCP Python SDK (FastMCP), supports both st
 - **Wiki system** with 14 content types, .md files as source of truth, and external folder sync
 - **24 hooks** for intercepting memory operations at every stage
 - **Saga pattern** for multi-step operations with compensation and watchdog
-- **Platform-aware async** — aiosqlite on Linux/macOS, sync fallback on Windows
+- **Platform-aware async** — aiosqlite on Linux/macOS, sync sqlite3 + `asyncio.to_thread()` on Windows (event loop never blocks)
 - **Python 3.10–3.13** tested in CI matrix
 
 ## Installation
