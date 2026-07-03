@@ -5,6 +5,7 @@
 A two-layer universal memory system for AI agents. Real MCP Python SDK, async, **19 unified tools**, stdio + HTTP transports, dashboard, metrics, authentication, envelope encryption, automatic backups, external wiki folders, read-only replica.
 
 [![CI](https://github.com/Cipher208/mcp-ariel-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/Cipher208/mcp-ariel-memory/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-MkDocs%20Material-blue)](https://cipher208.github.io/mcp-ariel-memory/)
 
 ---
 
@@ -31,6 +32,8 @@ The server is built with the official MCP Python SDK (FastMCP), supports both st
 - **24 hooks** for intercepting memory operations at every stage
 - **Saga pattern** for multi-step operations with compensation and watchdog
 - **Platform-aware async** — aiosqlite on Linux/macOS, sync sqlite3 + `asyncio.to_thread()` on Windows (event loop never blocks)
+- **338 tests** — unit + integration + 25 property-based Hypothesis tests
+- **CI pipeline** — lint (ruff), typecheck (mypy), quality (skylos), security (gitleaks), test matrix (3.10–3.13)
 - **Python 3.10–3.13** tested in CI matrix
 
 ## Installation
@@ -252,7 +255,7 @@ Message → L1 (ReflexBuffer, ring buffer, 50 items)
 ## Testing
 
 ```bash
-# Run all tests (313 passed)
+# Run all tests (338 passed, 25 property-based)
 pytest tests/ -v
 
 # Run with parallel execution

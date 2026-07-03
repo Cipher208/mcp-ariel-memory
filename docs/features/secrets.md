@@ -24,19 +24,25 @@ data = decrypt_json(blob)
 4. Environment variable
 5. Auto-generate (saves to .env)
 
+## Decrypt-First Pattern
+
+Auth modules (`APIKeyAuth`, `BearerAuth`) use a decrypt-first pattern:
+
+```python
+# Try decrypt first (handles nonce collision where is_encrypted_blob returns False)
+try:
+    return decrypt_json(blob)
+except Exception:
+    pass
+
+# Not encrypted — parse as legacy JSON and rotate
+legacy = json.loads(blob.decode("utf-8"))
+```
+
+This eliminates flaky tests caused by libsodium nonce first byte coincidentally being `{` or `[` (~0.78% probability).
+
 ## File Format
 
 ```
 [nonce 24 bytes][ciphertext...]
-```
-
-## is_encrypted_blob
-
-Check if a file is encrypted (heuristic):
-
-```python
-from features.secrets import is_encrypted_blob
-from pathlib import Path
-
-is_encrypted_blob(Path("bearer_token.json"))  # True if encrypted
 ```

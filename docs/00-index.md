@@ -56,7 +56,7 @@ python -m mcp_server --transport stdio
 | 09 | [Features](09-features.md) | Auth, Backup, Dashboard, Audit, RateLimit, Secrets |
 | 10 | [Shared](10-shared.md) | Saga+Retry+Idempotency, Importance Scorer, Middleware, Embeddings |
 | 11 | [Operations](11-operations.md) | Transports, Health, Auth, Scheduler, Configuration |
-| 12 | [Testing](12-testing.md) | pytest (313 tests), benchmarks, project structure |
+| 12 | [Testing](12-testing.md) | pytest (338 tests + 25 Hypothesis), benchmarks, project structure |
 
 ---
 
@@ -87,7 +87,7 @@ python -m mcp_server --transport http --port 8000
 
 - **Version:** 1.0.0
 - **MCP Tools:** 19
-- **Tests:** 313 passed
+- **Tests:** 338 passed (25 property-based Hypothesis)
 - **Python files:** 70
 - **DB tables:** 23
 - **Hooks:** 24
