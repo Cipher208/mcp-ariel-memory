@@ -71,6 +71,17 @@ jobs:
       - run: pip install -e ".[dev,binary]" aiosqlite
       - run: pytest tests/ -v --tb=long --timeout=30
 
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install -e ".[dev,binary]" aiosqlite
+      - run: pytest tests/ --cov=features --cov=shared --cov=core --cov=rag --cov=wiki --cov=graph --cov=lifecycle --cov=hooks --cov=mcp_server --cov-report=term-missing --cov-fail-under=60 --timeout=60
+
   build:
     runs-on: ubuntu-latest
     steps:

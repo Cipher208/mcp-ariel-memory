@@ -66,6 +66,7 @@ nav:
     - Overview: architecture/overview.md
     - Memory Layers: architecture/layers.md
     - Connection Manager: architecture/connection.md
+    - Diagrams: architecture/diagrams.md
   - MCP Tools:
     - Tools Reference: tools/reference.md
   - Core:

@@ -42,7 +42,11 @@
 
 ## 5. Testing & CI
 
-- [ ] **Coverage** — add `--cov` in CI, reach 90% coverage
+- [ ] **Coverage** — add `--cov` in CI, reach 80% coverage
+- [x] **Property-based testing** — 25 Hypothesis tests (similarity, scoring, quantize, secrets, ring buffer)
+- [x] **CI pipeline** — lint (ruff), typecheck (mypy), quality (skylos), security (gitleaks + pip-audit), test matrix (3.10-3.13)
+- [x] **Concurrency control** — cancel-in-progress on CI workflows
+- [x] **Pip caching** — all CI jobs use pip cache
 - [ ] **Load testing** — add k6/Artillery tests for production simulation
 - [ ] **Fuzz testing** — add fuzz tests for parsing and validation
 - [ ] **Cross-platform testing** — add Windows to CI matrix (currently Linux only)
@@ -50,18 +54,24 @@
 
 ## 6. Documentation
 
-- [ ] **API Reference** — auto-generate from docstrings (Sphinx/MkDocs)
+- [x] **API Reference** — auto-generate from docstrings (MkDocstrings)
+- [x] **MkDocs site** — Material Theme, deployed to GitHub Pages
+- [x] **Contributing guide** — CONTRIBUTING.md with contributor instructions
 - [ ] **Architecture diagrams** — add mermaid diagrams to docs
-- [ ] **Contributing guide** — add CONTRIBUTING.md with contributor instructions
 - [ ] **Examples** — add usage examples for Claude Desktop, Hermes, etc.
 
 ## 7. Security
 
+- [x] **Secret scanning** — GitHub secret scanning + push protection enabled
+- [x] **Dependency audit** — pip-audit in CI, CVE scanning
+- [x] **CodeQL** — default setup (AST analysis for SQL injection, path traversal)
+- [x] **gitleaks** — CI workflow for secret scanning
+- [x] **Docker hardening** — non-root user (UID 1000)
+- [x] **CORS hardening** — restrict to localhost, configurable via config.yaml
+- [x] **Issue forms** — YAML forms for bug reports and feature requests
 - [ ] **RBAC** — add role-based model for multi-tenant deployments
-- [ ] **Audit logging** — improve log format (JSON structured logging)
-- [ ] **Rate limiting** — add adaptive rate limiting based on load
-- [ ] **Input validation** — add validation at MCP tools level (Pydantic schemas)
-- [ ] **Key rotation** — zero-downtime master key rotation with re-encryption of all stored secrets. Current state: keyring (OS keychain) supported as primary key source, .env as dev fallback. Rotation requires re-encrypting all blobs with new key while old key still works for reads.
+- [ ] **Input validation** — add Pydantic schemas on MCP tools
+- [ ] **Key rotation** — zero-downtime master key rotation with re-encryption
 
 ## 8. Integrations
 
@@ -151,5 +161,5 @@
 
 ---
 
-**Completed:** 21/58 items
-**Last updated:** 2026-06-30
+**Completed:** 35/65 items
+**Last updated:** 2026-07-03
