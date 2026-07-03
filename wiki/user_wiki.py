@@ -116,7 +116,14 @@ class UserWiki:
         await conn.commit()
         return entry_id
 
-    async def update(self, entry_id: int, title: Optional[str] = None, content: Optional[str] = None, tags: Optional[list[str]] = None, importance: Optional[float] = None):
+    async def update(
+        self,
+        entry_id: int,
+        title: Optional[str] = None,
+        content: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        importance: Optional[float] = None,
+    ):
         conn = await self._cm.get("memory.db")
         updates, params = build_update_clause({"title": title, "content": content, "tags": tags, "importance": importance})
         params.append(entry_id)

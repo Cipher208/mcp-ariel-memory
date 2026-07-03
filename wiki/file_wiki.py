@@ -93,7 +93,7 @@ class FileWiki:
         d.mkdir(parents=True, exist_ok=True)
         return d
 
-    async def add(self, wiki_type: str, title: str, content: str,         tags: Optional[list[str]] = None, importance: float = 0.5) -> str:
+    async def add(self, wiki_type: str, title: str, content: str, tags: Optional[list[str]] = None, importance: float = 0.5) -> str:
         """Create .md file and index it. Returns file path."""
         enabled = self._get_enabled_types()
         if enabled and wiki_type not in enabled:
@@ -108,8 +108,14 @@ class FileWiki:
         await self._index_file(file_path, wiki_type, title, content, tags, importance)
         return str(file_path)
 
-    async def update(self, file_path: str, title: Optional[str] = None, content: Optional[str] = None,
-        tags: Optional[list[str]] = None, importance: Optional[float] = None):
+    async def update(
+        self,
+        file_path: str,
+        title: Optional[str] = None,
+        content: Optional[str] = None,
+        tags: Optional[list[str]] = None,
+        importance: Optional[float] = None,
+    ):
         """Update .md file and re-index."""
         p = Path(file_path)
         if not p.exists():
@@ -300,7 +306,7 @@ class FileWiki:
                     result["errors"] += 1
         return result
 
-    async def _index_file(self, file_path: Path, wiki_type: str, title: str, content: str,         tags: Optional[list[str]] = None, importance: float = 0.5):
+    async def _index_file(self, file_path: Path, wiki_type: str, title: str, content: str, tags: Optional[list[str]] = None, importance: float = 0.5):
         """Index a single .md file into DB."""
         import hashlib
 
@@ -383,8 +389,7 @@ class FileWiki:
 
         return result
 
-    def _to_md(self, title: str, content: str,
-        tags: Optional[list[str]] = None, importance: float = 0.5) -> str:
+    def _to_md(self, title: str, content: str, tags: Optional[list[str]] = None, importance: float = 0.5) -> str:
         """Create .md with YAML frontmatter."""
         lines = ["---"]
         lines.append(f'title: "{title}"')
