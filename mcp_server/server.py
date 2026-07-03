@@ -390,7 +390,8 @@ def _run_with_dashboard(host: str, port: int):
     # CORS: restrict to localhost by default, override via config
     allowed_origins = config.get("cors", "allowed_origins", default=["http://localhost:*", "http://127.0.0.1:*"])
     if allowed_origins == ["*"]:
-        logger.warning("CORS allows all origins — restrict in production via config.yaml")
+        import logging
+        logging.getLogger(__name__).warning("CORS allows all origins — restrict in production via config.yaml")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
