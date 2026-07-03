@@ -5,7 +5,13 @@
 A two-layer universal memory system for AI agents. Real MCP Python SDK, async, **19 unified tools**, stdio + HTTP transports, dashboard, metrics, authentication, envelope encryption, automatic backups, external wiki folders, read-only replica.
 
 [![CI](https://github.com/Cipher208/mcp-ariel-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/Cipher208/mcp-ariel-memory/actions/workflows/ci.yml)
+[![codecov](https://img.shields.io/codecov/c/github/Cipher208/mcp-ariel-memory?logo=codecov&logoColor=white)](https://codecov.io/gh/Cipher208/mcp-ariel-memory)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Docs](https://img.shields.io/badge/docs-MkDocs%20Material-blue)](https://cipher208.github.io/mcp-ariel-memory/)
+[![Release](https://img.shields.io/github/v/release/Cipher208/mcp-ariel-memory)](https://github.com/Cipher208/mcp-ariel-memory/releases)
 
 ---
 
@@ -17,6 +23,35 @@ mcp-ariel-memory is a production-ready MCP (Model Context Protocol) server that 
 - **Layer 2 (Agent)** — stores agent identity: decisions, errors, personality evolution, learning patterns
 
 The server is built with the official MCP Python SDK (FastMCP), supports both stdio and HTTP transports, and includes enterprise features like authentication, rate limiting, automatic backups, and a real-time dashboard.
+
+### Architecture
+
+```mermaid
+graph TD
+    A[LLM Agent] -->|MCP Protocol| B[mcp_server]
+    B --> C{ImportanceGate}
+    C -->|score > 0.3| D[L1: ReflexBuffer]
+    C -->|score ≤ 0.3| E[Filtered Out]
+    D --> F[L2: SessionStore]
+    F --> G{EmotionTrigger?}
+    G -->|high emotion| H[L3: EpisodicMemory]
+    G -->|normal| I[Consolidation]
+    H --> J[L4: CoreMemory]
+    I --> J
+
+    B --> K[RAG Engine]
+    K --> L[FTS5 Search]
+    K --> M[MIB Binary Search]
+    K --> N[Hybrid Scoring]
+
+    B --> O[Wiki System]
+    O --> P[.md Files]
+    O --> Q[SQLite Index]
+
+    B --> R[Knowledge Graphs]
+    R --> S[Epistemic Graph]
+    R --> T[Temporal Graph]
+```
 
 ### Key Capabilities
 
