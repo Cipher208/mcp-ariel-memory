@@ -12,7 +12,7 @@ import warnings
 from pathlib import Path
 from typing import Any, Optional
 
-from features.secrets import encrypt_json, decrypt_json, is_encrypted_blob
+from features.secrets import encrypt_json, decrypt_json
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +31,18 @@ class APIKeyAuth:
         try:
             with open(self.keys_file, "rb") as f:
                 blob = f.read()
-            if is_encrypted_blob(self.keys_file):
-                return decrypt_json(blob)
-            # Legacy plain JSON — rotate to encrypted
+        except Exception as e:
+            logger.warning("Failed to read %s: %s", self.keys_file, e)
+            return {}
+
+        # Try decrypt first (handles nonce collision where is_encrypted_blob returns False)
+        try:
+            return decrypt_json(blob)
+        except Exception:
+            pass
+
+        # Not encrypted — parse as legacy JSON and rotate
+        try:
             warnings.warn(
                 f"{self.keys_file} is plain JSON; rotating to encrypted form",
                 DeprecationWarning,
@@ -43,6 +52,7 @@ class APIKeyAuth:
         except Exception as e:
             logger.warning("Failed to load %s: %s", self.keys_file, e)
             return {}
+
         # Rotate outside try/except — _save failure must not mask the loaded data
         try:
             self._save(legacy)
@@ -127,27 +137,37 @@ class BearerAuth:
         if env_token:
             return env_token
 
-        # 2. From encrypted file
+        # 2. From file
         if self.token_file.exists():
             try:
                 with open(self.token_file, "rb") as f:
                     blob = f.read()
-                if is_encrypted_blob(self.token_file):
+            except Exception as e:
+                logger.warning("Failed to read bearer token file %s: %s", self.token_file, e)
+                blob = None
+
+            if blob:
+                # Try decrypt first (handles nonce collision)
+                try:
                     data = decrypt_json(blob)
                     return data.get("token", "")
-                # Legacy plain JSON — rotate to encrypted
-                warnings.warn(
-                    f"{self.token_file} is plain JSON; rotating to encrypted form",
-                    DeprecationWarning,
-                    stacklevel=2,
-                )
-                data = json.loads(blob.decode("utf-8"))
-                token = data.get("token", "")
-                if token:
-                    self._save(token)
-                return token
-            except Exception as e:
-                logger.warning("Failed to load bearer token from %s: %s", self.token_file, e)
+                except Exception:
+                    pass
+
+                # Not encrypted — parse as legacy JSON and rotate
+                try:
+                    warnings.warn(
+                        f"{self.token_file} is plain JSON; rotating to encrypted form",
+                        DeprecationWarning,
+                        stacklevel=2,
+                    )
+                    data = json.loads(blob.decode("utf-8"))
+                    token = data.get("token", "")
+                    if token:
+                        self._save(token)
+                    return token
+                except Exception as e:
+                    logger.warning("Failed to load bearer token from %s: %s", self.token_file, e)
 
         # 3. Create new and save
         token = f"mt_{secrets.token_hex(32)}"
