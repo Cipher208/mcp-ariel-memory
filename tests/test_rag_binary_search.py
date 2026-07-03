@@ -57,12 +57,12 @@ async def test_search_hybrid_combines_fts5_and_mib(rag):
 
 @pytest.mark.asyncio
 async def test_ingest_stores_both_embeddings(rag):
-    """Verify both float and binary embeddings are stored."""
+    """Verify binary embedding is stored."""
     page_id = await rag.ingest_text("test", "Test content for embedding storage", user_id="charlie")
     conn = await rag._cm.get("memory.db")
-    row = await (await conn.execute("SELECT embedding, bin_embedding FROM rag_chunks WHERE page_id=?", (page_id,))).fetchone()
-    # At least one embedding should be present
-    assert row["embedding"] is not None or row["bin_embedding"] is not None
+    row = await (await conn.execute("SELECT bin_embedding FROM rag_chunks WHERE page_id=?", (page_id,))).fetchone()
+    # Binary embedding should be present
+    assert row["bin_embedding"] is not None
 
 
 @pytest.mark.asyncio
@@ -94,22 +94,11 @@ async def test_search_works_without_float_embeddings(tmp_path):
     r = RAGEngine(cm=cm, layer="user", binary_dim=8)
     await r.init_db()
     await r.ingest_text("test", "content for testing", user_id="u")
-    # Verify float is stored by default
+    # Verify binary embedding is stored by default
     conn = await r._cm.get("memory.db")
-    row = await (await conn.execute("SELECT embedding FROM rag_chunks LIMIT 1")).fetchone()
-    assert row["embedding"] is not None
+    row = await (await conn.execute("SELECT bin_embedding FROM rag_chunks LIMIT 1")).fetchone()
+    assert row["bin_embedding"] is not None
 
-    # Disable float storage
-    from config import config
-
-    config._data.setdefault("rag", {}).setdefault("storage", {})["keep_float_blobs"] = False
-    try:
-        await r.ingest_text("test2", "second document for testing", user_id="u")
-        conn2 = await r._cm.get("memory.db")
-        row2 = await (await conn2.execute("SELECT embedding FROM rag_chunks ORDER BY id DESC LIMIT 1")).fetchone()
-        assert row2["embedding"] is None
-        # Search still works
-        results = await r.search("testing", user_id="u", strategy="fts", limit=5)
-        assert len(results) >= 1
-    finally:
-        config._data["rag"]["storage"]["keep_float_blobs"] = True
+    # Search still works
+    results = await r.search("testing", user_id="u", strategy="fts", limit=5)
+    assert len(results) >= 1

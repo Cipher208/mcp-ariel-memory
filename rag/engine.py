@@ -114,7 +114,7 @@ class RAGEngine:
             CREATE TABLE IF NOT EXISTS rag_chunks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 page_id INTEGER NOT NULL, chunk_index INTEGER NOT NULL,
-                content TEXT NOT NULL, embedding BLOB, bin_embedding BLOB
+                content TEXT NOT NULL, bin_embedding BLOB
             );
             CREATE TABLE IF NOT EXISTS rag_relations (
                 source_id INTEGER NOT NULL, target_id INTEGER NOT NULL,
@@ -142,13 +142,11 @@ class RAGEngine:
         from shared.embeddings import embed_texts
 
         embeddings = await embed_texts(chunks)
-        keep_floats = _config.get("rag", "storage", "keep_float_blobs", default=True)
         for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
-            float_blob = struct.pack("%df" % len(emb), *emb) if emb and len(emb) > 0 and keep_floats else None
             bin_blob = self._binary_for(emb) if emb and len(emb) > 0 and _HAS_BINARY else None
             await conn.execute(
-                "INSERT INTO rag_chunks (page_id, chunk_index, content, embedding, bin_embedding) VALUES (?, ?, ?, ?, ?)",
-                (page_id, i, chunk, float_blob, bin_blob),
+                "INSERT INTO rag_chunks (page_id, chunk_index, content, bin_embedding) VALUES (?, ?, ?, ?)",
+                (page_id, i, chunk, bin_blob),
             )
         return len(chunks)
 
