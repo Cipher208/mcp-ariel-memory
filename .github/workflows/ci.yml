@@ -51,7 +51,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev,binary]" aiosqlite
-      - run: pytest tests/ -v --tb=long
+      - run: pytest tests/ -v --tb=long --forked
 
   build:
     runs-on: ubuntu-latest

@@ -5,6 +5,7 @@ Backup Cron — automatic scheduled backups with jitter + wiki sync.
 import asyncio
 import json
 import logging
+import os
 import random
 import threading
 import time
@@ -46,6 +47,8 @@ class BackupCron:
 
     def start(self):
         if self._running:
+            return
+        if os.environ.get("BACKUP_CRON_DISABLED"):
             return
         self._running = True
         self._thread = threading.Thread(target=self._loop, daemon=True)
