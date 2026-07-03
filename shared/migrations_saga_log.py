@@ -1,8 +1,5 @@
 """Migration: saga_step_log table for idempotent step replay."""
 
-import sqlite3
-
-
 async def up(conn) -> None:
     """Create saga_step_log table."""
     await conn.execute("""

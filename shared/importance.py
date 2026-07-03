@@ -9,10 +9,10 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, Optional
+from typing import Dict, Iterable, Optional
 
 from shared.memory_types import (
-    MemoryKind, TypePolicy, get_policy, kind_for_text,
+    MemoryKind, get_policy, kind_for_text,
 )
 
 # Tech keywords (RU + EN)

@@ -33,6 +33,7 @@ _DEFAULT_DIR = os.environ.get(
 # Windows has aiosqlite threading bug — use sync sqlite3 + to_thread
 # On Linux/macOS, try aiosqlite first, fallback to sync if not installed
 _USE_SYNC = sys.platform == "win32"
+_HAS_AIOSQLITE = False
 
 if not _USE_SYNC:
     import importlib.util
@@ -40,7 +41,6 @@ if not _USE_SYNC:
     if importlib.util.find_spec("aiosqlite") is not None:
         _HAS_AIOSQLITE = True
     else:
-        _HAS_AIOSQLITE = False
         _USE_SYNC = True
         logger.warning("aiosqlite not installed, falling back to sync sqlite3")
 
@@ -149,10 +149,10 @@ class AsyncConnectionManager:
 
         db_path = str(self.base_dir / db_name)
 
-        if _USE_SYNC:
-            conn = await self._get_sync_conn(db_path)
-        else:
+        if _HAS_AIOSQLITE and not _USE_SYNC:
             conn = await self._get_aiosqlite_conn(db_path)
+        else:
+            conn = await self._get_sync_conn(db_path)
 
         self._conns[db_name] = conn
         logger.debug("opened connection %s (%s) [sync=%s]", db_name, db_path, _USE_SYNC)

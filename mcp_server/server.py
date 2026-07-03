@@ -7,7 +7,7 @@ import time as _time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.fastmcp import FastMCP
 
 _server_start_time = _time.time()
 
@@ -88,16 +88,15 @@ mcp = FastMCP(
 )
 
 
-def _get_ctx(ctx: Context) -> AppContext:
-    return ctx.request_context.lifespan_context
-
-
 def _register_all_tools():
-    from mcp_server.tools_layer import register_tools as register_layer
-    from mcp_server.tools_ops import register_tools as register_ops
+    from mcp_server.registry import get_all_tools
 
-    register_layer(mcp)
-    register_ops(mcp)
+    # Importing these modules triggers self-registration into the registry
+    import mcp_server.tools_layer  # noqa: F401
+    import mcp_server.tools_ops  # noqa: F401
+
+    for name, func in get_all_tools().items():
+        mcp.tool(name=name)(func)
 
 
 _register_all_tools()

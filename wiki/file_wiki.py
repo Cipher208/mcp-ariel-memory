@@ -10,6 +10,11 @@ from pathlib import Path
 from typing import Any
 
 from shared.connection import AsyncConnectionManager, connection_manager
+from wiki.shared import (
+    get_enabled_types,
+    get_external_dirs,
+    parse_tags,
+)
 
 
 @dataclass
@@ -35,17 +40,6 @@ ALL_AGENT_TYPES = [
     "learning_journal",
     "principle_log",
 ]
-
-
-def _get_config():
-    try:
-        import yaml
-
-        config_path = Path(__file__).parent.parent / "config.yaml"
-        with open(config_path) as f:
-            return yaml.safe_load(f)
-    except Exception:
-        return {}
 
 
 class FileWiki:
@@ -91,12 +85,8 @@ class FileWiki:
         await conn.commit()
 
     def _get_enabled_types(self) -> list[str]:
-        cfg = _get_config()
-        wiki_cfg = cfg.get("wiki", {}).get(self.layer, {})
-        if not wiki_cfg:
-            return ALL_USER_TYPES if "user" in self.layer else ALL_AGENT_TYPES
         all_types = ALL_USER_TYPES if "user" in self.layer else ALL_AGENT_TYPES
-        return [t for t in all_types if wiki_cfg.get(t, True)]
+        return get_enabled_types(self.layer, all_types)
 
     def _type_dir(self, wiki_type: str) -> Path:
         d = self.base_dir / wiki_type
@@ -182,7 +172,7 @@ class FileWiki:
                             "title": parsed["title"],
                             "content": parsed["content"][:500],
                             "file_path": str(p),
-                            "tags": json.loads(r["tags"]) if r["tags"] else [],
+                            "tags": parse_tags(r["tags"]),
                             "importance": r["importance"],
                             "score": abs(r["rank"]) if r["rank"] else 0,
                         }
@@ -264,8 +254,7 @@ class FileWiki:
         return self._get_enabled_types()
 
     def get_external_dirs(self) -> list[str]:
-        cfg = _get_config()
-        return cfg.get("wiki", {}).get(self.layer, {}).get("external_dirs", [])
+        return get_external_dirs(self.layer)
 
     async def reindex_all(self) -> dict[str, int]:
         """Re-index all .md files from disk to DB."""

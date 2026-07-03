@@ -3,11 +3,14 @@ Epistemic Graph — async, layer-aware tags and relations
 """
 
 import json
+import logging
 import time
 from dataclasses import dataclass
 from typing import Any
 
 from shared.connection import connection_manager
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -42,9 +45,22 @@ AGENT_TAGS = {
 
 
 class EpistemicGraph:
+    USER_TAGS = USER_TAGS
+    AGENT_TAGS = AGENT_TAGS
+
     def __init__(self, cm=None, layer: str = "user"):
         self._cm = cm or connection_manager
         self.layer = layer
+
+    @staticmethod
+    def tag_description(tag: str) -> str | None:
+        """Return human-readable description for a known tag, or None."""
+        return USER_TAGS.get(tag) or AGENT_TAGS.get(tag)
+
+    @staticmethod
+    def is_known_tag(tag: str) -> bool:
+        """Check whether a tag belongs to USER_TAGS or AGENT_TAGS."""
+        return tag in USER_TAGS or tag in AGENT_TAGS
 
     async def init_db(self):
         await self._cm.execute_script(
@@ -88,6 +104,11 @@ class EpistemicGraph:
             pass
 
     async def add_node(self, user_id: str, content: str, node_type: str, tags: list[str] = None, confidence: float = 0.5) -> int:
+        if tags:
+            known = {**USER_TAGS, **AGENT_TAGS}
+            for tag in tags:
+                if tag not in known:
+                    logger.debug("tag %r not in USER_TAGS/AGENT_TAGS — allowing as free-form", tag)
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
             "INSERT INTO epi_nodes (layer, user_id, content, node_type, tags, confidence, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",

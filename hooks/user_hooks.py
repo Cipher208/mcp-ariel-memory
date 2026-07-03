@@ -4,13 +4,16 @@ User Layer Hooks - 12 hooks for user memory events
 
 from typing import Any
 
-from lifecycle.consolidation import ConsolidationEngine
 from lifecycle.emotion_trigger import EmotionTrigger
-from lifecycle.forgetting import ForgettingSystem
-from rag.conflict import ConflictResolver
-from rag.router import RetrievalRouter
 
 from .registry import hook_registry
+from .shared import (
+    auto_context,
+    conflict_resolver,
+    consolidation,
+    forgetting_ritual,
+    retrieval_router,
+)
 
 
 class UserHooks:
@@ -49,10 +52,7 @@ class UserHooks:
         return {"action": "skip"}
 
     def _consolidation(self, ctx: dict[str, Any]) -> dict[str, Any]:
-        staging = ctx.get("staging_items", [])
-        engine = ConsolidationEngine()
-        result = engine.consolidate_staging(self.user_id, staging)
-        return {"action": "consolidated", **result}
+        return consolidation(ctx, self.user_id)
 
     def _emotion_trigger(self, ctx: dict[str, Any]) -> dict[str, Any]:
         text = ctx.get("text", "")
@@ -71,25 +71,16 @@ class UserHooks:
         return {"importance": score, "bypass": score < 0.3}
 
     def _auto_context(self, ctx: dict[str, Any]) -> dict[str, Any]:
-        query = ctx.get("query", "")
-        router = RetrievalRouter(user_id=self.user_id)
-        result = router.route(query)
-        return {"context": result.context, "strategy": result.strategy.value}
+        return auto_context(ctx, self.user_id)
 
     def _forgetting_ritual(self, ctx: dict[str, Any]) -> dict[str, Any]:
-        fs = ForgettingSystem()
-        return fs.cleanup()
+        return forgetting_ritual(ctx)
 
     def _retrieval_router(self, ctx: dict[str, Any]) -> dict[str, Any]:
-        query = ctx.get("query", "")
-        router = RetrievalRouter(user_id=self.user_id)
-        result = router.route(query)
-        return {"strategy": result.strategy.value, "confidence": result.confidence, "count": len(result.context)}
+        return retrieval_router(ctx, self.user_id, include_count=True)
 
     def _conflict_resolver(self, ctx: dict[str, Any]) -> dict[str, Any]:
-        content = ctx.get("content", "")
-        resolver = ConflictResolver()
-        return resolver.check(self.user_id, content)
+        return conflict_resolver(ctx, self.user_id)
 
     def _dream_buffer(self, ctx: dict[str, Any]) -> dict[str, Any]:
         return {"action": "add_to_staging", "content": ctx.get("text", "")}

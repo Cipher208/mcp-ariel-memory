@@ -40,6 +40,8 @@ class MemoryCompressor:
         await conn.commit()
         return cursor.rowcount
 
+    ALLOWED_TABLES = {"core_memory", "episodes", "epistemic_edges", "temporal_edges", "saga_log", "agent_wiki", "user_wiki", "file_wiki"}
+
     async def get_stats(self, user_id: str = None) -> dict[str, int]:
         stats = {}
         for name, db in [("core", "memory.db"), ("episodes", "memory.db"), ("sessions", "memory.db")]:
@@ -47,8 +49,10 @@ class MemoryCompressor:
             tables = [r[0] for r in await (await conn.execute("SELECT name FROM sqlite_master WHERE type='table'")).fetchall()]
             total = 0
             for t in tables:
+                if t not in self.ALLOWED_TABLES:
+                    continue
                 try:
-                    row = await (await conn.execute("SELECT COUNT(*) FROM %s" % t)).fetchone()
+                    row = await (await conn.execute("SELECT COUNT(*) FROM [%s]" % t)).fetchone()
                     total += row[0] if row else 0
                 except Exception:
                     pass

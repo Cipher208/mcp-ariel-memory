@@ -2,6 +2,20 @@
 
 import json
 import os
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def restore_master_key():
+    """Restore MCP_MASTER_KEY after each test to prevent cross-test contamination."""
+    original = os.environ.get("MCP_MASTER_KEY")
+    yield
+    if original is not None:
+        os.environ["MCP_MASTER_KEY"] = original
+    else:
+        os.environ.pop("MCP_MASTER_KEY", None)
+    from features import secrets
+    secrets._master_cache.clear()
 
 
 def test_legacy_plain_json_gets_rotated(tmp_path):

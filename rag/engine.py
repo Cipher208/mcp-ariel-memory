@@ -137,6 +137,22 @@ class RAGEngine:
             except Exception:
                 pass
 
+    async def _ingest_single_file(self, conn, page_id: int, content: str) -> int:
+        """Chunk content, embed, and store chunks for a page. Returns chunk count."""
+        chunks = self._chunk_text(content)
+        from shared.embeddings import embed_texts
+
+        embeddings = await embed_texts(chunks)
+        keep_floats = _config.get("rag", "storage", "keep_float_blobs", default=True)
+        for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
+            float_blob = struct.pack("%df" % len(emb), *emb) if emb and len(emb) > 0 and keep_floats else None
+            bin_blob = self._binary_for(emb) if emb and len(emb) > 0 and _HAS_BINARY else None
+            await conn.execute(
+                "INSERT INTO rag_chunks (page_id, chunk_index, content, embedding, bin_embedding) VALUES (?, ?, ?, ?, ?)",
+                (page_id, i, chunk, float_blob, bin_blob),
+            )
+        return len(chunks)
+
     async def ingest_file(self, filepath: Path, user_id: str = "default", wiki_type: str = None) -> str:
         content = filepath.read_text(encoding="utf-8")
         file_hash = hashlib.sha256(content.encode()).hexdigest()
@@ -162,21 +178,10 @@ class RAGEngine:
             except Exception:
                 pass
 
-        chunks = self._chunk_text(content)
-        from shared.embeddings import embed_texts
-
-        embeddings = await embed_texts(chunks)
-        keep_floats = _config.get("rag", "storage", "keep_float_blobs", default=True)
-        for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
-            float_blob = struct.pack("%df" % len(emb), *emb) if emb and len(emb) > 0 and keep_floats else None
-            bin_blob = self._binary_for(emb) if emb and len(emb) > 0 and _HAS_BINARY else None
-            await conn.execute(
-                "INSERT INTO rag_chunks (page_id, chunk_index, content, embedding, bin_embedding) VALUES (?, ?, ?, ?, ?)",
-                (page_id, i, chunk, float_blob, bin_blob),
-            )
+        num_chunks = await self._ingest_single_file(conn, page_id, content)
 
         await conn.commit()
-        return "[OK] %s (%d chunks)" % (filepath.name, len(chunks))
+        return "[OK] %s (%d chunks)" % (filepath.name, num_chunks)
 
     async def ingest_text(
         self,
@@ -211,18 +216,7 @@ class RAGEngine:
             except Exception:
                 pass
 
-        chunks = self._chunk_text(text)
-        from shared.embeddings import embed_texts
-
-        embeddings = await embed_texts(chunks)
-        keep_floats = _config.get("rag", "storage", "keep_float_blobs", default=True)
-        for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
-            float_blob = struct.pack("%df" % len(emb), *emb) if emb and len(emb) > 0 and keep_floats else None
-            bin_blob = self._binary_for(emb) if emb and len(emb) > 0 and _HAS_BINARY else None
-            await conn.execute(
-                "INSERT INTO rag_chunks (page_id, chunk_index, content, embedding, bin_embedding) VALUES (?, ?, ?, ?, ?)",
-                (page_id, i, chunk, float_blob, bin_blob),
-            )
+        await self._ingest_single_file(conn, page_id, text)
 
         if relation_to is not None:
             await conn.execute(
@@ -296,9 +290,10 @@ class RAGEngine:
             except Exception:
                 pass
 
+        escaped_query = query.replace('%', '\\%').replace('_', '\\_')
         cur = await conn.execute(
             "SELECT id, title, content, wiki_type FROM rag_pages WHERE user_id=? AND (title LIKE ? OR content LIKE ?) LIMIT ?",
-            (user_id, "%%%s%%" % query, "%%%s%%" % query, limit),
+            (user_id, f"%{escaped_query}%", f"%{escaped_query}%", limit),
         )
         rows = await cur.fetchall()
         return [

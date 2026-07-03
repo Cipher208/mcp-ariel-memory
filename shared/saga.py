@@ -219,6 +219,79 @@ class Saga:
 
     # ─── Execute with retry + idempotency ───
 
+    async def _check_idempotency(self, step: SagaStep) -> tuple[bool, str | None]:
+        """Check if step was already executed via idempotency log.
+
+        Returns (replayed, idempotency_key). If replayed, step state is restored
+        from cache and the caller should skip execution.
+        """
+        idemp_key = self._compute_idempotency_key(step)
+        if idemp_key and await self._is_already_completed(idemp_key):
+            cached = await self._get_cached_result(idemp_key)
+            if cached is not None:
+                step.result = cached
+                step.status = SagaStatus.COMPLETED
+                step.data = self._data.copy()
+                self._data.update(step.result)
+                self._completed_steps.append(self._current_step)
+                self._save_state()
+                logger.info("Saga '%s' step '%s' replayed from cache" % (self.name, step.name))
+                return True, idemp_key
+        return False, idemp_key
+
+    async def _execute_step_with_retry(self, step: SagaStep) -> None:
+        """Execute a single step with exponential backoff retry.
+
+        Raises the last exception on failure after retries are exhausted.
+        """
+        attempt = 0
+        step_exc: Exception | None = None
+        while attempt <= step.retry_attempts:
+            try:
+                step_timeout = step.timeout_seconds or self.timeout_seconds
+                if isinstance(step.action, Saga):
+                    result = await asyncio.wait_for(step.action.execute(self._data), timeout=step_timeout)
+                else:
+                    action_result = step.action(self._data)
+                    if hasattr(action_result, "__await__"):
+                        result = await asyncio.wait_for(action_result, timeout=step_timeout)
+                    else:
+                        result = action_result
+                step.result = result if isinstance(result, dict) else {"value": result}
+                return
+            except step.retry_on as exc:
+                step_exc = exc
+                attempt += 1
+                if attempt <= step.retry_attempts:
+                    delay = step.retry_backoff * (2 ** (attempt - 1))
+                    logger.warning(
+                        "Saga '%s' step '%s' retry %d/%d in %.1fs: %s" % (self.name, step.name, attempt, step.retry_attempts, delay, exc)
+                    )
+                    await asyncio.sleep(delay)
+            except Exception as exc:
+                step_exc = exc
+                break
+
+        step.status = SagaStatus.FAILED
+        if attempt > step.retry_attempts:
+            logger.error("Saga '%s' step '%s' failed after %d retries: %s" % (self.name, step.name, step.retry_attempts, step_exc))
+        else:
+            logger.error("Saga '%s' step '%s' failed: %s" % (self.name, step.name, step_exc))
+        await self._compensate(self._current_step)
+        self._save_state()
+        raise step_exc
+
+    async def _record_step(self, step: SagaStep, idemp_key: str | None) -> None:
+        """Record completed step in idempotency log and update saga state."""
+        if idemp_key:
+            await self._record_completed(idemp_key, step.name, step.result)
+        step.data = self._data.copy()
+        self._data.update(step.result)
+        step.status = SagaStatus.COMPLETED
+        self._completed_steps.append(self._current_step)
+        self._save_state()
+        logger.info("Saga '%s' step '%s' completed" % (self.name, step.name))
+
     async def execute(self, initial_data: dict | None = None) -> dict:
         if not self._saga_id:
             self._saga_id = self.name + "_" + uuid.uuid4().hex[:8]
@@ -237,70 +310,12 @@ class Saga:
                 step.status = SagaStatus.RUNNING
                 self._save_state()
 
-                # B7: Idempotency check
-                idemp_key = self._compute_idempotency_key(step)
-                if idemp_key and await self._is_already_completed(idemp_key):
-                    cached = await self._get_cached_result(idemp_key)
-                    if cached is not None:
-                        step.result = cached
-                        step.status = SagaStatus.COMPLETED
-                        step.data = self._data.copy()
-                        self._data.update(step.result)
-                        self._completed_steps.append(i)
-                        self._save_state()
-                        logger.info("Saga '%s' step '%s' replayed from cache" % (self.name, step.name))
-                        continue
+                replayed, idemp_key = await self._check_idempotency(step)
+                if replayed:
+                    continue
 
-                # B7: Retry loop with exponential backoff
-                attempt = 0
-                step_exc: Exception | None = None
-                while attempt <= step.retry_attempts:
-                    try:
-                        step_timeout = step.timeout_seconds or self.timeout_seconds
-                        if isinstance(step.action, Saga):
-                            result = await asyncio.wait_for(step.action.execute(self._data), timeout=step_timeout)
-                        else:
-                            action_result = step.action(self._data)
-                            if hasattr(action_result, "__await__"):
-                                result = await asyncio.wait_for(action_result, timeout=step_timeout)
-                            else:
-                                result = action_result
-                        step.result = result if isinstance(result, dict) else {"value": result}
-                        step_exc = None
-                        break
-                    except step.retry_on as exc:
-                        step_exc = exc
-                        attempt += 1
-                        if attempt <= step.retry_attempts:
-                            delay = step.retry_backoff * (2 ** (attempt - 1))
-                            logger.warning(
-                                "Saga '%s' step '%s' retry %d/%d in %.1fs: %s" % (self.name, step.name, attempt, step.retry_attempts, delay, exc)
-                            )
-                            await asyncio.sleep(delay)
-                    except Exception as exc:
-                        step_exc = exc
-                        break
-
-                if step_exc is not None:
-                    step.status = SagaStatus.FAILED
-                    if attempt > step.retry_attempts:
-                        logger.error("Saga '%s' step '%s' failed after %d retries: %s" % (self.name, step.name, step.retry_attempts, step_exc))
-                    else:
-                        logger.error("Saga '%s' step '%s' failed: %s" % (self.name, step.name, step_exc))
-                    await self._compensate(i)
-                    self._save_state()
-                    raise step_exc
-
-                # Record in idempotency log
-                if idemp_key:
-                    await self._record_completed(idemp_key, step.name, step.result)
-
-                step.data = self._data.copy()
-                self._data.update(step.result)
-                step.status = SagaStatus.COMPLETED
-                self._completed_steps.append(i)
-                self._save_state()
-                logger.info("Saga '%s' step '%s' completed" % (self.name, step.name))
+                await self._execute_step_with_retry(step)
+                await self._record_step(step, idemp_key)
 
             self._status = SagaStatus.COMPLETED
             self._cleanup_state()

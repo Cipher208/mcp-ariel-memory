@@ -147,27 +147,28 @@ class RetrievalRouter:
         # B2.5: Data-driven route matching
         for route in _ROUTE_TABLE:
             strategy_name = route["strategy"]
+            strategy = Strategy[strategy_name]
             confidence = route["confidence"]
             keyword_kind = route["keywords"]
 
             if keyword_kind == "recent":
                 if self._is_recent_query(q) and recent_context:
-                    return RouterResult(Strategy.L1_BUFFER, recent_context, confidence)
+                    return RouterResult(strategy, recent_context, confidence)
 
             elif keyword_kind == "wiki":
                 if self._is_wiki_query(q):
-                    return await self._route_wiki(query, confidence)
+                    return await self._route_wiki(query, strategy, confidence)
 
             elif keyword_kind == "entity":
                 entities = self._extract_entities(query)
                 if entities:
-                    result = await self._route_entities(entities, confidence)
+                    result = await self._route_entities(entities, strategy, confidence)
                     if result:
                         return result
 
             elif keyword_kind == "graph":
                 if self._is_graph_query(q):
-                    result = await self._route_graph(q, confidence)
+                    result = await self._route_graph(q, strategy, confidence)
                     if result:
                         return result
 
@@ -175,11 +176,11 @@ class RetrievalRouter:
                 # Fallback to semantic
                 results = await self._rag.search(query, self.user_id, strategy="hybrid", limit=3)
                 if results:
-                    return RouterResult(Strategy.SEMANTIC, results, confidence)
+                    return RouterResult(strategy, results, confidence)
 
         return RouterResult(Strategy.SEMANTIC, [], 0.0)
 
-    async def _route_wiki(self, query: str, confidence: float) -> RouterResult:
+    async def _route_wiki(self, query: str, strategy: Strategy, confidence: float) -> RouterResult:
         results = await self._rag.search(query, self.user_id, strategy="hybrid", limit=3)
         if results:
             page_id = results[0]["id"]
@@ -192,10 +193,10 @@ class RetrievalRouter:
                         "score": 0.7,
                     }
                 )
-            return RouterResult(Strategy.WIKI, results, confidence)
-        return RouterResult(Strategy.WIKI, [], 0.0)
+            return RouterResult(strategy, results, confidence)
+        return RouterResult(strategy, [], 0.0)
 
-    async def _route_entities(self, entities: set[str], confidence: float) -> RouterResult | None:
+    async def _route_entities(self, entities: set[str], strategy: Strategy, confidence: float) -> RouterResult | None:
         from graph.epistemic import EpistemicGraph
 
         graph = EpistemicGraph(layer=self.layer)
@@ -204,10 +205,10 @@ class RetrievalRouter:
             nodes = await graph.query_by_tag(self.user_id, entity, limit=3)
             entity_results.extend([{"title": n.content, "type": n.node_type, "tags": n.tags, "entity": entity} for n in nodes])
         if entity_results:
-            return RouterResult(Strategy.GRAPH, entity_results, confidence)
+            return RouterResult(strategy, entity_results, confidence)
         return None
 
-    async def _route_graph(self, query: str, confidence: float) -> RouterResult | None:
+    async def _route_graph(self, query: str, strategy: Strategy, confidence: float) -> RouterResult | None:
         from graph.epistemic import EpistemicGraph
 
         graph = EpistemicGraph(layer=self.layer)
@@ -217,13 +218,13 @@ class RetrievalRouter:
                 nodes = await graph.query_by_tag(self.user_id, tag, limit=5)
                 if nodes:
                     context = [{"title": n.content, "type": n.node_type, "tags": n.tags} for n in nodes]
-                    return RouterResult(Strategy.GRAPH, context, confidence)
+                    return RouterResult(strategy, context, confidence)
         for node_type in ["decision_log", "error_analysis", "fact"]:
             if node_type.replace("_", " ") in query:
                 nodes = await graph.query_by_type(self.user_id, node_type, limit=5)
                 if nodes:
                     context = [{"title": n.content, "type": n.node_type, "tags": n.tags} for n in nodes]
-                    return RouterResult(Strategy.GRAPH, context, confidence)
+                    return RouterResult(strategy, context, confidence)
         return None
 
     def _extract_entities(self, query: str) -> set[str]:

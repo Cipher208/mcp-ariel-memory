@@ -2,6 +2,7 @@
 Hook Registry - central dispatch for all hooks
 """
 
+import inspect
 import logging
 from collections.abc import Callable
 from typing import Any
@@ -9,6 +10,19 @@ from typing import Any
 from config import config
 
 logger = logging.getLogger(__name__)
+
+
+def _discover_hook_names(cls) -> set[str]:
+    """Auto-discover hook names from a class by inspecting its methods.
+
+    Methods starting with a single underscore (not dunder) are hook handlers.
+    The hook name is the method name without the leading underscore.
+    """
+    return {
+        name.lstrip("_")
+        for name, _ in inspect.getmembers(cls, predicate=inspect.isfunction)
+        if name.startswith("_") and not name.startswith("__")
+    }
 
 
 class HookRegistry:
@@ -21,34 +35,12 @@ class HookRegistry:
         self._hooks[hook_name].append(handler)
 
     def fire(self, hook_name: str, layer: str, context: dict[str, Any]) -> dict[str, Any]:
-        known_user = {
-            "message_received",
-            "message_sent",
-            "state_delta",
-            "consolidation",
-            "emotion_trigger",
-            "nightly",
-            "importance_gate",
-            "auto_context",
-            "forgetting_ritual",
-            "retrieval_router",
-            "conflict_resolver",
-            "dream_buffer",
-        }
-        known_agent = {
-            "error_occurred",
-            "decision_made",
-            "self_correction",
-            "personality_shift",
-            "emotion_context",
-            "wiki_agent",
-            "consolidation",
-            "forgetting_ritual",
-            "auto_context",
-            "retrieval_router",
-            "conflict_resolver",
-            "emotion",
-        }
+        # Lazy import to avoid circular dependency at module load time
+        from hooks.agent_hooks import AgentHooks
+        from hooks.user_hooks import UserHooks
+
+        known_user = _discover_hook_names(UserHooks)
+        known_agent = _discover_hook_names(AgentHooks)
 
         if hook_name in known_user or hook_name in known_agent:
             if not config.is_hook_enabled(layer, hook_name):

@@ -10,6 +10,15 @@ from pathlib import Path
 from typing import Any
 
 from shared.connection import AsyncConnectionManager, connection_manager
+from wiki.shared import (
+    build_count_query,
+    build_update_clause,
+    find_by_source,
+    format_search_result,
+    get_enabled_types,
+    get_external_dirs,
+    parse_tags,
+)
 
 
 @dataclass
@@ -30,29 +39,12 @@ ALL_WIKI_TYPES = ["diary", "relationships", "desires", "aspirations", "work_note
 
 def _get_enabled_types() -> list[str]:
     """Get enabled wiki types from config."""
-    try:
-        import yaml
-
-        config_path = Path(__file__).parent.parent / "config.yaml"
-        with open(config_path) as f:
-            cfg = yaml.safe_load(f)
-        user_cfg = cfg.get("wiki", {}).get("user", {})
-        return [t for t in ALL_WIKI_TYPES if user_cfg.get(t, True)]
-    except Exception:
-        return ALL_WIKI_TYPES
+    return get_enabled_types("user", ALL_WIKI_TYPES)
 
 
 def _get_external_dirs() -> list[str]:
     """Get external directories from config."""
-    try:
-        import yaml
-
-        config_path = Path(__file__).parent.parent / "config.yaml"
-        with open(config_path) as f:
-            cfg = yaml.safe_load(f)
-        return cfg.get("wiki", {}).get("user", {}).get("external_dirs", [])
-    except Exception:
-        return []
+    return get_external_dirs("user")
 
 
 class UserWiki:
@@ -126,20 +118,7 @@ class UserWiki:
 
     async def update(self, entry_id: int, title: str = None, content: str = None, tags: list[str] = None, importance: float = None):
         conn = await self._cm.get("memory.db")
-        updates = ["updated_at=?"]
-        params = [time.time()]
-        if title:
-            updates.append("title=?")
-            params.append(title)
-        if content:
-            updates.append("content=?")
-            params.append(content)
-        if tags is not None:
-            updates.append("tags=?")
-            params.append(json.dumps(tags))
-        if importance is not None:
-            updates.append("importance=?")
-            params.append(importance)
+        updates, params = build_update_clause({"title": title, "content": content, "tags": tags, "importance": importance})
         params.append(entry_id)
         await conn.execute(f"UPDATE user_wiki SET {', '.join(updates)} WHERE entry_id=?", params)
         await conn.commit()
@@ -161,18 +140,7 @@ class UserWiki:
                 (query, user_id, limit),
             )
             rows = await cur.fetchall()
-            return [
-                {
-                    "id": r[0],
-                    "title": r[1],
-                    "content": r[2][:300],
-                    "type": r[3],
-                    "tags": json.loads(r[4]) if r[4] else [],
-                    "importance": r[5],
-                    "score": abs(r[6]) if r[6] else 0,
-                }
-                for r in rows
-            ]
+            return [format_search_result(r) for r in rows]
         except Exception:
             return []
 
@@ -199,15 +167,8 @@ class UserWiki:
 
     async def count(self, user_id: str = None, wiki_type: str = None) -> int:
         conn = await self._cm.get("memory.db")
-        conditions, params = [], []
-        if user_id:
-            conditions.append("user_id=?")
-            params.append(user_id)
-        if wiki_type:
-            conditions.append("wiki_type=?")
-            params.append(wiki_type)
-        where = " WHERE " + " AND ".join(conditions) if conditions else ""
-        cur = await conn.execute(f"SELECT COUNT(*) FROM user_wiki{where}", params)
+        query, params = build_count_query("user_wiki", user_id, wiki_type)
+        cur = await conn.execute(query, params)
         row = await cur.fetchone()
         return row[0] if row else 0
 
@@ -243,10 +204,7 @@ class UserWiki:
         return results
 
     async def _find_by_source(self, user_id: str, source: str) -> int | None:
-        conn = await self._cm.get("memory.db")
-        cur = await conn.execute("SELECT entry_id FROM user_wiki WHERE user_id=? AND source=?", (user_id, source))
-        row = await cur.fetchone()
-        return row[0] if row else None
+        return await find_by_source(self._cm, "user_wiki", user_id, source)
 
     def _guess_type(self, path: Path, content: str) -> str:
         name = path.stem.lower()
@@ -266,7 +224,7 @@ class UserWiki:
             wiki_type=row["wiki_type"],
             title=row["title"],
             content=row["content"],
-            tags=json.loads(row["tags"]) if row["tags"] else [],
+            tags=parse_tags(row["tags"]),
             importance=row["importance"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
