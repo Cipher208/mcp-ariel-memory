@@ -1,0 +1,224 @@
+"""Property-based tests using Hypothesis.
+
+Tests mathematical invariants and roundtrip properties that must hold
+for ALL valid inputs, not just hand-picked examples.
+"""
+
+import json
+import math
+
+import pytest
+from hypothesis import given, settings, assume, HealthCheck
+from hypothesis import strategies as st
+
+# ── Fixed-dimension strategies (avoid assume() filtering) ──
+
+DIM = 32  # small dimension for fast tests
+st_dim_vec = st.lists(st.floats(min_value=-10.0, max_value=10.0, allow_nan=False, allow_infinity=False), min_size=DIM, max_size=DIM)
+st_short_text = st.text(min_size=1, max_size=200, alphabet=st.characters(blacklist_categories=("Cs",)))
+
+
+
+
+# ═══════════════════════════════════════════════════════════════
+#  rag/conflict.py — similarity function invariants
+# ═══════════════════════════════════════════════════════════════
+
+from rag.conflict import bm25_pair_similarity, char_ngram_jaccard, smart_similarity
+
+
+class TestSimilarityProperties:
+
+    @given(a=st_short_text, b=st_short_text)
+    @settings(max_examples=200)
+    def test_similarity_range(self, a, b):
+        for fn in (bm25_pair_similarity, char_ngram_jaccard, smart_similarity):
+            score = fn(a, b)
+            assert 0.0 <= score <= 1.0, f"{fn.__name__} returned {score}"
+
+    @given(a=st_short_text)
+    @settings(max_examples=100)
+    def test_self_similarity_non_negative(self, a):
+        assume(len(a) >= 3)
+        assert bm25_pair_similarity(a, a) >= 0.0
+        assert char_ngram_jaccard(a, a) >= 0.0
+        assert smart_similarity(a, a) >= 0.0
+
+    @given(a=st_short_text, b=st_short_text)
+    @settings(max_examples=100)
+    def test_symmetry(self, a, b):
+        assert abs(bm25_pair_similarity(a, b) - bm25_pair_similarity(b, a)) < 1e-10
+        assert abs(char_ngram_jaccard(a, b) - char_ngram_jaccard(b, a)) < 1e-10
+
+    @given(a=st.text(min_size=0, max_size=2), b=st_short_text)
+    @settings(max_examples=50)
+    def test_empty_short_text_returns_zero(self, a, b):
+        assert smart_similarity(a, b) == 0.0
+        assert smart_similarity(b, a) == 0.0
+
+
+# ═══════════════════════════════════════════════════════════════
+#  rag/scoring.py — scoring invariants
+# ═══════════════════════════════════════════════════════════════
+
+from rag.scoring import CorpusStats, ScoredCandidate, Scorer, ScoringWeights
+
+
+class TestScoringProperties:
+
+    @given(
+        rrf_score=st.floats(min_value=0.0, max_value=1.0),
+        weight_rel=st.floats(min_value=0.0, max_value=2.0),
+        weight_nov=st.floats(min_value=0.0, max_value=2.0),
+        weight_tb=st.floats(min_value=0.0, max_value=2.0),
+    )
+    @settings(max_examples=200)
+    def test_final_score_is_weighted_sum(self, rrf_score, weight_rel, weight_nov, weight_tb):
+        scorer = Scorer(
+            mode="rrf",
+            weights=ScoringWeights(relevance=weight_rel, novelty=weight_nov, type_boost=weight_tb),
+        )
+        c = ScoredCandidate(id=1, page_id=1, title="t", content="c", wiki_type=None, rrf_score=rrf_score)
+        result = scorer.rank_sync("q", [c], "user")
+        r = result[0]
+        expected = weight_rel * r.debug["relevance"] + weight_nov * r.debug["novelty"] + weight_tb * r.debug["type_boost"]
+        assert abs(r.final_score - expected) < 1e-6
+
+    @given(n=st.integers(min_value=1, max_value=30))
+    @settings(max_examples=30)
+    def test_ranking_ordering(self, n):
+        scorer = Scorer(weights=ScoringWeights(relevance=1.0))
+        candidates = [
+            ScoredCandidate(id=i, page_id=i, title=f"t{i}", content=f"c{i}", wiki_type=None, rrf_score=float(i) / n)
+            for i in range(n)
+        ]
+        result = scorer.rank_sync("q", candidates, "u")
+        scores = [c.final_score for c in result]
+        assert scores == sorted(scores, reverse=True)
+
+    @given(total=st.integers(min_value=0, max_value=200))
+    @settings(max_examples=30)
+    def test_corpus_stats_prior_range(self, total):
+        stats = CorpusStats(
+            total_retrievals=total,
+            doc_retrieval_counts={i: i for i in range(min(total, 50))},
+        )
+        for doc_id in range(min(total, 50)):
+            p = stats.prior(doc_id)
+            assert 0.0 <= p <= 1.0
+
+    @given(
+        relevance=st.floats(min_value=-1.0, max_value=3.0),
+        novelty=st.floats(min_value=-1.0, max_value=3.0),
+        type_boost=st.floats(min_value=-1.0, max_value=3.0),
+    )
+    @settings(max_examples=100)
+    def test_update_weights_clamped(self, relevance, novelty, type_boost):
+        scorer = Scorer()
+        scorer.update_weights({"relevance": relevance, "novelty": novelty, "type_boost": type_boost})
+        assert 0.0 <= scorer.weights.relevance <= 2.0
+        assert 0.0 <= scorer.weights.novelty <= 2.0
+        assert 0.0 <= scorer.weights.type_boost <= 2.0
+
+
+# ═══════════════════════════════════════════════════════════════
+#  rag/quantize.py — binary encoding invariants
+# ═══════════════════════════════════════════════════════════════
+
+try:
+    import numpy as np
+    from rag.quantize import embed_to_binary, hamming_distance, hamming_to_score, _packed_bytes
+    HAS_NUMPY = True
+except ImportError:
+    HAS_NUMPY = False
+
+pytestmark = pytest.mark.skipif(not HAS_NUMPY, reason="numpy not installed")
+
+
+class TestQuantizeProperties:
+
+    @given(emb=st_dim_vec)
+    @settings(max_examples=100)
+    def test_output_length(self, emb):
+        result = embed_to_binary(emb, dim=DIM)
+        assert len(result) == _packed_bytes(DIM)
+
+    @given(emb=st_dim_vec, threshold=st.floats(min_value=-5.0, max_value=5.0))
+    @settings(max_examples=100)
+    def test_output_length_with_threshold(self, emb, threshold):
+        result = embed_to_binary(emb, threshold=threshold, dim=DIM)
+        assert len(result) == _packed_bytes(DIM)
+
+    @given(emb=st.lists(st.floats(min_value=0.5, max_value=10.0, allow_nan=False, allow_infinity=False), min_size=DIM, max_size=DIM))
+    @settings(max_examples=100)
+    def test_all_positive_embedding(self, emb):
+        result = embed_to_binary(emb, threshold=0.0, dim=DIM)
+        arr = np.frombuffer(result, dtype=np.uint8)
+        bits = np.unpackbits(arr, bitorder="big")[:DIM]
+        assert bits.mean() > 0.8
+
+    @given(emb=st_dim_vec)
+    @settings(max_examples=100)
+    def test_hamming_distance_self_zero(self, emb):
+        b = embed_to_binary(emb, dim=DIM)
+        assert hamming_distance(b, b) == 0
+
+    @given(a=st_dim_vec, b=st_dim_vec)
+    @settings(max_examples=100)
+    def test_hamming_distance_symmetric(self, a, b):
+        ba = embed_to_binary(a, dim=DIM)
+        bb = embed_to_binary(b, dim=DIM)
+        assert hamming_distance(ba, bb) == hamming_distance(bb, ba)
+
+    @given(distance=st.integers(min_value=0, max_value=DIM))
+    @settings(max_examples=50)
+    def test_hamming_to_score_range(self, distance):
+        score = hamming_to_score(distance, dim=DIM)
+        assert 0.0 <= score <= 1.0
+
+    @given(distance=st.integers(min_value=0, max_value=DIM - 1))
+    @settings(max_examples=50)
+    def test_hamming_to_score_monotonic(self, distance):
+        assert hamming_to_score(distance, dim=DIM) > hamming_to_score(distance + 1, dim=DIM)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  features/secrets.py — encrypt/decrypt roundtrip
+# ═══════════════════════════════════════════════════════════════
+
+from features.secrets import encrypt_json, decrypt_json
+
+
+class TestSecretsProperties:
+
+    @given(data=st.dictionaries(st.text(min_size=1, max_size=20), st.text(max_size=100), min_size=1, max_size=5))
+    @settings(deadline=None, max_examples=30)
+    def test_encrypt_decrypt_roundtrip_dict(self, data):
+        blob = encrypt_json(data)
+        result = decrypt_json(blob)
+        assert result == data
+
+    @given(data=st.lists(st.text(min_size=1, max_size=50), min_size=1, max_size=5))
+    @settings(deadline=None, max_examples=30)
+    def test_encrypt_decrypt_roundtrip_list(self, data):
+        blob = encrypt_json(data)
+        result = decrypt_json(blob)
+        assert result == data
+
+    @given(
+        a=st.dictionaries(st.text(min_size=1, max_size=10), st.text(max_size=50), min_size=1),
+        b=st.dictionaries(st.text(min_size=1, max_size=10), st.text(max_size=50), min_size=1),
+    )
+    @settings(deadline=None, max_examples=30)
+    def test_different_inputs_different_ciphertext(self, a, b):
+        assume(a != b)
+        blob_a = encrypt_json(a)
+        blob_b = encrypt_json(b)
+        assert blob_a != blob_b
+
+    @given(data=st.dictionaries(st.text(min_size=1, max_size=10), st.integers(), min_size=1))
+    @settings(deadline=None, max_examples=20)
+    def test_min_blob_size(self, data):
+        """Encrypted blob must be at least nonce(24) + MAC(16) = 40 bytes."""
+        blob = encrypt_json(data)
+        assert len(blob) >= 40
