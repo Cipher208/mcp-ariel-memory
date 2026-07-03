@@ -41,6 +41,11 @@ dev = [
     "mypy>=1.0",
     "hypothesis>=6.0",
 ]
+docs = [
+    "mkdocs>=1.5",
+    "mkdocs-material>=9.0",
+    "mkdocstrings[python]>=0.24",
+]
 win = [
     "aiosqlite>=0.21.0,!=0.22.0",
 ]

@@ -20,3 +20,4 @@ venv/
 .ai-memory/
 docs/compose/
 .repowise/
+site/

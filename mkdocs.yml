@@ -1,0 +1,105 @@
+site_name: mcp-ariel-memory
+site_description: Universal Two-Layer Memory MCP Server for AI agents
+site_url: https://cipher208.github.io/mcp-ariel-memory/
+repo_url: https://github.com/Cipher208/mcp-ariel-memory
+repo_name: Cipher208/mcp-ariel-memory
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+            heading_level: 3
+            members_order: source
+            separate_signature: true
+            docstring_style: google
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Configuration: getting-started/configuration.md
+    - Quick Start: getting-started/quickstart.md
+  - Architecture:
+    - Overview: architecture/overview.md
+    - Memory Layers: architecture/layers.md
+    - Connection Manager: architecture/connection.md
+  - MCP Tools:
+    - Tools Reference: tools/reference.md
+  - Core:
+    - ReflexBuffer: core/reflex.md
+    - Session Store: core/session.md
+    - Episodic Memory: core/episodic.md
+    - Core Memory: core/memory.md
+  - RAG & Search:
+    - Engine: rag/engine.md
+    - Scoring: rag/scoring.md
+    - Quantization: rag/quantize.md
+    - Conflict Resolution: rag/conflict.md
+    - Router: rag/router.md
+  - Features:
+    - Authentication: features/auth.md
+    - Encryption: features/secrets.md
+    - Backup: features/backup.md
+    - Rate Limiting: features/rate-limiting.md
+    - Compression: features/compression.md
+  - Wiki:
+    - Overview: wiki/overview.md
+    - FileWiki: wiki/file-wiki.md
+    - UserWiki: wiki/user-wiki.md
+    - AgentWiki: wiki/agent-wiki.md
+  - Hooks & Lifecycle:
+    - Hooks System: hooks/system.md
+    - Lifecycle: lifecycle/overview.md
+  - Operations:
+    - Deployment: operations/deployment.md
+    - Monitoring: operations/monitoring.md
+    - Testing: operations/testing.md
+  - API Reference:
+    - Secrets: api/secrets.md
+    - Importance: api/importance.md
+    - Memory Types: api/memory-types.md
+  - Contributing: contributing.md
+  - Changelog: changelog.md
