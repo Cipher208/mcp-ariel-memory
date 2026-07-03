@@ -128,14 +128,22 @@ build_command = "pip install build && python -m build"
 changelog_file = "CHANGELOG.md"
 exclude_commits = ["^chore\\(deps\\)"]
 
-[tool.semantic_release.changelog.categories]
+[[tool.semantic_release.changelog.categories]]
 title = "Features"
 match = "feat"
+
+[[tool.semantic_release.changelog.categories]]
 title = "Bug Fixes"
 match = "fix"
+
+[[tool.semantic_release.changelog.categories]]
 title = "Breaking Changes"
 match = "break"
+
+[[tool.semantic_release.changelog.categories]]
 title = "Documentation"
 match = "docs"
+
+[[tool.semantic_release.changelog.categories]]
 title = "Other"
 match = ".*"
