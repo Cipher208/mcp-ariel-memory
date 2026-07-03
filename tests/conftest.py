@@ -1,5 +1,7 @@
 """Shared fixtures for all tests."""
 
+import asyncio
+import gc
 import os
 
 # Disable backup_cron before any imports to prevent daemon threads
@@ -17,3 +19,12 @@ def master_key_env():
     secrets._master_cache.clear()
     yield
     os.environ.pop("MCP_MASTER_KEY", None)
+    # Force cleanup of all resources to prevent aiosqlite hanging
+    gc.collect()
+    # Close any remaining aiosqlite connections
+    try:
+        from shared.connection import connection_manager
+
+        asyncio.run(connection_manager.close_all())
+    except Exception:
+        pass
