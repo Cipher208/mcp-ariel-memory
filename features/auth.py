@@ -12,7 +12,7 @@ import warnings
 from pathlib import Path
 from typing import Any, Optional
 
-from features.secrets import encrypt_json, decrypt_json, is_encrypted_blob
+from features.secrets import encrypt_json, decrypt_json
 
 logger = logging.getLogger(__name__)
 
