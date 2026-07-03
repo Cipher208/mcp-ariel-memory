@@ -2,6 +2,7 @@
 Backup Cron — automatic scheduled backups with jitter + wiki sync.
 """
 
+import asyncio
 import json
 import logging
 import random
