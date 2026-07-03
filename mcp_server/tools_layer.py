@@ -12,6 +12,7 @@ import time
 from mcp.server.fastmcp import Context
 
 from mcp_server.models import (
+    ContextResult,
     EpisodeResult,
     ForgetResult,
     GraphNodeResult,
@@ -636,13 +637,13 @@ async def memory_context(
     if wiki_text:
         context_parts.append("WIKI: " + wiki_text)
 
-    result = {
-        "context": "\n".join(context_parts),
-        "l4_facts_count": len(l4_facts),
-        "l3_episodes_count": len(l3_episodes),
-        "l1_recent_count": len(l1_recent),
-        "wiki_count": len(wiki_entries),
-    }
+    result = ContextResult(
+        context="\n".join(context_parts),
+        l4_facts_count=len(l4_facts),
+        l3_episodes_count=len(l3_episodes),
+        l1_recent_count=len(l1_recent),
+        wiki_count=len(wiki_entries),
+    ).dict()
     _set_cached(cache_key, result)
     return result
 

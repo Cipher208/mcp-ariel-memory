@@ -315,9 +315,11 @@ class RAGEngine:
         candidates = self._materialize_candidates(fts + mib)
         if self.scorer is not None:
             ranked = await self.scorer.rank(query, candidates, user_id)
+            return [self._format_result(c) for c in ranked][:limit]
         else:
-            ranked = sorted(candidates, key=lambda c: -(c.rrf_score or 0.0))
-        return [self._format_result(c) for c in ranked][:limit]
+            # Fallback: use standalone RRF when no scorer available
+            # _search_rrf returns already-formatted dicts
+            return await self._search_rrf(query, user_id, limit)
 
     async def _search_binary(
         self,
