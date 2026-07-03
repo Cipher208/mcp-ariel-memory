@@ -4,7 +4,6 @@ Tests mathematical invariants and roundtrip properties that must hold
 for ALL valid inputs, not just hand-picked examples.
 """
 
-
 import pytest
 from hypothesis import given, settings, assume
 from hypothesis import strategies as st
@@ -16,8 +15,6 @@ st_dim_vec = st.lists(st.floats(min_value=-10.0, max_value=10.0, allow_nan=False
 st_short_text = st.text(min_size=1, max_size=200, alphabet=st.characters(blacklist_categories=("Cs",)))
 
 
-
-
 # ═══════════════════════════════════════════════════════════════
 #  rag/conflict.py — similarity function invariants
 # ═══════════════════════════════════════════════════════════════
@@ -26,7 +23,6 @@ from rag.conflict import bm25_pair_similarity, char_ngram_jaccard, smart_similar
 
 
 class TestSimilarityProperties:
-
     @given(a=st_short_text, b=st_short_text)
     @settings(max_examples=200)
     def test_similarity_range(self, a, b):
@@ -63,7 +59,6 @@ from rag.scoring import CorpusStats, ScoredCandidate, Scorer, ScoringWeights
 
 
 class TestScoringProperties:
-
     @given(
         rrf_score=st.floats(min_value=0.0, max_value=1.0),
         weight_rel=st.floats(min_value=0.0, max_value=2.0),
@@ -86,10 +81,7 @@ class TestScoringProperties:
     @settings(max_examples=30)
     def test_ranking_ordering(self, n):
         scorer = Scorer(weights=ScoringWeights(relevance=1.0))
-        candidates = [
-            ScoredCandidate(id=i, page_id=i, title=f"t{i}", content=f"c{i}", wiki_type=None, rrf_score=float(i) / n)
-            for i in range(n)
-        ]
+        candidates = [ScoredCandidate(id=i, page_id=i, title=f"t{i}", content=f"c{i}", wiki_type=None, rrf_score=float(i) / n) for i in range(n)]
         result = scorer.rank_sync("q", candidates, "u")
         scores = [c.final_score for c in result]
         assert scores == sorted(scores, reverse=True)
@@ -126,6 +118,7 @@ class TestScoringProperties:
 try:
     import numpy as np
     from rag.quantize import embed_to_binary, hamming_distance, hamming_to_score, _packed_bytes
+
     HAS_NUMPY = True
 except ImportError:
     HAS_NUMPY = False
@@ -134,7 +127,6 @@ pytestmark = pytest.mark.skipif(not HAS_NUMPY, reason="numpy not installed")
 
 
 class TestQuantizeProperties:
-
     @given(emb=st_dim_vec)
     @settings(max_examples=100)
     def test_output_length(self, emb):
@@ -188,7 +180,6 @@ from features.secrets import encrypt_json, decrypt_json
 
 
 class TestSecretsProperties:
-
     @given(data=st.dictionaries(st.text(min_size=1, max_size=20), st.text(max_size=100), min_size=1, max_size=5))
     @settings(deadline=None, max_examples=30)
     def test_encrypt_decrypt_roundtrip_dict(self, data):
