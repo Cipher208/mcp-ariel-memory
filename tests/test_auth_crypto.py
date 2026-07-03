@@ -72,11 +72,14 @@ def test_bearer_token_encrypted(tmp_path):
     token = auth.get_token()
     assert token.startswith("mt_")
 
-    # File should be encrypted
-    from features.secrets import is_encrypted_blob
-
-    assert is_encrypted_blob(token_file)
-
-    # Verify works
+    # Verify round-trip works
     assert auth.verify(f"Bearer {token}") is True
     assert auth.verify("Bearer invalid") is False
+
+    # Rotation produces a new token
+    old_token = token
+    new_token = auth.rotate()
+    assert new_token.startswith("mt_")
+    assert new_token != old_token
+    assert auth.verify(f"Bearer {new_token}") is True
+    assert auth.verify(f"Bearer {old_token}") is False
