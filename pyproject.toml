@@ -38,6 +38,7 @@ dev = [
     "pytest-asyncio>=0.21",
     "pytest-timeout>=2.0",
     "ruff>=0.1",
+    "mypy>=1.0",
 ]
 win = [
     "aiosqlite>=0.21.0,!=0.22.0",
@@ -96,3 +97,17 @@ exclude = [".repowise", ".codegraph", "docs", "__pycache__"]
 max_complexity = 15
 max_lines = 100
 max_args = 6
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
+explicit_package_bases = true
+exclude = ["tests"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+ignore_errors = true
