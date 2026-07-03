@@ -206,6 +206,35 @@ docker-compose up
 
 ---
 
+## Database Schema (21 tables)
+
+Single `memory.db` file — no external database required.
+
+| Table | Module | Purpose |
+|-------|--------|---------|
+| `core_memory` | core/memory.py | L4 key-value facts |
+| `sessions` | core/session.py | L2 session history |
+| `episodes` | core/episodic.py | L3 episodic memories |
+| `staging_memories` | shared/dream_buffer.py | Temporary staging |
+| `archived_memories` | shared/archived_memories.py | Archived memories |
+| `audit_log` | features/audit_trail.py | Audit trail |
+| `rate_limits` | features/rate_limiting.py | Rate limiting |
+| `embedding_cache` | shared/embeddings.py | Cached embeddings |
+| `rag_pages` | rag/engine.py | RAG document pages |
+| `rag_chunks` | rag/engine.py | RAG document chunks |
+| `rag_relations` | rag/engine.py | RAG relations |
+| `epi_nodes` | graph/epistemic.py | Epistemic graph nodes |
+| `epi_edges` | graph/epistemic.py | Epistemic graph edges |
+| `temporal_events` | graph/temporal.py | Temporal events |
+| `temporal_links` | graph/temporal.py | Temporal links |
+| `user_wiki` | wiki/user_wiki.py | User wiki entries |
+| `agent_wiki` | wiki/agent_wiki.py | Agent wiki entries |
+| `wiki_index` | wiki/file_wiki.py | Wiki FTS5 index |
+| `memory_conflicts` | rag/conflict.py | Memory conflicts |
+| `migration_log` | shared/migrations.py | Migration history |
+
+---
+
 ## Features
 
 | Feature | Description |
