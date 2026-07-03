@@ -13,6 +13,10 @@ COPY . .
 
 RUN mkdir -p /data
 
+# Run as non-root user for security
+RUN useradd -m -u 1000 ariel && chown -R ariel:ariel /app /data
+USER ariel
+
 ENV MCP_MEMORY_DATA_DIR=/data
 ENV PYTHONUNBUFFERED=1
 
