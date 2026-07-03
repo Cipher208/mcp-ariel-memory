@@ -81,3 +81,11 @@ ignore = ["E402", "E501", "E722", "E712", "F841", "F811", "UP031", "UP035"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+
+[tool.skylos]
+exclude = [".repowise", ".codegraph", "docs", "__pycache__"]
+
+[tool.skylos.quality]
+max_complexity = 15
+max_lines = 100
+max_args = 6
