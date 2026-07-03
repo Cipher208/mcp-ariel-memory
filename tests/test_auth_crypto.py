@@ -31,8 +31,9 @@ def test_legacy_plain_json_gets_rotated(tmp_path):
     assert keys[0]["user_id"] == "u1"
 
     # File should now be encrypted
-    raw = keys_file.read_bytes()
-    assert raw[:1] not in (b"{", b"[")
+    from features.secrets import is_encrypted_blob
+
+    assert is_encrypted_blob(keys_file)
 
 
 def test_create_then_verify_round_trip(tmp_path):
@@ -72,8 +73,9 @@ def test_bearer_token_encrypted(tmp_path):
     assert token.startswith("mt_")
 
     # File should be encrypted
-    raw = token_file.read_bytes()
-    assert raw[:1] not in (b"{", b"[")
+    from features.secrets import is_encrypted_blob
+
+    assert is_encrypted_blob(token_file)
 
     # Verify works
     assert auth.verify(f"Bearer {token}") is True
