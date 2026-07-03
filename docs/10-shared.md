@@ -2,6 +2,18 @@
 
 All shared modules live in `shared/` and are imported across the mcp-ariel-memory server. They provide connection management, caching, saga orchestration, middleware pipelines, embeddings, metrics, staging/archival storage, migrations, and a read-only replica.
 
+## Tool Registry (`mcp_server/registry.py`)
+
+Central tool registration module that resolves circular imports between server.py, tools_layer.py, and tools_ops.py.
+
+| Function | Purpose |
+|----------|---------|
+| `register_tool(name, func)` | Register an MCP tool function |
+| `get_all_tools()` | Get all registered tools |
+| `_get_ctx(ctx)` | Extract AppContext from MCP context |
+
+Tools self-register at module load via `register_tool()`. Server applies `@mcp.tool()` decorator at startup.
+
 ---
 
 ## AsyncConnectionManager (`shared/connection.py`)

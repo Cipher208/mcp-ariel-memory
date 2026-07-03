@@ -3,6 +3,38 @@
 All notable changes to mcp-ariel-memory are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.1.0] - 2026-07-03
+
+### Security
+- **CRITICAL** Fixed SQL injection in `features/compression.py` — table names from `sqlite_master` now validated against whitelist and escaped with brackets.
+- Updated vulnerable dependencies: starlette 1.0.0→1.3.1 (8 CVEs), idna 3.14→3.18.
+
+### Architecture
+- **New: `mcp_server/registry.py`** — Central tool registry module. Resolves circular imports between server.py, tools_layer.py, and tools_ops.py. All tools now self-register at module load.
+- **New: `hooks/shared.py`** — Shared hook utilities extracted from agent_hooks.py and user_hooks.py. Contains `run_async`, `forgetting_ritual`, `conflict_resolver`, `auto_context`, `retrieval_router`, `consolidation`.
+- **New: `wiki/shared.py`** — Shared wiki utilities extracted from agent_wiki.py, file_wiki.py, user_wiki.py. Contains `load_config`, `get_enabled_types`, `get_external_dirs`, `find_by_source`, `parse_tags`, `build_update_clause`, `build_count_query`, `format_search_result`.
+
+### Fixed
+- **RAG** `_search_rrf` integrated as fallback in `_search_hybrid` when scorer is None (was dead code).
+- **RAG** LIKE wildcard escaping in FTS fallback query — `%` and `_` characters now escaped.
+- **RAG** Extracted `_ingest_single_file` helper to reduce complexity in `ingest_file` and `ingest_text`.
+- **Saga** Refactored `execute()` method — extracted `_check_idempotency`, `_execute_step_with_retry`, `_record_step`. CCN reduced from 20 to 7.
+- **Hooks** Fixed ThreadPoolExecutor leak — now uses module-level executor instead of creating new one per call.
+- **Graph** Wired `USER_TAGS` and `AGENT_TAGS` into tag validation logic.
+- **Router** Wired `strategy_name` into dynamic strategy selection instead of hardcoded enums.
+- **Connection** Fixed `_HAS_AIOSQLITE` — now initialized at module level before conditional block.
+- **Models** All 15 Result classes now used in MCP tool returns (was 8, added ContextResult to memory_context).
+- **Registry** Hook names now auto-discovered via `inspect.getmembers` instead of hardcoded sets.
+- Removed unused imports: Context (server.py), ContextResult (tools_layer.py), load_config (agent_wiki.py, user_wiki.py), Any (importance.py, memory_types.py), sqlite3 (migrations_saga_log.py), TypePolicy (importance.py).
+- Removed unused `_get_config` wrapper in file_wiki.py (replaced by `load_config` from wiki/shared.py).
+
+### Quality
+- Skylos grade: **F (38/100) → A+ (98/100)**
+- Dead code items: 41 → 6 (remaining are documented utilities or test helpers)
+- Unused imports: 3 → 0
+- Unused variables: 4 → 0
+- All 313 tests pass
+
 ## [1.0.0] - 2026-06-29
 
 ### Breaking changes

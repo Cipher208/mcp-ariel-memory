@@ -5,11 +5,13 @@
 | Component | Technology |
 |-----------|-----------|
 | MCP protocol | Python MCP SDK v1.28 (FastMCP) |
+| Tool registry | `mcp_server/registry.py` (self-registering tools) |
 | Transports | stdio + Streamable HTTP |
 | Storage | **Single `memory.db` file** (~23 tables) |
 | Async DB | asyncio + sqlite3 via to_thread |
 | Search | FTS5 + MIB binary embeddings (Hamming) + RRF |
-| Hooks | 24 hooks, integrated into tool pipeline |
+| Hooks | 24 hooks, shared utilities in `hooks/shared.py` |
+| Wiki | Shared utilities in `wiki/shared.py` |
 | Docker | Dockerfile + docker-compose |
 | Tests | pytest + pytest-asyncio (313 tests) |
 | CI/CD | GitHub Actions |

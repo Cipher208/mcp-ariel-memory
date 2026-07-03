@@ -2,6 +2,21 @@
 
 24 hooks, actively called from mcp_server/ on every tool call.
 
+## Shared Utilities (hooks/shared.py)
+
+Common hook logic extracted from agent_hooks.py and user_hooks.py:
+
+| Function | Purpose |
+|----------|---------|
+| `run_async(coro)` | Run async code from sync context using shared ThreadPoolExecutor |
+| `forgetting_ritual(ctx)` | Run forgetting cleanup |
+| `conflict_resolver(ctx, user_id)` | Check for memory conflicts |
+| `auto_context(ctx, user_id, layer)` | Auto-inject context |
+| `retrieval_router(ctx, user_id, layer, include_count)` | Route retrieval queries |
+| `consolidation(ctx, user_id, min_importance, action_key)` | Run consolidation |
+
+Hook names are auto-discovered via `inspect.getmembers` in `hooks/registry.py`.
+
 ## HookRegistry (hooks/registry.py)
 
 Central dispatch for all hooks. Manages registration and execution of hook handlers.

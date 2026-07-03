@@ -1,5 +1,20 @@
 # Wiki — wiki/ (FileWiki + UserWiki/AgentWiki with FTS5)
 
+## Shared Utilities (wiki/shared.py)
+
+Common wiki logic extracted from agent_wiki.py, file_wiki.py, user_wiki.py:
+
+| Function | Purpose |
+|----------|---------|
+| `load_config()` | Load wiki configuration from config.yaml |
+| `get_enabled_types(layer, all_types)` | Config-driven type filtering |
+| `get_external_dirs(layer)` | External directory lookup |
+| `find_by_source(cm, table, user_id, source)` | Source-path lookup query |
+| `parse_tags(raw_tags)` | JSON tag parsing |
+| `build_update_clause(fields)` | Dynamic UPDATE query builder |
+| `build_count_query(table, user_id, wiki_type)` | COUNT query builder |
+| `format_search_result(row)` | FTS result formatter |
+
 ## FileWiki (`wiki/file_wiki.py`) — core module
 
 .md files = source of truth + SQLite FTS5 index.
