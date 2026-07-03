@@ -1,8 +1,7 @@
 """Tests for Importance v2 — multi-signal scorer."""
 
 import pytest
-from shared.importance import ImportanceScorer, ImportanceSignals
-from shared.memory_types import MemoryKind
+from shared.importance import ImportanceScorer
 
 
 @pytest.fixture

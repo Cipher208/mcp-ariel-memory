@@ -86,7 +86,7 @@ class UserHooks:
         return {"action": "add_to_staging", "content": ctx.get("text", "")}
 
     def _calculate_importance(self, text: str, memory_kind: str = None) -> float:
-        from shared.memory_types import default_importance, get_policy, MemoryKind
+        from shared.memory_types import default_importance
 
         if not text:
             return 0.0

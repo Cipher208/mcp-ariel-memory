@@ -1,6 +1,5 @@
 """Tests for importance scheduler."""
 
-import asyncio
 import time
 import pytest
 

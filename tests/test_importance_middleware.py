@@ -1,7 +1,6 @@
 """Tests for importance middleware using ImportanceScorer."""
 
 import pytest
-from shared.importance import ImportanceScorer
 from shared.middleware import ImportanceGateMiddleware, MiddlewareContext, MiddlewarePipeline
 
 

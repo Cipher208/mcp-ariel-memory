@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from shared.connection import AsyncConnectionManager, connection_manager
+from shared.connection import AsyncConnectionManager
 
 
 def load_config() -> dict:
@@ -55,7 +55,7 @@ def parse_tags(raw_tags: Any) -> list[str]:
 
 def build_update_clause(fields: dict[str, Any]) -> tuple[list[str], list]:
     """Build SET clause and params for dynamic UPDATE.
-    
+
     fields: dict of column_name -> value (None values skipped).
     Always includes updated_at. Returns (set_clauses, params).
     """

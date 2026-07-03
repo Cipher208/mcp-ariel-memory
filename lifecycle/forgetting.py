@@ -9,7 +9,7 @@ from pathlib import Path
 from config import config
 from shared.connection import AsyncConnectionManager, connection_manager
 from shared.memory_types import (
-    MemoryKind, apply_decay, can_archive, validate_kind,
+    MemoryKind, apply_decay, validate_kind,
 )
 
 logger = logging.getLogger(__name__)

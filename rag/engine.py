@@ -6,7 +6,6 @@ All DB operations via AsyncConnectionManager (aiosqlite).
 import hashlib
 import logging
 import struct
-import warnings
 from pathlib import Path
 from typing import Any, Literal, Optional
 
