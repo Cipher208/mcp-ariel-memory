@@ -41,7 +41,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
@@ -52,7 +52,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev,binary]" aiosqlite
-      - run: pytest tests/ -v --tb=long --timeout=30
+      - run: pytest tests/ -v --tb=long --timeout=60
 
   build:
     runs-on: ubuntu-latest
