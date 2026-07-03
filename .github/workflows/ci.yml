@@ -21,6 +21,16 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
 
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev,binary]"
+      - run: mypy --config-file pyproject.toml features/ shared/ mcp_server/ rag/ hooks/ wiki/ lifecycle/ graph/ core/
+
   quality:
     runs-on: ubuntu-latest
     steps:
