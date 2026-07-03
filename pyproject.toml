@@ -71,6 +71,10 @@ packages = ["."]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+filterwarnings = [
+    "ignore::pytest.PytestUnhandledThreadExceptionWarning",
+    "ignore::DeprecationWarning:features.auth",
+]
 
 [tool.ruff]
 line-length = 150
