@@ -43,7 +43,7 @@ litellm==1.89.2
 loguru==0.7.3
 markdown-it-py==4.2.0
 MarkupSafe==3.0.3
-mcp==1.28.0
+mcp==1.28.1
 -e git+https://github.com/Cipher208/mcp-ariel-memory.git@6c3df561b5f4951bb9b5435804f617f6587b9b23#egg=mcp_ariel_memory
 mdurl==0.1.2
 multidict==6.7.1
