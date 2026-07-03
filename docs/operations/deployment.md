@@ -1,5 +1,21 @@
 # Deployment
 
+## CI Pipeline
+
+GitHub Actions runs on every push/PR:
+
+| Job | What it checks |
+|-----|---------------|
+| **lint** | ruff check + ruff format |
+| **typecheck** | mypy (63 source files, 0 errors) |
+| **quality** | skylos (dead code, security, grade) |
+| **security** | gitleaks (secret scanning) |
+| **test** | pytest on Python 3.10, 3.11, 3.12, 3.13 |
+| **build** | python -m build |
+| **auto-label** | File-based PR labeling |
+| **auto-merge** | Dependabot minor/patch auto-merge |
+| **stale** | Close inactive issues/PRs (30+7 days) |
+
 ## Transports
 
 ### stdio
