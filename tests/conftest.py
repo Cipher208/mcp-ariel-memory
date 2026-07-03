@@ -14,3 +14,10 @@ def master_key_env():
     secrets._master_cache.clear()
     yield
     os.environ.pop("MCP_MASTER_KEY", None)
+    # Stop backup_cron to prevent hanging threads
+    try:
+        from features.backup_cron import backup_cron
+
+        backup_cron.stop()
+    except Exception:
+        pass
