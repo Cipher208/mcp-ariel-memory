@@ -1,0 +1,11 @@
+# Default owner for everything in the repo
+* @Cipher208
+
+# Python source
+*.py @Cipher208
+
+# MCP server
+mcp_server/ @Cipher208
+
+# CI/CD
+.github/ @Cipher208
