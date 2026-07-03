@@ -18,6 +18,24 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
 
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install skylos
+      - run: skylos . --json --no-provenance
+      - name: Check grade
+        run: |
+          GRADE=$(skylos . --json | python -c "import sys,json; print(json.load(sys.stdin)['grade'])")
+          echo "Skylos grade: $GRADE"
+          if [ "$GRADE" = "F" ] || [ "$GRADE" = "D" ] || [ "$GRADE" = "D+" ]; then
+            echo "Grade too low: $GRADE"
+            exit 1
+          fi
+
   test:
     runs-on: ubuntu-latest
     strategy:

@@ -221,3 +221,71 @@ auth: { api_keys_enabled: true, bearer_token_enabled: true }
 security:
   rate_limit_per_user: 100
 ```
+
+## Code Quality Tools
+
+### Repowise
+
+Code health analysis and refactoring plans.
+
+```bash
+# Install
+pip install repowise
+
+# Initial index
+repowise init
+
+# Health check
+repowise health
+
+# Get refactoring targets
+repowise health --refactoring-targets
+
+# Dead code detection
+repowise dead-code
+
+# Change risk scoring
+repowise risk main..HEAD
+
+# Web dashboard + MCP server
+repowise serve
+```
+
+### Skylos
+
+Static analysis for dead code, security, quality, AI-code mistakes.
+
+```bash
+# Install
+pip install skylos
+
+# Dead code scan
+skylos .
+
+# Full scan (security + quality + AI defects)
+skylos . -a
+
+# Only changed code
+skylos . -a --diff origin/main
+
+# Generate GitHub Actions PR gate
+skylos cicd init
+```
+
+### Pre-commit Hooks
+
+```bash
+# Install pre-commit
+pip install pre-commit
+
+# Install hooks
+pre-commit install
+
+# Run on all files
+pre-commit run --all-files
+```
+
+Config in `.pre-commit-config.yaml`:
+- trailing-whitespace, end-of-file-fixer
+- ruff (lint + format)
+- skylos (quality gate)

@@ -29,11 +29,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Removed unused `_get_config` wrapper in file_wiki.py (replaced by `load_config` from wiki/shared.py).
 
 ### Quality
-- Skylos grade: **F (38/100) → A+ (98/100)**
-- Dead code items: 41 → 6 (remaining are documented utilities or test helpers)
+- Skylos grade: **F (38/100) → A+ (99/100)**
+- Dead code items: 41 → 4 (remaining are documented utilities)
 - Unused imports: 3 → 0
 - Unused variables: 4 → 0
 - All 313 tests pass
+
+### DevOps
+- **New: `.pre-commit-config.yaml`** — Pre-commit hooks for ruff, skylos, trailing whitespace.
+- **New: `docs/process-rules.md`** — 4 development process rules.
+- **Updated: `.github/workflows/ci.yml`** — Added skylos quality gate job.
+- **Updated: `pyproject.toml`** — Added skylos config (exclude patterns, quality thresholds).
 
 ## [1.0.0] - 2026-06-29
 
