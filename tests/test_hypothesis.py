@@ -4,11 +4,9 @@ Tests mathematical invariants and roundtrip properties that must hold
 for ALL valid inputs, not just hand-picked examples.
 """
 
-import json
-import math
 
 import pytest
-from hypothesis import given, settings, assume, HealthCheck
+from hypothesis import given, settings, assume
 from hypothesis import strategies as st
 
 # ── Fixed-dimension strategies (avoid assume() filtering) ──
