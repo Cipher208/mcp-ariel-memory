@@ -1,8 +1,6 @@
 # mcp-ariel-memory
 
-**Universal Two-Layer Memory MCP Server**
-
-A two-layer universal memory system for AI agents. Real MCP Python SDK, async, **19 unified tools**, stdio + HTTP transports, dashboard, metrics, authentication, envelope encryption, automatic backups, external wiki folders, read-only replica.
+> **Give your AI agents real memory** — episodic recall, knowledge graphs, hybrid search, and envelope encryption in a single MCP server. 19 tools. 4-layer hierarchy. 338 tests.
 
 [![CI](https://github.com/Cipher208/mcp-ariel-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/Cipher208/mcp-ariel-memory/actions/workflows/ci.yml)
 [![codecov](https://img.shields.io/codecov/c/github/Cipher208/mcp-ariel-memory?logo=codecov&logoColor=white)](https://codecov.io/gh/Cipher208/mcp-ariel-memory)
@@ -70,6 +68,29 @@ graph TD
 - **338 tests** — unit + integration + 25 property-based Hypothesis tests
 - **CI pipeline** — lint (ruff), typecheck (mypy), quality (skylos), security (gitleaks), test matrix (3.10–3.13)
 - **Python 3.10–3.13** tested in CI matrix
+
+### Why mcp-ariel-memory?
+
+| Feature | mcp-ariel-memory | Typical Memory |
+|---------|------------------|----------------|
+| **Memory hierarchy** | L1→L2→L3→L4 (4 layers) | Flat key-value store |
+| **Hybrid search** | FTS5 + binary embeddings + RRF | FTS or vector only |
+| **ITS scoring** | Novelty + relevance via document frequency | None |
+| **Knowledge graphs** | Epistemic + Temporal | None |
+| **Typed memory** | 13 categories with per-type retention | None |
+| **Two layers** | User (about people) + Agent (self-knowledge) | User only |
+| **Wiki** | 14 types, .md files as source of truth, FTS5 | None |
+| **24 hooks** | Intercept operations at every stage | 0 |
+| **Encryption** | libsodium secretbox (keychain-first) | Usually none |
+| **Tests** | 338 (25 property-based) | — |
+| **Dashboard** | Real-time HTML dashboard | — |
+
+### Who needs this?
+
+- **AI agent developers** — give your agent memory that persists across sessions
+- **Multi-agent systems** — one database, isolated tables, shared memory on demand
+- **Anyone tired of "forget context every request"** — mcp-ariel-memory remembers for you
+- **Data-conscious teams** — everything local, no cloud dependency
 
 ## Installation
 
