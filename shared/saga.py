@@ -253,10 +253,10 @@ class Saga:
                     result = await asyncio.wait_for(step.action.execute(self._data), timeout=step_timeout)
                 else:
                     action_result = step.action(self._data)
-                    if hasattr(action_result, "__await__"):
+                    if asyncio.iscoroutine(action_result):
                         result = await asyncio.wait_for(action_result, timeout=step_timeout)
                     else:
-                        result = action_result
+                        result = action_result  # type: ignore[assignment]
                 step.result = result if isinstance(result, dict) else {"value": result}
                 return
             except step.retry_on as exc:
@@ -277,7 +277,8 @@ class Saga:
             logger.error("Saga '%s' step '%s' failed: %s" % (self.name, step.name, step_exc))
         await self._compensate(self._current_step)
         self._save_state()
-        raise step_exc
+        if step_exc is not None:
+            raise step_exc
 
     async def _record_step(self, step: SagaStep, idemp_key: str | None) -> None:
         """Record completed step in idempotency log and update saga state."""

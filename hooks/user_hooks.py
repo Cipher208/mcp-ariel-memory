@@ -2,7 +2,7 @@
 User Layer Hooks - 12 hooks for user memory events
 """
 
-from typing import Any
+from typing import Any, Optional
 
 from lifecycle.emotion_trigger import EmotionTrigger
 
@@ -85,7 +85,7 @@ class UserHooks:
     def _dream_buffer(self, ctx: dict[str, Any]) -> dict[str, Any]:
         return {"action": "add_to_staging", "content": ctx.get("text", "")}
 
-    def _calculate_importance(self, text: str, memory_kind: str = None) -> float:
+    def _calculate_importance(self, text: str, memory_kind: Optional[str] = None) -> float:
         from shared.memory_types import default_importance
 
         if not text:

@@ -8,7 +8,7 @@ import random
 import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from config import config
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class BackupCron:
-    def __init__(self, base_dir: str = None):
+    def __init__(self, base_dir: Optional[str] = None):
         self.base_dir = Path(base_dir or str(Path.home() / ".mcp-ariel-memory"))
         self.backup_dir = self.base_dir / "backups"
         self.backup_dir.mkdir(parents=True, exist_ok=True)

@@ -3,14 +3,14 @@ Consolidation Engine — L1→L2→L3→L4 memory promotion (async)
 Type-aware promotion with memory_kind support.
 """
 
-from typing import Any
+from typing import Any, Optional
 
 from shared.connection import AsyncConnectionManager, connection_manager
 from shared.memory_types import MemoryKind, get_policy, validate_kind
 
 
 class ConsolidationEngine:
-    def __init__(self, cm: AsyncConnectionManager = None):
+    def __init__(self, cm: Optional[AsyncConnectionManager] = None):
         self._cm = cm or connection_manager
 
     async def consolidate_staging(
@@ -60,7 +60,7 @@ class ConsolidationEngine:
     async def consolidate_episodes(
         self,
         user_id: str,
-        episodic_db: str = None,
+        episodic_db: Optional[str] = None,
         min_weight: float = 0.7,
     ) -> int:
         from core.memory import CoreMemory

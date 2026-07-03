@@ -42,7 +42,7 @@ class MemoryCompressor:
 
     ALLOWED_TABLES = {"core_memory", "episodes", "epistemic_edges", "temporal_edges", "saga_log", "agent_wiki", "user_wiki", "file_wiki"}
 
-    async def get_stats(self, user_id: str = None) -> dict[str, int]:
+    async def get_stats(self, user_id: Optional[str] = None) -> dict[str, int]:
         stats = {}
         for name, db in [("core", "memory.db"), ("episodes", "memory.db"), ("sessions", "memory.db")]:
             conn = await self._cm.get(db)

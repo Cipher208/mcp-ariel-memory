@@ -8,6 +8,7 @@ Caching is applied to context_inject and recall.
 import hashlib
 import logging
 import time
+from typing import Any, Optional
 
 from mcp.server.fastmcp import Context
 
@@ -112,7 +113,7 @@ async def memory_remember(
     key: str = "",
     value: str = "",
     importance: float = 0.5,
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Save a fact to long-term memory (L4 CoreMemory).
 
@@ -172,7 +173,7 @@ async def memory_recall(
     user_id: str = "default",
     query: str = "",
     limit: int = 10,
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Search memory across L3 (episodes) and L4 (facts).
 
@@ -199,7 +200,7 @@ async def memory_forget(
     layer: str = "user",
     user_id: str = "default",
     key: str = "",
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Delete a fact from L4 memory.
 
@@ -224,7 +225,7 @@ async def memory_forget(
 async def memory_session_start(
     layer: str = "user",
     user_id: str = "default",
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Start a new memory session.
 
@@ -249,7 +250,7 @@ async def memory_session_end(
     user_id: str = "default",
     session_id: str = "",
     summary: str = "",
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """End a session and save summary.
 
@@ -277,7 +278,7 @@ async def memory_episode_save(
     summary: str = "",
     weight: float = 0.5,
     tags: list[str] | None = None,
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Save an episode to L3 episodic memory.
 
@@ -306,7 +307,7 @@ async def memory_episode_recall(
     user_id: str = "default",
     tag: str = "",
     limit: int = 10,
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Recall episodes, optionally filtered by tag.
 
@@ -333,7 +334,7 @@ async def memory_graph_add(
     content: str = "",
     node_type: str = "fact",
     tags: list[str] | None = None,
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Add a node to the epistemic graph.
 
@@ -363,7 +364,7 @@ async def memory_graph_query(
     tag: str = "",
     node_type: str = "",
     limit: int = 20,
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Query the epistemic graph by tag or node type.
 
@@ -391,7 +392,7 @@ async def memory_session_list(
     layer: str = "user",
     user_id: str = "default",
     limit: int = 10,
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """List recent memory sessions.
 
@@ -423,7 +424,7 @@ async def memory_episode_list(
     user_id: str = "default",
     limit: int = 10,
     offset: int = 0,
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """List episodes from L3 episodic memory.
 
@@ -447,7 +448,7 @@ async def memory_episode_get(
     layer: str = "user",
     user_id: str = "default",
     episode_id: int = 0,
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Get a single episode by ID.
 
@@ -481,7 +482,7 @@ async def memory_graph_nodes(
     user_id: str = "default",
     node_type: str = "",
     limit: int = 20,
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """List nodes from the epistemic graph.
 
@@ -513,7 +514,7 @@ async def memory_graph_edges(
     user_id: str = "",
     node_id: int = 0,
     limit: int = 20,
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """List edges from the epistemic graph.
 
@@ -567,7 +568,7 @@ async def memory_graph_edges(
 async def memory_stats(
     layer: str = "user",
     user_id: str = "default",
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Get memory statistics for a layer.
 
@@ -595,7 +596,7 @@ async def memory_stats(
 async def memory_context(
     layer: str = "user",
     user_id: str = "default",
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Return compressed context summary for prompt injection (L4 top-10 + L3 top-3 + recent + wiki).
 
@@ -651,7 +652,7 @@ async def memory_context(
 async def memory_context_inject(
     layer: str = "user",
     user_id: str = "default",
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Return compressed summary for prompt injection (L4 top-10 + L3 top-3).
 
@@ -705,7 +706,7 @@ async def memory_context_inject(
 
 
 # Register all layer tools
-_register_tools = {
+_register_tools: dict[str, Any] = {
     "memory_remember": memory_remember,
     "memory_recall": memory_recall,
     "memory_forget": memory_forget,

@@ -6,6 +6,9 @@ Merged into action-based tools to reduce tool count.
 import asyncio
 import time
 from pathlib import Path
+from typing import Optional
+
+from typing import Any
 
 from mcp.server.fastmcp import Context
 
@@ -27,7 +30,7 @@ async def memory_api_key(
     user_id: str = "default",
     label: str = "",
     api_key: str = "",
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Manage API keys.
 
@@ -55,7 +58,7 @@ async def memory_api_key(
 async def memory_backup(
     action: str = "status",
     backup_name: str = "",
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Manage backups.
 
@@ -84,7 +87,7 @@ async def memory_backup(
 async def memory_saga(
     action: str = "consolidate",
     user_id: str = "default",
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Run sagas with auto-rollback on failure.
 
@@ -115,7 +118,7 @@ async def memory_data(
     user_id: str = "default",
     file_path: str = "",
     target_user_id: str = "",
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Import/export memory data.
 
@@ -140,7 +143,7 @@ async def memory_data(
 
 
 async def memory_sync_replica(
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Sync read-only replica for dashboard/metrics."""
     metrics.inc("tool_calls")
@@ -154,7 +157,7 @@ async def memory_sync_replica(
 async def memory_cleanup(
     user_id: str = "default",
     retention_days: int = 30,
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Full memory cleanup: deduplicate, archive, clean staging.
 
@@ -168,20 +171,21 @@ async def memory_cleanup(
     from features.compression import MemoryCompressor
     from features.audit_trail import AuditTrail
     from features.backup_cron import backup_cron
-    from shared.dream_buffer import dream_buffer
+    from shared.dream_buffer import DreamBuffer
     from shared.saga import saga_watchdog
 
     mc = MemoryCompressor()
     at = AuditTrail()
+    dream_buf = DreamBuffer()
     archive_dir = str(Path.home() / ".mcp-ariel-memory" / "archives")
 
-    results = {}
+    results: dict[str, Any] = {}
 
     dedup_task = mc.deduplicate_core(user_id)
     compress_task = mc.compress_episodes(user_id, 0.3)
-    dream_task = dream_buffer.cleanup_old(24, 500)
+    dream_task = dream_buf.cleanup_old(24, 500)
     audit_task = at.archive_and_prune(retention_days, archive_dir)
-    backup_task = backup_cron.cleanup_old()
+    backup_task = asyncio.to_thread(backup_cron._cleanup_old)
 
     dedup_r, compress_r, dream_r, audit_r, backup_r = await asyncio.gather(dedup_task, compress_task, dream_task, audit_task, backup_task)
 
@@ -198,7 +202,7 @@ async def memory_cleanup(
 async def memory_lucidity_purge(
     user_id: str = "default",
     hours: int = 24,
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Emergency purge: delete all data from the last N hours.
 
@@ -282,7 +286,7 @@ async def memory_search_rrf(
     limit: int = 10,
     strategy: str = "hybrid",
     sources: str = "all",
-    ctx: Context = None,
+    ctx: Optional[Context] = None,
 ) -> dict:
     """Hybrid search across RAG + Wiki with strategy selection.
 
@@ -312,7 +316,7 @@ async def memory_search_rrf(
 
 
 # Register all ops tools
-_register_tools = {
+_register_tools: dict[str, Any] = {
     "memory_api_key": memory_api_key,
     "memory_backup": memory_backup,
     "memory_saga": memory_saga,

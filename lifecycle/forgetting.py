@@ -5,6 +5,7 @@ Forgetting System — type-aware decay, archiving, compression
 import logging
 import time
 from pathlib import Path
+from typing import Optional
 
 from config import config
 from shared.connection import AsyncConnectionManager, connection_manager
@@ -20,7 +21,7 @@ ARCHIVE_DIR = Path.home() / ".mcp-ariel-memory" / "archives"
 
 
 class ForgettingSystem:
-    def __init__(self, cm: AsyncConnectionManager = None, layer: str = "user"):
+    def __init__(self, cm: Optional[AsyncConnectionManager] = None, layer: str = "user"):
         self._cm = cm or connection_manager
         self.layer = layer
         self.decay_rate = config.get_forgetting("decay_rate") or 0.01

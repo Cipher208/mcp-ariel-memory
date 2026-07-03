@@ -75,7 +75,7 @@ class RateLimiter:
 class ConnectionLimiter:
     """Async WebSocket/SSE connection limiter (in-memory)."""
 
-    def __init__(self, max_connections_per_user: int = None, max_total: int = None):
+    def __init__(self, max_connections_per_user: Optional[int] = None, max_total: Optional[int] = None):
         self._max_per_user = max_connections_per_user or config.get("security", "max_ws_per_user") or 5
         self._max_total = max_total or config.get("security", "max_ws_total") or 100
         self._connections: dict[str, set[str]] = {}

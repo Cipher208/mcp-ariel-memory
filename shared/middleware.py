@@ -7,7 +7,7 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,7 @@ class ImportanceGateMiddleware(Middleware):
         technical_weight: float = 0.3,
         question_weight: float = 0.2,
         scorer=None,
-        memory_kind_hint: str = None,
+        memory_kind_hint: Optional[str] = None,
     ):
         self._min_length = min_length
         self._threshold = threshold

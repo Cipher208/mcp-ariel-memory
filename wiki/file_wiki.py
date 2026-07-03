@@ -7,7 +7,7 @@ import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from shared.connection import AsyncConnectionManager, connection_manager
 from wiki.shared import (
@@ -45,7 +45,7 @@ ALL_AGENT_TYPES = [
 class FileWiki:
     """Wiki where .md files are source of truth, SQLite is search index."""
 
-    def __init__(self, layer: str = "user", base_dir: str = None, cm: AsyncConnectionManager = None):
+    def __init__(self, layer: str = "user", base_dir: Optional[str] = None, cm: Optional[AsyncConnectionManager] = None):
         self.layer = layer
         self.base_dir = Path(base_dir or str(Path.home() / ".mcp-ariel-memory" / "wiki" / layer))
         self._cm = cm or connection_manager
@@ -93,7 +93,7 @@ class FileWiki:
         d.mkdir(parents=True, exist_ok=True)
         return d
 
-    async def add(self, wiki_type: str, title: str, content: str, tags: list[str] = None, importance: float = 0.5) -> str:
+    async def add(self, wiki_type: str, title: str, content: str,         tags: Optional[list[str]] = None, importance: float = 0.5) -> str:
         """Create .md file and index it. Returns file path."""
         enabled = self._get_enabled_types()
         if enabled and wiki_type not in enabled:
@@ -108,7 +108,8 @@ class FileWiki:
         await self._index_file(file_path, wiki_type, title, content, tags, importance)
         return str(file_path)
 
-    async def update(self, file_path: str, title: str = None, content: str = None, tags: list[str] = None, importance: float = None):
+    async def update(self, file_path: str, title: Optional[str] = None, content: Optional[str] = None,
+        tags: Optional[list[str]] = None, importance: Optional[float] = None):
         """Update .md file and re-index."""
         p = Path(file_path)
         if not p.exists():
@@ -241,7 +242,7 @@ class FileWiki:
         await conn.commit()
         return cur.rowcount > 0
 
-    async def count(self, wiki_type: str = None) -> int:
+    async def count(self, wiki_type: Optional[str] = None) -> int:
         conn = await self._cm.get("memory.db")
         if wiki_type:
             cur = await conn.execute("SELECT COUNT(*) FROM wiki_index WHERE layer=? AND wiki_type=?", (self.layer, wiki_type))
@@ -272,7 +273,7 @@ class FileWiki:
                     result["errors"] += 1
         return result
 
-    async def sync_external(self, external_dirs: list[str] = None) -> dict[str, int]:
+    async def sync_external(self, external_dirs: Optional[list[str]] = None) -> dict[str, int]:
         """Import external .md files into wiki."""
         dirs = external_dirs or self.get_external_dirs()
         result = {"imported": 0, "skipped": 0, "errors": 0}
@@ -299,7 +300,7 @@ class FileWiki:
                     result["errors"] += 1
         return result
 
-    async def _index_file(self, file_path: Path, wiki_type: str, title: str, content: str, tags: list[str] = None, importance: float = 0.5):
+    async def _index_file(self, file_path: Path, wiki_type: str, title: str, content: str,         tags: Optional[list[str]] = None, importance: float = 0.5):
         """Index a single .md file into DB."""
         import hashlib
 
@@ -353,7 +354,7 @@ class FileWiki:
 
     def _parse_md(self, text: str) -> dict[str, Any]:
         """Parse .md with YAML frontmatter."""
-        result = {"title": "", "content": text, "tags": [], "importance": 0.5}
+        result: dict[str, Any] = {"title": "", "content": text, "tags": [], "importance": 0.5}
         if text.startswith("---"):
             try:
                 end = text.index("---", 3)
@@ -382,7 +383,8 @@ class FileWiki:
 
         return result
 
-    def _to_md(self, title: str, content: str, tags: list[str] = None, importance: float = 0.5) -> str:
+    def _to_md(self, title: str, content: str,
+        tags: Optional[list[str]] = None, importance: float = 0.5) -> str:
         """Create .md with YAML frontmatter."""
         lines = ["---"]
         lines.append(f'title: "{title}"')

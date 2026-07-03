@@ -42,13 +42,13 @@ def run_async(coro):
 
 def forgetting_ritual(ctx: dict[str, Any]) -> dict[str, Any]:
     fs = ForgettingSystem()
-    return fs.cleanup()
+    return run_async(fs.cleanup())
 
 
 def conflict_resolver(ctx: dict[str, Any], user_id: str) -> dict[str, Any]:
     content = ctx.get("content", "")
     resolver = ConflictResolver()
-    return resolver.check(user_id, content)
+    return run_async(resolver.check(user_id, content))
 
 
 def auto_context(ctx: dict[str, Any], user_id: str, layer: str | None = None) -> dict[str, Any]:
@@ -57,7 +57,7 @@ def auto_context(ctx: dict[str, Any], user_id: str, layer: str | None = None) ->
         router = RetrievalRouter(layer=layer, user_id=user_id)
     else:
         router = RetrievalRouter(user_id=user_id)
-    result = router.route(query)
+    result = run_async(router.route(query))
     return {"context": result.context, "strategy": result.strategy.value}
 
 
@@ -72,7 +72,7 @@ def retrieval_router(
         router = RetrievalRouter(layer=layer, user_id=user_id)
     else:
         router = RetrievalRouter(user_id=user_id)
-    result = router.route(query)
+    result = run_async(router.route(query))
     resp: dict[str, Any] = {
         "strategy": result.strategy.value,
         "confidence": result.confidence,
@@ -91,7 +91,7 @@ def consolidation(
     staging = ctx.get("staging_items", [])
     engine = ConsolidationEngine()
     if min_importance is not None:
-        result = engine.consolidate_staging(user_id, staging, min_importance=min_importance)
+        result = run_async(engine.consolidate_staging(user_id, staging, min_importance=min_importance))
     else:
-        result = engine.consolidate_staging(user_id, staging)
+        result = run_async(engine.consolidate_staging(user_id, staging))
     return {"action": action_key, **result}

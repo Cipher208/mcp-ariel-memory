@@ -5,6 +5,7 @@ L3 EpisodicMemory — async important moments with emotional weight
 import json
 import time
 from dataclasses import dataclass
+from typing import Optional
 
 from shared.connection import AsyncConnectionManager, connection_manager
 
@@ -40,7 +41,7 @@ class EpisodicMemory:
         """,
         )
 
-    async def save(self, user_id: str, summary: str, emotional_weight: float = 0.5, tags: list[str] = None) -> int:
+    async def save(self, user_id: str, summary: str, emotional_weight: float = 0.5, tags: Optional[list[str]] = None) -> int:
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
             "INSERT INTO episodes (user_id, summary, emotional_weight, tags, created_at) VALUES (?, ?, ?, ?, ?)",

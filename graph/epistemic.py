@@ -6,7 +6,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 from shared.connection import connection_manager
 
@@ -103,7 +103,7 @@ class EpistemicGraph:
         except Exception:
             pass
 
-    async def add_node(self, user_id: str, content: str, node_type: str, tags: list[str] = None, confidence: float = 0.5) -> int:
+    async def add_node(self, user_id: str, content: str, node_type: str, tags: Optional[list[str]] = None, confidence: float = 0.5) -> int:
         if tags:
             known = {**USER_TAGS, **AGENT_TAGS}
             for tag in tags:
@@ -182,7 +182,7 @@ class EpistemicGraph:
             for r in rows
         ]
 
-    async def find_path(self, source_id: int, target_id: int, max_depth: int = None) -> list[dict[str, Any]]:
+    async def find_path(self, source_id: int, target_id: int, max_depth: Optional[int] = None) -> list[dict[str, Any]]:
         if max_depth is None:
             try:
                 from config import config
@@ -206,7 +206,7 @@ class EpistemicGraph:
         rows = await cur.fetchall()
         return [{"target": r[0], "relation": r[1], "weight": r[2], "depth": r[3]} for r in rows]
 
-    async def count_nodes(self, user_id: str = None) -> int:
+    async def count_nodes(self, user_id: Optional[str] = None) -> int:
         conn = await self._cm.get("memory.db")
         if user_id:
             cur = await conn.execute("SELECT COUNT(*) FROM epi_nodes WHERE layer=? AND user_id=?", (self.layer, user_id))

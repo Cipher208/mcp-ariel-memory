@@ -150,8 +150,7 @@ class ConflictResolver:
                 archive = ArchivedMemories(cm=self._cm)
                 await archive.archive(
                     user_id="system",
-                    key=f"conflict_{del_id}",
-                    value=del_content,
+                    content=f"conflict_{del_id}: {del_content}",
                     importance=0.0,
                     reason="conflict_resolved",
                 )

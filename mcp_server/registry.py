@@ -3,19 +3,24 @@
 Tools register themselves here. server.py pulls from here and applies @mcp.tool().
 """
 
+from collections.abc import Callable
+from typing import Any, Optional
+
 from mcp.server.fastmcp import Context
 
-_tools: dict[str, callable] = {}
+_tools: dict[str, Callable] = {}
 
 
-def _get_ctx(ctx: Context):
+def _get_ctx(ctx: Optional[Context]) -> Any:
     """Extract AppContext from FastMCP lifespan context."""
+    if ctx is None:
+        raise ValueError("Context is required but was None")
     return ctx.request_context.lifespan_context
 
 
-def register_tool(name: str, func: callable):
+def register_tool(name: str, func: Callable) -> None:
     _tools[name] = func
 
 
-def get_all_tools() -> dict[str, callable]:
+def get_all_tools() -> dict[str, Callable]:
     return dict(_tools)

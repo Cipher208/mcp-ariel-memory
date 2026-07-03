@@ -6,6 +6,7 @@ import json
 import time
 import uuid
 from dataclasses import dataclass, field
+from typing import Optional
 
 from shared.connection import AsyncConnectionManager, connection_manager
 
@@ -55,7 +56,7 @@ class SessionStore:
         await conn.commit()
         return session_id
 
-    async def close_session(self, session_id: str, summary: str = "", state_deltas: dict = None, topics: list[str] = None):
+    async def close_session(self, session_id: str, summary: str = "", state_deltas: Optional[dict] = None, topics: Optional[list[str]] = None):
         conn = await self._cm.get("memory.db")
         await conn.execute(
             "UPDATE sessions SET summary=?, state_deltas=?, topics=?, ended_at=? WHERE session_id=?",
@@ -78,7 +79,7 @@ class SessionStore:
             return "No sessions yet."
         return "\n".join([f"- {s.summary[:80]}" for s in sessions if s.summary])
 
-    async def count_sessions(self, user_id: str = None) -> int:
+    async def count_sessions(self, user_id: Optional[str] = None) -> int:
         conn = await self._cm.get("memory.db")
         if user_id:
             cursor = await conn.execute("SELECT COUNT(*) FROM sessions WHERE user_id=?", (user_id,))

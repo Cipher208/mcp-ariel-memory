@@ -7,7 +7,7 @@ import hashlib
 import logging
 import struct
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, cast
 
 from shared.connection import AsyncConnectionManager, connection_manager
 from config import config as _config
@@ -71,7 +71,7 @@ class RAGEngine:
             return None
         return self._thresholds_cache
 
-    def _binary_for(self, emb: list[float]) -> bytes:
+    def _binary_for(self, emb: list[float]) -> bytes | None:
         """Convert embedding to binary using configured mode."""
         if not _HAS_BINARY:
             return None
@@ -152,7 +152,7 @@ class RAGEngine:
             )
         return len(chunks)
 
-    async def ingest_file(self, filepath: Path, user_id: str = "default", wiki_type: str = None) -> str:
+    async def ingest_file(self, filepath: Path, user_id: str = "default", wiki_type: Optional[str] = None) -> str:
         content = filepath.read_text(encoding="utf-8")
         file_hash = hashlib.sha256(content.encode()).hexdigest()
         conn = await self._cm.get("memory.db")
@@ -187,9 +187,9 @@ class RAGEngine:
         title: str,
         text: str,
         user_id: str = "default",
-        wiki_type: str = None,
+        wiki_type: Optional[str] = None,
         path: str = "",
-        relation_to: int = None,
+        relation_to: Optional[int] = None,
         relation_type: str = "elaborates",
     ) -> int:
         text_hash = hashlib.sha256(text.encode()).hexdigest()
@@ -235,7 +235,7 @@ class RAGEngine:
     ) -> list[dict[str, Any]]:
         strategy = strategy or self.search_strategy
         if strategy == "auto":
-            strategy = self._auto_strategy(query)
+            strategy = cast(StrategyT, self._auto_strategy(query))
         if strategy == "fts":
             results = await self._search_fts5(query, user_id, limit)
         elif strategy == "mib":
@@ -487,7 +487,7 @@ class RAGEngine:
         )
         await conn.commit()
 
-    async def count_pages(self, user_id: str = None) -> int:
+    async def count_pages(self, user_id: Optional[str] = None) -> int:
         conn = await self._cm.get("memory.db")
         if user_id:
             row = await (await conn.execute("SELECT COUNT(*) FROM rag_pages WHERE user_id=?", (user_id,))).fetchone()

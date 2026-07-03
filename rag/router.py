@@ -5,7 +5,7 @@ Multi-signal: FTS5 + Vector + Entity/NER extraction
 
 import re
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 
 from .engine import RAGEngine
 
@@ -25,7 +25,7 @@ class RouterResult:
 
 
 # B2.1-B2.3: Data-driven keyword tables (RU + EN)
-_DEFAULT_KEYWORDS = {
+_DEFAULT_KEYWORDS: dict[str, dict[str, list[str]]] = {
     "recent": {
         "ru": ["это", "почему", "как", "только что", "ранее", "опять", "сейчас", "вчера", "утром", "снова"],
         "en": ["this", "why", "how", "earlier", "just now", "again", "now", "yesterday", "recently"],
@@ -102,7 +102,7 @@ _ENTITY_STOPWORDS = {
 }
 
 # B2.5: Route priorities — data-driven table
-_ROUTE_TABLE = [
+_ROUTE_TABLE: list[dict[str, Any]] = [
     {"strategy": "L1_BUFFER", "keywords": "recent", "confidence": 0.9},
     {"strategy": "WIKI", "keywords": "wiki", "confidence": 0.95},
     {"strategy": "GRAPH", "keywords": "entity", "confidence": 0.85},
@@ -141,7 +141,7 @@ class RetrievalRouter:
             out.extend(v)
         return [kw.lower() for kw in out]
 
-    async def route(self, query: str, recent_context: list[dict] = None) -> RouterResult:
+    async def route(self, query: str, recent_context: Optional[list[dict]] = None) -> RouterResult:
         q = query.lower()
 
         # B2.5: Data-driven route matching

@@ -34,8 +34,8 @@ class DreamBuffer:
         session_id: str,
         content: str,
         importance: float = 0.5,
-        event_id: str = None,
-        metadata: dict = None,
+        event_id: Optional[str] = None,
+        metadata: Optional[dict] = None,
     ) -> int:
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
@@ -45,7 +45,7 @@ class DreamBuffer:
         await conn.commit()
         return cursor.lastrowid
 
-    async def get_staging(self, user_id: str = "default", session_id: str = None) -> list[dict[str, Any]]:
+    async def get_staging(self, user_id: str = "default", session_id: Optional[str] = None) -> list[dict[str, Any]]:
         conn = await self._cm.get("memory.db")
         if session_id:
             cursor = await conn.execute(
@@ -68,7 +68,7 @@ class DreamBuffer:
             for r in rows
         ]
 
-    async def clear_staging(self, user_id: str = "default", session_id: str = None) -> int:
+    async def clear_staging(self, user_id: str = "default", session_id: Optional[str] = None) -> int:
         conn = await self._cm.get("memory.db")
         if session_id:
             cursor = await conn.execute("DELETE FROM staging_memories WHERE user_id=? AND session_id=?", (user_id, session_id))

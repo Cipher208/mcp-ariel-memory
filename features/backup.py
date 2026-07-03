@@ -6,18 +6,18 @@ import json
 import shutil
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from config import config
 
 
 class BackupManager:
-    def __init__(self, base_dir: str = None):
+    def __init__(self, base_dir: Optional[str] = None):
         self.base_dir = Path(base_dir or str(Path.home() / ".mcp-ariel-memory"))
         self.backup_dir = self.base_dir / "backups"
         self.backup_dir.mkdir(parents=True, exist_ok=True)
 
-    async def backup(self, label: str = None) -> str:
+    async def backup(self, label: Optional[str] = None) -> str:
         import uuid
 
         timestamp = int(time.time())

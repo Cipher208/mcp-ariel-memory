@@ -166,31 +166,29 @@ def _run_with_dashboard(host: str, port: int):
 
     def get_user_from_token(request) -> str:
         auth = request.headers.get("Authorization", "")
-        if auth.startswith("Bearer "):
-            info = bearer_auth.verify(auth)
-            if info:
-                return info.get("user_id", "api")
+        if auth.startswith("Bearer ") and bearer_auth.verify(auth):
+            return "api"
         return request.client.host if request.client else "unknown"
 
-    def check_rate_limit(request) -> bool:
+    async def check_rate_limit(request) -> bool:
         rate_enabled = config.get("features", "rate_limiting", default=True)
         if not rate_enabled:
             return True
         user = get_user_from_token(request)
-        result = api_rate_limiter.check(user)
+        result = await api_rate_limiter.check(user)
         return result.get("allowed", True)
 
     async def dashboard_page(request):
         if not check_auth(request):
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
-        if not check_rate_limit(request):
+        if not await check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         return HTMLResponse(dashboard.render_html())
 
     async def api_stats(request):
         if not check_auth(request):
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
-        if not check_rate_limit(request):
+        if not await check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         user_id = request.query_params.get("user_id", "default")
         return JSONResponse(dashboard.get_stats(user_id))
@@ -198,7 +196,7 @@ def _run_with_dashboard(host: str, port: int):
     async def api_user_facts(request):
         if not check_auth(request):
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
-        if not check_rate_limit(request):
+        if not await check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         user_id = request.query_params.get("user_id", "default")
         return JSONResponse(dashboard.get_user_facts(user_id))
@@ -206,7 +204,7 @@ def _run_with_dashboard(host: str, port: int):
     async def api_agent_facts(request):
         if not check_auth(request):
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
-        if not check_rate_limit(request):
+        if not await check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         user_id = request.query_params.get("user_id", "default")
         return JSONResponse(dashboard.get_agent_facts(user_id))
@@ -214,7 +212,7 @@ def _run_with_dashboard(host: str, port: int):
     async def api_user_episodes(request):
         if not check_auth(request):
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
-        if not check_rate_limit(request):
+        if not await check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         user_id = request.query_params.get("user_id", "default")
         return JSONResponse(dashboard.get_user_episodes(user_id))
@@ -222,7 +220,7 @@ def _run_with_dashboard(host: str, port: int):
     async def api_agent_episodes(request):
         if not check_auth(request):
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
-        if not check_rate_limit(request):
+        if not await check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         user_id = request.query_params.get("user_id", "default")
         return JSONResponse(dashboard.get_agent_episodes(user_id))
@@ -230,28 +228,28 @@ def _run_with_dashboard(host: str, port: int):
     async def api_audit(request):
         if not check_auth(request):
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
-        if not check_rate_limit(request):
+        if not await check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         return JSONResponse(dashboard.get_audit())
 
     async def metrics_endpoint(request):
         if not check_auth(request):
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
-        if not check_rate_limit(request):
+        if not await check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         return PlainTextResponse(m.render_prometheus())
 
     async def metrics_json(request):
         if not check_auth(request):
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
-        if not check_rate_limit(request):
+        if not await check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         return JSONResponse(m.render_json())
 
     async def auth_keys(request):
         if not check_auth(request):
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
-        if not check_rate_limit(request):
+        if not await check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         from features.auth import api_key_auth
 
@@ -260,7 +258,7 @@ def _run_with_dashboard(host: str, port: int):
     async def auth_create(request):
         if not check_auth(request):
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
-        if not check_rate_limit(request):
+        if not await check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         from features.auth import api_key_auth
 
@@ -271,17 +269,17 @@ def _run_with_dashboard(host: str, port: int):
     async def backup_trigger(request):
         if not check_auth(request):
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
-        if not check_rate_limit(request):
+        if not await check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         from features.backup_cron import backup_cron
 
-        path = await backup_cron.backup_now()
+        path = backup_cron.backup_now()
         return JSONResponse({"path": path})
 
     async def backup_list(request):
         if not check_auth(request):
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
-        if not check_rate_limit(request):
+        if not await check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         from features.backup_cron import backup_cron
 

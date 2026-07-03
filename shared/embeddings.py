@@ -14,7 +14,7 @@ _model = None
 _model_name = None
 
 
-def _get_model(model_name: str = None):
+def _get_model(model_name: Optional[str] = None):
     global _model, _model_name
     target = model_name or DEFAULT_MODEL
     if _model is None or _model_name != target:
@@ -29,7 +29,7 @@ def _get_model(model_name: str = None):
 
 
 class EmbeddingCache:
-    def __init__(self, cm: Optional["AsyncConnectionManager"] = None, model_name: str = None):
+    def __init__(self, cm: Optional["AsyncConnectionManager"] = None, model_name: Optional[str] = None):
         self._cm = cm or connection_manager
         self.model_name = model_name or DEFAULT_MODEL
         self._dimension = 384
@@ -86,7 +86,7 @@ class EmbeddingCache:
         if not texts:
             return []
         model = _get_model()
-        results = [None] * len(texts)
+        results: list[list[float] | None] = [None] * len(texts)
         to_compute = []
         for i, text in enumerate(texts):
             cached = await self._get_cached(text)
@@ -139,7 +139,7 @@ def _hash_embedding(text: str, dim: int = 384) -> list[float]:
     import math
 
     h = hashlib.sha512(text.lower().encode()).digest()
-    floats = []
+    floats: list[float] = []
     for i in range(0, len(h) - 3, 4):
         if len(floats) >= dim:
             break

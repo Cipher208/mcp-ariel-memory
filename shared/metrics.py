@@ -10,13 +10,13 @@ from typing import Any
 
 class MetricsCollector:
     def __init__(self):
-        self._counters: dict[str, int] = defaultdict(int)
+        self._counters: dict[str, int | float] = defaultdict(int)
         self._gauges: dict[str, float] = {}
         self._histograms: dict[str, list] = defaultdict(list)
         self._start_time = time.time()
         self._lock = threading.Lock()
 
-    def inc(self, name: str, value: int = 1):
+    def inc(self, name: str, value: int | float = 1):
         with self._lock:
             self._counters[name] += value
 

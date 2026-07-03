@@ -10,7 +10,7 @@ import secrets
 import time
 import warnings
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from features.secrets import encrypt_json, decrypt_json, is_encrypted_blob
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class APIKeyAuth:
     """API key authentication with encrypted file persistence."""
 
-    def __init__(self, keys_file: str = None):
+    def __init__(self, keys_file: Optional[str] = None):
         self.keys_file = Path(keys_file or str(Path.home() / ".mcp-ariel-memory" / "api_keys.json"))
         self.keys_file.parent.mkdir(parents=True, exist_ok=True)
         self._keys: dict[str, dict] = self._load()
@@ -50,7 +50,7 @@ class APIKeyAuth:
             logger.warning("Failed to encrypt legacy file %s: %s", self.keys_file, e)
         return legacy
 
-    def _save(self, data: dict[str, dict] = None) -> None:
+    def _save(self, data: Optional[dict[str, dict]] = None) -> None:
         """Atomic write: tmp + rename + chmod 600."""
         if data is None:
             data = self._keys
@@ -116,7 +116,7 @@ class APIKeyAuth:
 class BearerAuth:
     """Bearer token authentication with encrypted persistence."""
 
-    def __init__(self, token_file: str = None):
+    def __init__(self, token_file: Optional[str] = None):
         self.token_file = Path(token_file or str(Path.home() / ".mcp-ariel-memory" / "bearer_token.json"))
         self.token_file.parent.mkdir(parents=True, exist_ok=True)
         self._token = self._load_or_create()

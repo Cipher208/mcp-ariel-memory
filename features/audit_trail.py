@@ -31,7 +31,7 @@ class AuditTrail:
         """,
         )
 
-    async def log(self, user_id: str, action: str, layer: str = None, target_id: str = None, details: dict = None):
+    async def log(self, user_id: str, action: str, layer: Optional[str] = None, target_id: Optional[str] = None, details: Optional[dict] = None):
         conn = await self._cm.get("memory.db")
         await conn.execute(
             "INSERT INTO audit_log (user_id, action, layer, target_id, details, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
@@ -39,7 +39,7 @@ class AuditTrail:
         )
         await conn.commit()
 
-    async def get_history(self, user_id: str, limit: int = 50, action: str = None) -> list[dict[str, Any]]:
+    async def get_history(self, user_id: str, limit: int = 50, action: Optional[str] = None) -> list[dict[str, Any]]:
         conn = await self._cm.get("memory.db")
         if action:
             cursor = await conn.execute(
@@ -64,7 +64,7 @@ class AuditTrail:
             for r in rows
         ]
 
-    async def count(self, user_id: str = None) -> int:
+    async def count(self, user_id: Optional[str] = None) -> int:
         conn = await self._cm.get("memory.db")
         if user_id:
             cursor = await conn.execute("SELECT COUNT(*) FROM audit_log WHERE user_id=?", (user_id,))
@@ -80,7 +80,7 @@ class AuditTrail:
         await conn.commit()
         return cursor.rowcount
 
-    async def archive_and_prune(self, retention_days: int = 30, archive_dir: str = None) -> dict[str, int]:
+    async def archive_and_prune(self, retention_days: int = 30, archive_dir: Optional[str] = None) -> dict[str, int]:
         cutoff = time.time() - (retention_days * 86400)
         conn = await self._cm.get("memory.db")
         cursor = await conn.execute(
@@ -97,7 +97,7 @@ class AuditTrail:
 
             archive_path = Path(archive_dir)
             archive_path.mkdir(parents=True, exist_ok=True)
-            archive_file = archive_path / "audit_archive_%d.json" % int(time.time())
+            archive_file = archive_path / ("audit_archive_%d.json" % int(time.time()))
             archive_data = [
                 {
                     "log_id": r["log_id"],
@@ -108,7 +108,8 @@ class AuditTrail:
                 }
                 for r in rows
             ]
-            archive_file.write_text(json.dumps(archive_data, indent=2, default=str), encoding="utf-8")
+            with archive_file.open("w", encoding="utf-8") as f:
+                f.write(json.dumps(archive_data, indent=2, default=str))
 
         cursor = await conn.execute("DELETE FROM audit_log WHERE timestamp < ?", (cutoff,))
         await conn.commit()

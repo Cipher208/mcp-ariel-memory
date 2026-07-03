@@ -2,6 +2,8 @@
 ReadOnlyReplica — async read-only DB copy for dashboard/metrics
 """
 
+from typing import Optional
+
 import logging
 import shutil
 import sqlite3
@@ -13,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class ReadOnlyReplica:
-    def __init__(self, source_dir: str = None, replica_dir: str = None):
+    def __init__(self, source_dir: Optional[str] = None, replica_dir: Optional[str] = None):
         self.source_dir = Path(source_dir or str(Path.home() / ".mcp-ariel-memory"))
         self.replica_dir = Path(replica_dir or str(Path.home() / ".mcp-ariel-memory" / "replica"))
         self.replica_dir.mkdir(parents=True, exist_ok=True)

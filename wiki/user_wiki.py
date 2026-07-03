@@ -7,7 +7,7 @@ import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from shared.connection import AsyncConnectionManager, connection_manager
 from wiki.shared import (
@@ -48,7 +48,7 @@ def _get_external_dirs() -> list[str]:
 
 
 class UserWiki:
-    def __init__(self, cm: AsyncConnectionManager = None):
+    def __init__(self, cm: Optional[AsyncConnectionManager] = None):
         self._cm = cm or connection_manager
 
     async def init_db(self):
@@ -94,7 +94,7 @@ class UserWiki:
         wiki_type: str,
         title: str,
         content: str,
-        tags: list[str] = None,
+        tags: Optional[list[str]] = None,
         importance: float = 0.5,
         source: str = "manual",
     ) -> int:
@@ -116,7 +116,7 @@ class UserWiki:
         await conn.commit()
         return entry_id
 
-    async def update(self, entry_id: int, title: str = None, content: str = None, tags: list[str] = None, importance: float = None):
+    async def update(self, entry_id: int, title: Optional[str] = None, content: Optional[str] = None, tags: Optional[list[str]] = None, importance: Optional[float] = None):
         conn = await self._cm.get("memory.db")
         updates, params = build_update_clause({"title": title, "content": content, "tags": tags, "importance": importance})
         params.append(entry_id)
@@ -165,7 +165,7 @@ class UserWiki:
         await conn.commit()
         return cur.rowcount > 0
 
-    async def count(self, user_id: str = None, wiki_type: str = None) -> int:
+    async def count(self, user_id: Optional[str] = None, wiki_type: Optional[str] = None) -> int:
         conn = await self._cm.get("memory.db")
         query, params = build_count_query("user_wiki", user_id, wiki_type)
         cur = await conn.execute(query, params)

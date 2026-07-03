@@ -30,9 +30,9 @@ class ArchivedMemories:
         self,
         user_id: str,
         content: str,
-        memory_type: str = None,
-        importance: float = None,
-        original_id: int = None,
+        memory_type: Optional[str] = None,
+        importance: Optional[float] = None,
+        original_id: Optional[int] = None,
         reason: str = "manual",
     ) -> int:
         conn = await self._cm.get("memory.db")
