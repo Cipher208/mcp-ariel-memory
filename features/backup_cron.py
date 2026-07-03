@@ -132,7 +132,9 @@ class BackupCron:
             for layer in ["user", "agent"]:
                 fw = FileWiki(layer=layer)
                 result = fw.reindex_all()
-                if result.get("indexed", 0) > 0:
+                if asyncio.iscoroutine(result):
+                    result = asyncio.run(result)
+                if isinstance(result, dict) and result.get("indexed", 0) > 0:
                     logger.info("Wiki %s synced: %d files" % (layer, result["indexed"]))
             self._last_wiki_sync = time.time()
             self._save_state()
