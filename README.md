@@ -51,24 +51,6 @@ graph TD
     R --> T[Temporal Graph]
 ```
 
-### Key Capabilities
-
-- **19 unified MCP tools** with `layer` parameter (user/agent) instead of 37 separate tools
-- **Envelope encryption** — all sensitive data (API keys, tokens, saga state) encrypted at rest with libsodium secretbox
-- **Keychain-first security** — master key resolved from OS keychain (keyring) first, `.env` only for local dev. Production: use keyring or vault sidecar
-- **Unified Search API** — single `search()` method with 4 strategies: `fts`, `mib`, `hybrid`, `auto`
-- **MultiSourceRAG** — unified search across RAG + Wiki with deduplication and reranking
-- **ITS-inspired scoring** — novelty component using document frequency as prior for better ranking
-- **Supervised thresholds** — per-dimension MIB thresholds trained on labeled data (+10-15% recall)
-- **Knowledge graphs** for epistemic (facts/decisions) and temporal (timeline) relationships
-- **Wiki system** with 14 content types, .md files as source of truth, and external folder sync
-- **24 hooks** for intercepting memory operations at every stage
-- **Saga pattern** for multi-step operations with compensation and watchdog
-- **Platform-aware async** — aiosqlite on Linux/macOS, sync sqlite3 + `asyncio.to_thread()` on Windows (event loop never blocks)
-- **338 tests** — unit + integration + 25 property-based Hypothesis tests
-- **CI pipeline** — lint (ruff), typecheck (mypy), quality (skylos), security (gitleaks), test matrix (3.10–3.13)
-- **Python 3.10–3.13** tested in CI matrix
-
 ### Why mcp-ariel-memory?
 
 | Feature | mcp-ariel-memory | Typical Memory |
@@ -290,31 +272,6 @@ Message → L1 (ReflexBuffer, ring buffer, 50 items)
 | `mib` | Binary embedding similarity (Hamming distance) | Semantic similarity, concept-based |
 | `hybrid` | Combines FTS5 + MIB with Scorer ranking | General-purpose, best recall |
 | `auto` | Automatically selects `fts` for short queries, `hybrid` for longer | Default for most use cases |
-
-### Database Tables (21)
-
-| Table | Module | Purpose |
-|-------|--------|---------|
-| `core_memory` | core/memory.py | L4 key-value facts |
-| `sessions` | core/session.py | L2 session history |
-| `episodes` | core/episodic.py | L3 episodic memories |
-| `staging_memories` | shared/dream_buffer.py | Temporary staging |
-| `archived_memories` | shared/archived_memories.py | Archived memories |
-| `audit_log` | features/audit_trail.py | Audit trail |
-| `rate_limits` | features/rate_limiting.py | Rate limiting |
-| `embedding_cache` | shared/embeddings.py | Cached embeddings |
-| `rag_pages` | rag/engine.py | RAG document pages |
-| `rag_chunks` | rag/engine.py | RAG document chunks |
-| `rag_relations` | rag/engine.py | RAG relations |
-| `epi_nodes` | graph/epistemic.py | Epistemic graph nodes |
-| `epi_edges` | graph/epistemic.py | Epistemic graph edges |
-| `temporal_events` | graph/temporal.py | Temporal events |
-| `temporal_links` | graph/temporal.py | Temporal links |
-| `user_wiki` | wiki/user_wiki.py | User wiki entries |
-| `agent_wiki` | wiki/agent_wiki.py | Agent wiki entries |
-| `wiki_index` | wiki/file_wiki.py | Wiki FTS5 index |
-| `memory_conflicts` | rag/conflict.py | Memory conflicts |
-| `migration_log` | shared/migrations.py | Migration history |
 
 ---
 
