@@ -1,7 +1,6 @@
 """Shared fixtures for all tests."""
 
 import os
-import sys
 
 import pytest
 
