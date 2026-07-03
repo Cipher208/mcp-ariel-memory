@@ -61,6 +61,7 @@
 - [ ] **Audit logging** — improve log format (JSON structured logging)
 - [ ] **Rate limiting** — add adaptive rate limiting based on load
 - [ ] **Input validation** — add validation at MCP tools level (Pydantic schemas)
+- [ ] **Key rotation** — zero-downtime master key rotation with re-encryption of all stored secrets. Current state: keyring (OS keychain) supported as primary key source, .env as dev fallback. Rotation requires re-encrypting all blobs with new key while old key still works for reads.
 
 ## 8. Integrations
 
@@ -108,6 +109,7 @@
 - [x] **Importance v2** — 8-signal scorer (base, length, question, tech, emotional, novelty, retrieval, noise)
 - [x] **Importance scheduler** — background daemon for periodic re-scoring
 - [x] **Importance middleware** — uses ImportanceScorer instead of naive heuristic
+- [ ] **Adaptive threshold** — replace fixed ImportanceGate threshold with EMA (exponential moving average) of recent message importance scores. Current 0.3 threshold is static; EMA would adapt to conversation patterns (high-signal technical discussions vs low-signal casual chat).
 
 ## 12. Saga & Reliability
 

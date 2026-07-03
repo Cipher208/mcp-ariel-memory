@@ -4,6 +4,9 @@ Tests mathematical invariants and roundtrip properties that must hold
 for ALL valid inputs, not just hand-picked examples.
 """
 
+import threading
+import time
+
 import pytest
 from hypothesis import given, settings, assume
 from hypothesis import strategies as st
@@ -211,3 +214,113 @@ class TestSecretsProperties:
         """Encrypted blob must be at least nonce(24) + MAC(16) = 40 bytes."""
         blob = encrypt_json(data)
         assert len(blob) >= 40
+
+
+# ═══════════════════════════════════════════════════════════════
+#  core/reflex.py — ring buffer invariants
+# ═══════════════════════════════════════════════════════════════
+
+from core.reflex import ReflexBuffer
+
+
+class TestReflexBufferProperties:
+    """Properties that ring buffer must satisfy under any sequence of operations."""
+
+    @given(n=st.integers(min_value=1, max_value=200))
+    @settings(max_examples=100)
+    def test_size_never_exceeds_max(self, n):
+        """After adding n entries to buffer of size 10, size ≤ 10."""
+        buf = ReflexBuffer(max_size=10)
+        for i in range(n):
+            buf.add(role="user", content=f"msg{i}", tokens=1)
+        assert buf.size() <= 10
+
+    @given(entries=st.lists(st.text(min_size=1, max_size=50, alphabet=st.characters(blacklist_categories=("Cs",))), min_size=1, max_size=100))
+    @settings(max_examples=50)
+    def test_get_recent_returns_last_n(self, entries):
+        """get_recent(k) returns last min(k, size) entries in order."""
+        buf = ReflexBuffer(max_size=50)
+        for e in entries:
+            buf.add(role="user", content=e, tokens=1)
+        recent = buf.get_recent(10)
+        full = buf.get_full()
+        expected = full[-10:]
+        assert [e.content for e in recent] == [e.content for e in expected]
+
+    @given(n=st.integers(min_value=1, max_value=50))
+    @settings(max_examples=50)
+    def test_fifo_eviction_order(self, n):
+        """Older entries are evicted first when buffer is full."""
+        buf = ReflexBuffer(max_size=5)
+        for i in range(n):
+            buf.add(role="user", content=f"msg{i}", tokens=1)
+        full = buf.get_full()
+        contents = [e.content for e in full]
+        # All present entries should be in insertion order
+        assert contents == sorted(contents, key=lambda x: int(x.replace("msg", "")))
+
+    @given(n=st.integers(min_value=1, max_value=50))
+    @settings(max_examples=30)
+    def test_clear_resets_size(self, n):
+        """After clear(), size is 0."""
+        buf = ReflexBuffer(max_size=10)
+        for i in range(n):
+            buf.add(role="user", content=f"msg{i}", tokens=1)
+        buf.clear()
+        assert buf.size() == 0
+        assert buf.get_full() == []
+
+
+class TestReflexBufferConcurrency:
+    """Ring buffer must handle concurrent add/get without crashes."""
+
+    def test_concurrent_add_no_crash(self):
+        """10 threads adding 100 entries each to buffer of size 50."""
+        buf = ReflexBuffer(max_size=50)
+        errors = []
+
+        def adder(thread_id):
+            try:
+                for i in range(100):
+                    buf.add(role="user", content=f"t{thread_id}_m{i}", tokens=1)
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=adder, args=(t,)) for t in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        assert not errors, f"Concurrent add failed: {errors}"
+        assert buf.size() <= 50
+
+    def test_concurrent_read_write_no_crash(self):
+        """Reads and writes happening simultaneously."""
+        buf = ReflexBuffer(max_size=30)
+        errors = []
+
+        def writer():
+            try:
+                for i in range(200):
+                    buf.add(role="user", content=f"msg{i}", tokens=1)
+                    time.sleep(0.0001)
+            except Exception as e:
+                errors.append(e)
+
+        def reader():
+            try:
+                for _ in range(200):
+                    buf.get_recent(5)
+                    buf.get_full()
+                    time.sleep(0.0001)
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=writer), threading.Thread(target=reader)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        assert not errors, f"Concurrent read/write failed: {errors}"
