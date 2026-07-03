@@ -277,20 +277,16 @@ Message → L1 (ReflexBuffer, ring buffer, 50 items)
 
 ## Documentation
 
-| # | Document | Description |
-|---|----------|-------------|
-| 01 | [Architecture](docs/01-architecture.md) | Stack, two-layer model, L1-L4, consolidation |
-| 02 | [MCP Tools](docs/02-mcp-tools.md) | All 19 tools with parameters and examples |
-| 03 | [Core Memory](docs/03-core.md) | ReflexBuffer, SessionStore, EpisodicMemory, CoreMemory |
-| 04 | [Search (RAG)](docs/04-rag.md) | Unified search, Scorer, supervised thresholds |
-| 05 | [Knowledge Graph](docs/05-graph.md) | EpistemicGraph, TemporalGraph |
-| 06 | [Lifecycle](docs/06-lifecycle.md) | Forgetting, EmotionTrigger, Consolidation |
-| 07 | [Hooks](docs/07-hooks.md) | 24 hooks (12 user + 12 agent) |
-| 08 | [Wiki](docs/08-wiki.md) | FileWiki (.md files + FTS5) |
-| 09 | [Features](docs/09-features.md) | Auth, Backup, Dashboard, Audit, RateLimit |
-| 10 | [Shared](docs/10-shared.md) | Cache, Saga+Watchdog, Middleware, Embeddings, Metrics |
-| 11 | [Operations](docs/11-operations.md) | Transports, Dashboard, Auth, Backup, Configuration |
-| 12 | [Testing](docs/12-testing.md) | pytest, project structure |
+Full documentation with API reference, architecture diagrams, and guides:
+
+**[Read the Docs →](https://cipher208.github.io/mcp-ariel-memory/)**
+
+| Topic | Link |
+|-------|------|
+| Architecture | [Overview](https://cipher208.github.io/mcp-ariel-memory/architecture/overview/) |
+| MCP Tools | [Reference](https://cipher208.github.io/mcp-ariel-memory/tools/reference/) |
+| Configuration | [Guide](https://cipher208.github.io/mcp-ariel-memory/getting-started/configuration/) |
+| API Reference | [Secrets](https://cipher208.github.io/mcp-ariel-memory/api/secrets/), [Importance](https://cipher208.github.io/mcp-ariel-memory/api/importance/) |
 
 ---
 
@@ -371,7 +367,7 @@ python -c "from features.secrets import install_master_key_to_keychain; install_
 
 ```bash
 # Install dev dependencies
-pip install -e ".[dev]"
+pip install -e ".[dev,binary]"
 
 # Run linter
 ruff check .
@@ -379,12 +375,29 @@ ruff check .
 # Format code
 ruff format .
 
+# Type check
+mypy --config-file pyproject.toml features/ shared/ mcp_server/ rag/ hooks/ wiki/ lifecycle/ graph/ core/
+
 # Run tests
-pytest tests/ -v
+pytest tests/ -v --timeout=30
 ```
+
+---
+
+## Community
+
+- [Contributing Guide](CONTRIBUTING.md)
+- [Security Policy](SECURITY.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Discussions](https://github.com/Cipher208/mcp-ariel-memory/discussions)
+- [Changelog](https://github.com/Cipher208/mcp-ariel-memory/releases)
 
 ---
 
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+![Star History Chart](https://api.star-history.com/svg?repos=Cipher208/mcp-ariel-memory&type=Date)
