@@ -5,12 +5,10 @@ All DB operations via AsyncConnectionManager (aiosqlite).
 
 import hashlib
 import logging
-import struct
 from pathlib import Path
 from typing import Any, Literal, Optional, cast
 
 from shared.connection import AsyncConnectionManager, connection_manager
-from config import config as _config
 
 logger = logging.getLogger(__name__)
 
