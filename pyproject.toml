@@ -71,6 +71,7 @@ packages = ["."]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+timeout = 30
 filterwarnings = [
     "ignore::pytest.PytestUnhandledThreadExceptionWarning",
     "ignore::DeprecationWarning:features.auth",
