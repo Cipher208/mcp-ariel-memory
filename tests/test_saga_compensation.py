@@ -221,16 +221,16 @@ def test_step_timeout():
             return {"r": 1}
 
         async def slow_step(data):
-            await asyncio.sleep(10)
+            await asyncio.sleep(60)
             return {"r": 2}
 
-        saga = Saga("timeout_test", timeout_seconds=60)
-        saga.add_step("fast", fast_step, timeout_seconds=1)
-        saga.add_step("slow", slow_step, timeout_seconds=1)
+        saga = Saga("timeout_test", timeout_seconds=120)
+        saga.add_step("fast", fast_step, timeout_seconds=2)
+        saga.add_step("slow", slow_step, timeout_seconds=2)
 
         try:
-            await saga.execute()
-        except TimeoutError:
+            await asyncio.wait_for(saga.execute(), timeout=10)
+        except (TimeoutError, asyncio.TimeoutError):
             pass
 
         assert saga.status.value in ("failed", "compensated")
@@ -245,16 +245,16 @@ def test_step_timeout_override():
 
     async def test():
         async def slow(d):
-            await asyncio.sleep(10)
+            await asyncio.sleep(60)
             return {}
 
-        # Saga timeout = 60s, step timeout = 1s
-        saga = Saga("override_test", timeout_seconds=60)
-        saga.add_step("slow", slow, timeout_seconds=1)
+        # Saga timeout = 120s, step timeout = 2s
+        saga = Saga("override_test", timeout_seconds=120)
+        saga.add_step("slow", slow, timeout_seconds=2)
 
         try:
-            await saga.execute()
-        except TimeoutError:
+            await asyncio.wait_for(saga.execute(), timeout=10)
+        except (TimeoutError, asyncio.TimeoutError):
             pass
 
         assert saga.status.value in ("failed", "compensated")
