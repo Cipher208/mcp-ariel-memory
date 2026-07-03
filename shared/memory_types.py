@@ -18,7 +18,6 @@ import math
 from dataclasses import dataclass
 
 
-
 class MemoryKind(str, enum.Enum):
     INSTRUCTION = "instruction"
     FACT = "fact"
@@ -48,67 +47,119 @@ class TypePolicy:
 
 _REGISTRY: dict[MemoryKind, TypePolicy] = {
     MemoryKind.INSTRUCTION: TypePolicy(
-        MemoryKind.INSTRUCTION, 0.9, 0.0, True, False,
+        MemoryKind.INSTRUCTION,
+        0.9,
+        0.0,
+        True,
+        False,
         ("обязательно", "важно", "critical", "never forget", "rule", "инструкция"),
         "Правило/инструкция, не подлежит забыванию",
     ),
     MemoryKind.FACT: TypePolicy(
-        MemoryKind.FACT, 0.5, 0.01, False, False,
+        MemoryKind.FACT,
+        0.5,
+        0.01,
+        False,
+        False,
         ("факт", "fact", "имя", "возраст", "день рождения"),
         "Атомарный факт",
     ),
     MemoryKind.DECISION: TypePolicy(
-        MemoryKind.DECISION, 0.7, 0.005, False, False,
+        MemoryKind.DECISION,
+        0.7,
+        0.005,
+        False,
+        False,
         ("решение", "decided", "chose", "decision"),
         "Принятое решение с обоснованием",
     ),
     MemoryKind.GOAL: TypePolicy(
-        MemoryKind.GOAL, 0.8, 0.005, False, True,
+        MemoryKind.GOAL,
+        0.8,
+        0.005,
+        False,
+        True,
         ("цель", "goal", "plan", "к концу"),
         "Цель с дедлайном",
     ),
     MemoryKind.PREFERENCE: TypePolicy(
-        MemoryKind.PREFERENCE, 0.7, 0.003, False, False,
+        MemoryKind.PREFERENCE,
+        0.7,
+        0.003,
+        False,
+        False,
         ("предпочитаю", "prefer", "like", "нравится", "не люблю"),
         "Предпочтение",
     ),
     MemoryKind.COMMITMENT: TypePolicy(
-        MemoryKind.COMMITMENT, 0.85, 0.0, True, True,
+        MemoryKind.COMMITMENT,
+        0.85,
+        0.0,
+        True,
+        True,
         ("обещаю", "обязуюсь", "commit", "promise", "согласен"),
         "Обязательство с дедлайном",
     ),
     MemoryKind.RELATIONSHIP: TypePolicy(
-        MemoryKind.RELATIONSHIP, 0.6, 0.002, False, False,
+        MemoryKind.RELATIONSHIP,
+        0.6,
+        0.002,
+        False,
+        False,
         ("знаком", "друг", "коллега", "knows", "friend"),
         "Связь",
     ),
     MemoryKind.OBSERVATION: TypePolicy(
-        MemoryKind.OBSERVATION, 0.4, 0.02, False, False,
+        MemoryKind.OBSERVATION,
+        0.4,
+        0.02,
+        False,
+        False,
         ("видел", "заметил", "noticed", "observed"),
         "Наблюдение",
     ),
     MemoryKind.RULE: TypePolicy(
-        MemoryKind.RULE, 0.85, 0.0, True, False,
+        MemoryKind.RULE,
+        0.85,
+        0.0,
+        True,
+        False,
         ("запрещено", "нельзя", "do not", "forbidden"),
         "Жёсткое правило",
     ),
     MemoryKind.TODO: TypePolicy(
-        MemoryKind.TODO, 0.6, 0.005, False, True,
+        MemoryKind.TODO,
+        0.6,
+        0.005,
+        False,
+        True,
         ("todo", "сделать", "do later", "remind"),
         "Задача с дедлайном",
     ),
     MemoryKind.QUESTION: TypePolicy(
-        MemoryKind.QUESTION, 0.5, 0.05, False, False,
+        MemoryKind.QUESTION,
+        0.5,
+        0.05,
+        False,
+        False,
         ("вопрос", "уточнить", "ask later", "?"),
         "Открытый вопрос",
     ),
     MemoryKind.HYPOTHESIS: TypePolicy(
-        MemoryKind.HYPOTHESIS, 0.45, 0.03, False, False,
+        MemoryKind.HYPOTHESIS,
+        0.45,
+        0.03,
+        False,
+        False,
         ("возможно", "наверное", "probably", "hypothesis"),
         "Гипотеза",
     ),
     MemoryKind.CONTEXT: TypePolicy(
-        MemoryKind.CONTEXT, 0.3, 0.05, False, False,
+        MemoryKind.CONTEXT,
+        0.3,
+        0.05,
+        False,
+        False,
         ("контекст", "background", "context"),
         "Фоновый контекст",
     ),
@@ -203,12 +254,8 @@ async def backfill_null_kinds(cm, dry_run: bool = True) -> int:
     """Set NULL memory_kind to 'fact'. Returns count of affected rows."""
     conn = await cm.get("memory.db")
     if dry_run:
-        row = await (await conn.execute(
-            "SELECT COUNT(*) c FROM core_memory WHERE memory_kind IS NULL"
-        )).fetchone()
+        row = await (await conn.execute("SELECT COUNT(*) c FROM core_memory WHERE memory_kind IS NULL")).fetchone()
         return int(row["c"])
-    cur = await conn.execute(
-        "UPDATE core_memory SET memory_kind = 'fact' WHERE memory_kind IS NULL"
-    )
+    cur = await conn.execute("UPDATE core_memory SET memory_kind = 'fact' WHERE memory_kind IS NULL")
     await conn.commit()
     return cur.rowcount

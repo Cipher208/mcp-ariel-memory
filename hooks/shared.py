@@ -51,9 +51,7 @@ def conflict_resolver(ctx: dict[str, Any], user_id: str) -> dict[str, Any]:
     return resolver.check(user_id, content)
 
 
-def auto_context(
-    ctx: dict[str, Any], user_id: str, layer: str | None = None
-) -> dict[str, Any]:
+def auto_context(ctx: dict[str, Any], user_id: str, layer: str | None = None) -> dict[str, Any]:
     query = ctx.get("query", "")
     if layer is not None:
         router = RetrievalRouter(layer=layer, user_id=user_id)

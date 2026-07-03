@@ -19,9 +19,7 @@ def _discover_hook_names(cls) -> set[str]:
     The hook name is the method name without the leading underscore.
     """
     return {
-        name.lstrip("_")
-        for name, _ in inspect.getmembers(cls, predicate=inspect.isfunction)
-        if name.startswith("_") and not name.startswith("__")
+        name.lstrip("_") for name, _ in inspect.getmembers(cls, predicate=inspect.isfunction) if name.startswith("_") and not name.startswith("__")
     }
 
 

@@ -49,13 +49,9 @@ class ImportanceScheduler:
     def start(self) -> None:
         if not self.cfg.enabled or self._thread is not None:
             return
-        self._thread = threading.Thread(
-            target=self._run_loop, daemon=True, name="importance-scheduler"
-        )
+        self._thread = threading.Thread(target=self._run_loop, daemon=True, name="importance-scheduler")
         self._thread.start()
-        logger.info(
-            "ImportanceScheduler started (interval=%ds)", self.cfg.interval_seconds
-        )
+        logger.info("ImportanceScheduler started (interval=%ds)", self.cfg.interval_seconds)
 
     def stop(self, timeout: float = 5.0) -> None:
         self._stop_event.set()
@@ -98,12 +94,14 @@ class ImportanceScheduler:
         return stats
 
     async def _rescore_user(self, user_id: str, conn, stats: dict) -> None:
-        rows = await (await conn.execute(
+        rows = await (
+            await conn.execute(
                 """SELECT id, "key", value, importance, memory_kind
                    FROM core_memory
                    WHERE user_id=? AND updated_at > ?""",
                 (user_id, time.time() - self.cfg.only_recent_days * 86400),
-            )).fetchall()
+            )
+        ).fetchall()
 
         for r in rows:
             rc = await self._lookup_retrieval_count(conn, "core_memory", int(r["id"]))
@@ -128,26 +126,35 @@ class ImportanceScheduler:
                     signal_breakdown, reason, rescored_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    user_id, int(r["id"]), "core_memory",
-                    old_score, new_score,
-                    json.dumps({
-                        "base": signals.base, "length": signals.length,
-                        "tech": signals.tech_keyword,
-                        "novelty": signals.novelty,
-                        "retrieval_signal": signals.retrieval_signal,
-                    }),
-                    "scheduled", now,
+                    user_id,
+                    int(r["id"]),
+                    "core_memory",
+                    old_score,
+                    new_score,
+                    json.dumps(
+                        {
+                            "base": signals.base,
+                            "length": signals.length,
+                            "tech": signals.tech_keyword,
+                            "novelty": signals.novelty,
+                            "retrieval_signal": signals.retrieval_signal,
+                        }
+                    ),
+                    "scheduled",
+                    now,
                 ),
             )
             stats["rescored"] += 1
 
     @staticmethod
     async def _lookup_retrieval_count(conn, source: str, source_id: int) -> int:
-        row = await (await conn.execute(
+        row = await (
+            await conn.execute(
                 """SELECT COUNT(*) c FROM audit_trail
                    WHERE action='recall_useful' AND layer=? AND target_id=?""",
                 (source, str(source_id)),
-            )).fetchone()
+            )
+        ).fetchone()
         return int(row["c"]) if row else 0
 
 

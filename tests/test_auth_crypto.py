@@ -15,6 +15,7 @@ def restore_master_key():
     else:
         os.environ.pop("MCP_MASTER_KEY", None)
     from features import secrets
+
     secrets._master_cache.clear()
 
 

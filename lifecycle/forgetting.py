@@ -9,7 +9,9 @@ from pathlib import Path
 from config import config
 from shared.connection import AsyncConnectionManager, connection_manager
 from shared.memory_types import (
-    MemoryKind, apply_decay, validate_kind,
+    MemoryKind,
+    apply_decay,
+    validate_kind,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,9 +33,7 @@ class ForgettingSystem:
         try:
             now = time.time()
             conn = await self._cm.get("memory.db")
-            cursor = await conn.execute(
-                "SELECT entry_id, memory_kind, importance, updated_at FROM core_memory"
-            )
+            cursor = await conn.execute("SELECT entry_id, memory_kind, importance, updated_at FROM core_memory")
 
             updates: list[tuple[float, int]] = []
             while True:
@@ -72,24 +72,28 @@ class ForgettingSystem:
             now = time.time()
 
             # 1) Expired goals/todos/commitments
-            expired = await (await conn.execute(
-                """SELECT entry_id, user_id, key, value, memory_kind, importance, expires_at
+            expired = await (
+                await conn.execute(
+                    """SELECT entry_id, user_id, key, value, memory_kind, importance, expires_at
                    FROM core_memory
                    WHERE memory_kind IN ('goal', 'todo', 'commitment')
                      AND expires_at IS NOT NULL AND expires_at < ?""",
-                (now,),
-            )).fetchall()
+                    (now,),
+                )
+            ).fetchall()
 
             # 2) Old low-importance entries (excluding never-archive types)
-            old = await (await conn.execute(
-                """SELECT entry_id, user_id, key, value, memory_kind, importance, expires_at
+            old = await (
+                await conn.execute(
+                    """SELECT entry_id, user_id, key, value, memory_kind, importance, expires_at
                    FROM core_memory
                    WHERE memory_kind NOT IN ('instruction', 'rule', 'commitment')
                      AND (expires_at IS NULL OR expires_at > ?)
                      AND updated_at < ?
                      AND importance < ?""",
-                (now, now - self.archive_days * 86400, self.archive_min_importance),
-            )).fetchall()
+                    (now, now - self.archive_days * 86400, self.archive_min_importance),
+                )
+            ).fetchall()
 
             all_rows = expired + old
             if not all_rows:
@@ -106,8 +110,7 @@ class ForgettingSystem:
                     memory_type=r["memory_kind"] or "fact",
                     importance=r["importance"],
                     original_id=r["entry_id"],
-                    reason="expired" if (r["expires_at"] and r["expires_at"] < now)
-                           else "inactive_%dd" % self.archive_days,
+                    reason="expired" if (r["expires_at"] and r["expires_at"] < now) else "inactive_%dd" % self.archive_days,
                 )
                 archived_count += 1
 

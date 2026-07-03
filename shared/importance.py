@@ -12,50 +12,141 @@ from dataclasses import dataclass, field
 from typing import Dict, Iterable, Optional
 
 from shared.memory_types import (
-    MemoryKind, get_policy, kind_for_text,
+    MemoryKind,
+    get_policy,
+    kind_for_text,
 )
 
 # Tech keywords (RU + EN)
 _TECH_KEYWORDS_RU = (
-    "redis", "postgres", "postgresql", "mysql", "sqlite", "mongo",
-    "docker", "kubernetes", "k8s", "aws", "gcp", "azure",
-    "api", "rest", "graphql", "grpc", "kafka", "rabbitmq",
-    "jwt", "oauth", "ssl", "tls", "vpn", "ssh",
-    "sql", "orm", "migration", "бэкап", "резервная копия",
-    "ci", "cd", "деплой", "smoke", "релиз", "продакшн",
-    "критично", "срочно", "блокер", "баг", "incident",
-    "ошибка", "exception", "traceback", "stack trace",
+    "redis",
+    "postgres",
+    "postgresql",
+    "mysql",
+    "sqlite",
+    "mongo",
+    "docker",
+    "kubernetes",
+    "k8s",
+    "aws",
+    "gcp",
+    "azure",
+    "api",
+    "rest",
+    "graphql",
+    "grpc",
+    "kafka",
+    "rabbitmq",
+    "jwt",
+    "oauth",
+    "ssl",
+    "tls",
+    "vpn",
+    "ssh",
+    "sql",
+    "orm",
+    "migration",
+    "бэкап",
+    "резервная копия",
+    "ci",
+    "cd",
+    "деплой",
+    "smoke",
+    "релиз",
+    "продакшн",
+    "критично",
+    "срочно",
+    "блокер",
+    "баг",
+    "incident",
+    "ошибка",
+    "exception",
+    "traceback",
+    "stack trace",
 )
 
 _TECH_KEYWORDS_EN = (
-    "redis", "postgres", "postgresql", "mysql", "sqlite", "mongo",
-    "docker", "kubernetes", "k8s", "aws", "gcp", "azure",
-    "api", "rest", "graphql", "grpc", "kafka", "rabbitmq",
-    "jwt", "oauth", "ssl", "tls", "vpn", "ssh",
-    "sql", "orm", "migration", "backup",
-    "ci", "cd", "deploy", "smoke", "release", "production",
-    "critical", "urgent", "blocker", "bug", "incident",
-    "error", "exception", "traceback", "stack trace",
+    "redis",
+    "postgres",
+    "postgresql",
+    "mysql",
+    "sqlite",
+    "mongo",
+    "docker",
+    "kubernetes",
+    "k8s",
+    "aws",
+    "gcp",
+    "azure",
+    "api",
+    "rest",
+    "graphql",
+    "grpc",
+    "kafka",
+    "rabbitmq",
+    "jwt",
+    "oauth",
+    "ssl",
+    "tls",
+    "vpn",
+    "ssh",
+    "sql",
+    "orm",
+    "migration",
+    "backup",
+    "ci",
+    "cd",
+    "deploy",
+    "smoke",
+    "release",
+    "production",
+    "critical",
+    "urgent",
+    "blocker",
+    "bug",
+    "incident",
+    "error",
+    "exception",
+    "traceback",
+    "stack trace",
 )
 
 _NOISE_PATTERNS_RU = (
-    r"^ок\.?$", r"^ага\.?$", r"^угу\.?$", r"^да\.?$", r"^нет\.?$",
-    r"^ладно\.?$", r"^хорошо\.?$", r"^понял(а)?\.?$", r"^принял(а)?\.?$",
-    r"^спс\.?$", r"^благодарю\.?$",
+    r"^ок\.?$",
+    r"^ага\.?$",
+    r"^угу\.?$",
+    r"^да\.?$",
+    r"^нет\.?$",
+    r"^ладно\.?$",
+    r"^хорошо\.?$",
+    r"^понял(а)?\.?$",
+    r"^принял(а)?\.?$",
+    r"^спс\.?$",
+    r"^благодарю\.?$",
 )
 _NOISE_PATTERNS_EN = (
-    r"^ok\.?$", r"^k\.?$", r"^yep\.?$", r"^yeah\.?$", r"^nope\.?$",
-    r"^got it\.?$", r"^thanks?\.?$", r"^thx\.?$", r"^ty\.?$",
+    r"^ok\.?$",
+    r"^k\.?$",
+    r"^yep\.?$",
+    r"^yeah\.?$",
+    r"^nope\.?$",
+    r"^got it\.?$",
+    r"^thanks?\.?$",
+    r"^thx\.?$",
+    r"^ty\.?$",
 )
 
 _EMOTION_HIGH_PRIORITY = {
-    MemoryKind.INSTRUCTION, MemoryKind.RULE, MemoryKind.COMMITMENT,
+    MemoryKind.INSTRUCTION,
+    MemoryKind.RULE,
+    MemoryKind.COMMITMENT,
 }
 
 
 @dataclass
 class ImportanceSignals:
     """Per-signal breakdown before normalization. All in [0,1]."""
+
     base: float = 0.0
     length: float = 0.0
     question: float = 0.0
@@ -65,16 +156,18 @@ class ImportanceSignals:
     retrieval_signal: float = 0.0
     noise_penalty: float = 0.0
 
-    weights: Dict[str, float] = field(default_factory=lambda: {
-        "base": 1.0,
-        "length": 0.6,
-        "question": 0.5,
-        "tech_keyword": 1.0,
-        "emotional": 0.8,
-        "novelty": 0.7,
-        "retrieval_signal": 0.9,
-        "noise_penalty": 1.0,
-    })
+    weights: Dict[str, float] = field(
+        default_factory=lambda: {
+            "base": 1.0,
+            "length": 0.6,
+            "question": 0.5,
+            "tech_keyword": 1.0,
+            "emotional": 0.8,
+            "novelty": 0.7,
+            "retrieval_signal": 0.9,
+            "noise_penalty": 1.0,
+        }
+    )
 
     def total(self) -> float:
         sum_pos = (
@@ -86,9 +179,7 @@ class ImportanceSignals:
             + self.novelty * self.weights["novelty"]
             + self.retrieval_signal * self.weights["retrieval_signal"]
         )
-        max_possible = sum(
-            v for k, v in self.weights.items() if k != "noise_penalty"
-        ) or 1.0
+        max_possible = sum(v for k, v in self.weights.items() if k != "noise_penalty") or 1.0
         raw = sum_pos / max_possible
         # Noise penalty: weight controls how much penalty is applied
         noise_weight = self.weights.get("noise_penalty", 1.0)

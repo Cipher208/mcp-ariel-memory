@@ -347,9 +347,7 @@ def _get_migrations() -> list[Migration]:
                     rescored_at REAL NOT NULL
                 )
             """)
-            await conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_importance_audit_user ON importance_audit(user_id, rescored_at DESC)"
-            )
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_importance_audit_user ON importance_audit(user_id, rescored_at DESC)")
         except sqlite3.OperationalError:
             pass
 

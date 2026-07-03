@@ -5,6 +5,7 @@ Usage:
     python -m features.typed_export reclassify --user alice --dry-run
     python -m features.typed_export backfill --dry-run
 """
+
 from __future__ import annotations
 
 import argparse
@@ -18,25 +19,31 @@ from shared.memory_types import backfill_null_kinds, kind_for_text
 async def do_export(user_id: str, kind: str | None) -> None:
     conn = await connection_manager.get("memory.db")
     if kind:
-        rows = await (await conn.execute(
-            "SELECT * FROM core_memory WHERE user_id=? AND memory_kind=?",
-            (user_id, kind),
-        )).fetchall()
+        rows = await (
+            await conn.execute(
+                "SELECT * FROM core_memory WHERE user_id=? AND memory_kind=?",
+                (user_id, kind),
+            )
+        ).fetchall()
     else:
-        rows = await (await conn.execute(
-            "SELECT * FROM core_memory WHERE user_id=?",
-            (user_id,),
-        )).fetchall()
+        rows = await (
+            await conn.execute(
+                "SELECT * FROM core_memory WHERE user_id=?",
+                (user_id,),
+            )
+        ).fetchall()
     for r in rows:
         print(json.dumps(dict(r), ensure_ascii=False, default=str))
 
 
 async def do_reclassify(user_id: str, dry_run: bool) -> None:
     conn = await connection_manager.get("memory.db")
-    rows = await (await conn.execute(
-        "SELECT id, value, memory_kind FROM core_memory WHERE user_id=?",
-        (user_id,),
-    )).fetchall()
+    rows = await (
+        await conn.execute(
+            "SELECT id, value, memory_kind FROM core_memory WHERE user_id=?",
+            (user_id,),
+        )
+    ).fetchall()
     changes = []
     for r in rows:
         new_kind = kind_for_text(r["value"]).value
@@ -50,9 +57,7 @@ async def do_reclassify(user_id: str, dry_run: bool) -> None:
     if changes:
         await conn.execute("BEGIN")
         for kind, rid in changes:
-            await conn.execute(
-                "UPDATE core_memory SET memory_kind=? WHERE id=?", (kind, rid)
-            )
+            await conn.execute("UPDATE core_memory SET memory_kind=? WHERE id=?", (kind, rid))
         await conn.commit()
     print(f"reclassified {len(changes)} rows")
 

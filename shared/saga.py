@@ -264,9 +264,7 @@ class Saga:
                 attempt += 1
                 if attempt <= step.retry_attempts:
                     delay = step.retry_backoff * (2 ** (attempt - 1))
-                    logger.warning(
-                        "Saga '%s' step '%s' retry %d/%d in %.1fs: %s" % (self.name, step.name, attempt, step.retry_attempts, delay, exc)
-                    )
+                    logger.warning("Saga '%s' step '%s' retry %d/%d in %.1fs: %s" % (self.name, step.name, attempt, step.retry_attempts, delay, exc))
                     await asyncio.sleep(delay)
             except Exception as exc:
                 step_exc = exc

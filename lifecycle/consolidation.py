@@ -37,9 +37,7 @@ class ConsolidationEngine:
             # Type-aware threshold: instruction/rule/commitment pass at 0.3+
             effective_threshold = (
                 min_importance
-                if not (pol.never_archive or kind in (
-                    MemoryKind.INSTRUCTION, MemoryKind.RULE, MemoryKind.COMMITMENT
-                ))
+                if not (pol.never_archive or kind in (MemoryKind.INSTRUCTION, MemoryKind.RULE, MemoryKind.COMMITMENT))
                 else min(min_importance, 0.3)
             )
             if importance < effective_threshold:
@@ -48,7 +46,9 @@ class ConsolidationEngine:
 
             key = "staging_%s" % content[:30].replace(" ", "_").lower()
             await cm.save(
-                user_id, key, content,
+                user_id,
+                key,
+                content,
                 importance=importance,
                 memory_kind=kind_str,
                 source="staging_promotion",

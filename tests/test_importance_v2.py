@@ -106,8 +106,10 @@ def test_custom_technical_keywords():
 def test_signal_breakdown_dict(scorer):
     s = scorer.score("redis cluster crash? need fix urgently")
     d = {
-        "base": s.base, "length": s.length,
-        "question": s.question, "tech_keyword": s.tech_keyword,
+        "base": s.base,
+        "length": s.length,
+        "question": s.question,
+        "tech_keyword": s.tech_keyword,
         "noise_penalty": s.noise_penalty,
     }
     assert all(0.0 <= v <= 1.0 for v in d.values())

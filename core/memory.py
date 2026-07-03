@@ -61,7 +61,11 @@ class CoreMemory:
         metadata: dict | None = None,
     ) -> int:
         from shared.memory_types import (
-            MemoryKind, default_importance, kind_for_text, get_policy, validate_kind,
+            MemoryKind,
+            default_importance,
+            kind_for_text,
+            get_policy,
+            validate_kind,
         )
 
         now = time.time()
@@ -98,8 +102,7 @@ class CoreMemory:
                 """UPDATE core_memory SET value=?, importance=?, memory_kind=?,
                    expires_at=?, source=?, metadata=?, updated_at=?
                    WHERE entry_id=?""",
-                (value, importance, memory_kind, expires_at, source, metadata_json,
-                 now, existing["entry_id"]),
+                (value, importance, memory_kind, expires_at, source, metadata_json, now, existing["entry_id"]),
             )
             entry_id = existing["entry_id"]
         else:
@@ -108,8 +111,7 @@ class CoreMemory:
                    (user_id, key, value, importance, memory_kind, expires_at,
                     source, metadata, created_at, updated_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (user_id, key, value, importance, memory_kind, expires_at,
-                 source, metadata_json, now, now),
+                (user_id, key, value, importance, memory_kind, expires_at, source, metadata_json, now, now),
             )
             entry_id = cursor.lastrowid
         await conn.commit()
@@ -178,13 +180,15 @@ class CoreMemory:
     ) -> list[dict[str, Any]]:
         """List memories filtered by type."""
         conn = await self._cm.get("memory.db")
-        rows = await (await conn.execute(
-            """SELECT key, value, importance, memory_kind, expires_at,
+        rows = await (
+            await conn.execute(
+                """SELECT key, value, importance, memory_kind, expires_at,
                       created_at, updated_at
                FROM core_memory
                WHERE user_id=? AND memory_kind=? AND importance >= ?
                ORDER BY importance DESC, updated_at DESC
                LIMIT ?""",
-            (user_id, memory_kind, min_importance, limit),
-        )).fetchall()
+                (user_id, memory_kind, min_importance, limit),
+            )
+        ).fetchall()
         return [dict(r) for r in rows]

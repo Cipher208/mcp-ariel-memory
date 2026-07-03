@@ -99,6 +99,7 @@ class ImportanceGateMiddleware(Middleware):
 
         if scorer is None:
             from shared.importance import ImportanceScorer
+
             self._scorer = ImportanceScorer()
         else:
             self._scorer = scorer
@@ -124,6 +125,7 @@ class ImportanceGateMiddleware(Middleware):
             ctx.blocked = True
             ctx.block_reason = f"below_importance_threshold({score:.2f})"
             from shared.metrics import metrics
+
             metrics.inc("importance_bypassed_total")
             return ctx
 

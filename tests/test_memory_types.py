@@ -3,8 +3,13 @@
 import math
 import pytest
 from shared.memory_types import (
-    MemoryKind, _REGISTRY,
-    apply_decay, can_archive, kind_for_text, validate_kind, boost_for_query,
+    MemoryKind,
+    _REGISTRY,
+    apply_decay,
+    can_archive,
+    kind_for_text,
+    validate_kind,
+    boost_for_query,
     get_policy,
 )
 

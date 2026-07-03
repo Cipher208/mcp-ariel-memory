@@ -254,6 +254,7 @@ class RAGEngine:
     def _apply_type_boost(self, query: str, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Apply type-aware boost to search results based on query keywords."""
         from shared.memory_types import boost_for_query
+
         for r in results:
             kind = r.get("memory_kind") or r.get("wiki_type") or "fact"
             boost = boost_for_query(query, kind)
@@ -289,7 +290,7 @@ class RAGEngine:
             except Exception:
                 pass
 
-        escaped_query = query.replace('%', '\\%').replace('_', '\\_')
+        escaped_query = query.replace("%", "\\%").replace("_", "\\_")
         cur = await conn.execute(
             "SELECT id, title, content, wiki_type FROM rag_pages WHERE user_id=? AND (title LIKE ? OR content LIKE ?) LIMIT ?",
             (user_id, f"%{escaped_query}%", f"%{escaped_query}%", limit),

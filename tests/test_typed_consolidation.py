@@ -9,7 +9,9 @@ from shared.memory_types import MemoryKind
 @pytest.fixture
 async def cm(tmp_path):
     m = AsyncConnectionManager(base_dir=str(tmp_path))
-    await m.execute_script("memory.db", """
+    await m.execute_script(
+        "memory.db",
+        """
         CREATE TABLE core_memory (
             entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id TEXT, "key" TEXT, value TEXT,
@@ -18,7 +20,8 @@ async def cm(tmp_path):
             created_at REAL, updated_at REAL
         );
         CREATE UNIQUE INDEX IF NOT EXISTS idx_core_user_key ON core_memory(user_id, "key");
-    """)
+    """,
+    )
     return m
 
 
@@ -26,9 +29,7 @@ async def cm(tmp_path):
 async def test_consolidation_promotes_fact_with_kind(cm):
     es = ConsolidationEngine(cm=cm)
     items = [
-        {"content": "мой день рождения 15 июня",
-         "memory_kind": MemoryKind.FACT.value,
-         "importance": 0.8},
+        {"content": "мой день рождения 15 июня", "memory_kind": MemoryKind.FACT.value, "importance": 0.8},
     ]
     out = await es.consolidate_staging("u", items, min_importance=0.7)
     assert out == {"promoted": 1, "skipped": 0}
@@ -38,9 +39,7 @@ async def test_consolidation_promotes_fact_with_kind(cm):
 async def test_consolidation_keeps_low_importance_instruction(cm):
     es = ConsolidationEngine(cm=cm)
     items = [
-        {"content": "обязательно шифруй бэкапы",
-         "memory_kind": MemoryKind.INSTRUCTION.value,
-         "importance": 0.35},
+        {"content": "обязательно шифруй бэкапы", "memory_kind": MemoryKind.INSTRUCTION.value, "importance": 0.35},
     ]
     out = await es.consolidate_staging("u", items, min_importance=0.7)
     assert out == {"promoted": 1, "skipped": 0}
@@ -50,9 +49,7 @@ async def test_consolidation_keeps_low_importance_instruction(cm):
 async def test_consolidation_skips_low_importance_fact(cm):
     es = ConsolidationEngine(cm=cm)
     items = [
-        {"content": "не помню что это",
-         "memory_kind": MemoryKind.FACT.value,
-         "importance": 0.5},
+        {"content": "не помню что это", "memory_kind": MemoryKind.FACT.value, "importance": 0.5},
     ]
     out = await es.consolidate_staging("u", items, min_importance=0.7)
     assert out == {"promoted": 0, "skipped": 1}
