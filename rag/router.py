@@ -156,8 +156,13 @@ class RetrievalRouter:
         return RouterResult(Strategy.SEMANTIC, [], 0.0)
 
     async def _match_route(
-        self, q_lower: str, query: str, keyword_kind: Optional[str],
-        strategy: Strategy, confidence: float, recent_context: Optional[list[dict]],
+        self,
+        q_lower: str,
+        query: str,
+        keyword_kind: Optional[str],
+        strategy: Strategy,
+        confidence: float,
+        recent_context: Optional[list[dict]],
     ) -> RouterResult | None:
         """Try to match a single route. Returns RouterResult or None."""
         if keyword_kind == "recent":

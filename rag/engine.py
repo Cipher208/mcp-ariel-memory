@@ -148,7 +148,9 @@ class RAGEngine:
             )
         return len(chunks)
 
-    async def _insert_page(self, conn, title: str, content: str, user_id: str, page_hash: str, wiki_type: Optional[str] = None, path: str = "") -> int | None:
+    async def _insert_page(
+        self, conn, title: str, content: str, user_id: str, page_hash: str, wiki_type: Optional[str] = None, path: str = ""
+    ) -> int | None:
         """Insert a page into rag_pages + rag_fts + chunks. Returns page_id or None if duplicate."""
         cur = await conn.execute("SELECT id FROM rag_pages WHERE sha256_hash = ? AND user_id = ?", (page_hash, user_id))
         existing = await cur.fetchone()
