@@ -70,7 +70,7 @@
 - [x] **CORS hardening** — restrict to localhost, configurable via config.yaml
 - [x] **Issue forms** — YAML forms for bug reports and feature requests
 - [ ] **RBAC** — add role-based model for multi-tenant deployments
-- [ ] **Input validation** — add Pydantic schemas on MCP tools
+- [x] **Input validation** — add Pydantic schemas on MCP tools
 - [ ] **Key rotation** — zero-downtime master key rotation with re-encryption
 
 ## 8. Integrations
@@ -161,5 +161,5 @@
 
 ---
 
-**Completed:** 36/65 items
+**Completed:** 37/65 items
 **Last updated:** 2026-07-04
