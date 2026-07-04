@@ -65,6 +65,7 @@ class AppContext:
 @asynccontextmanager
 async def lifespan(server: FastMCP):
     from shared.migrations import migration_manager
+    from lifecycle.importance_scheduler import importance_scheduler
 
     result = await migration_manager.migrate()
     import logging
@@ -75,9 +76,33 @@ async def lifespan(server: FastMCP):
 
     ctx = AppContext()
     backup_cron.start()
+    importance_scheduler.start()
+
+    # Periodic maintenance tasks
+    async def _periodic_tasks():
+        from lifecycle.forgetting import ForgettingSystem
+
+        forgetting = ForgettingSystem()
+
+        while True:
+            try:
+                await asyncio.sleep(900)  # 15 minutes
+                await forgetting.cleanup()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logging.getLogger(__name__).error("Periodic task error: %s", e)
+
+    periodic_task = asyncio.create_task(_periodic_tasks())
     try:
         yield ctx
     finally:
+        periodic_task.cancel()
+        try:
+            await periodic_task
+        except asyncio.CancelledError:
+            pass
+        importance_scheduler.stop()
         backup_cron.stop()
 
 
