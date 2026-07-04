@@ -148,19 +148,16 @@ class RAGEngine:
             )
         return len(chunks)
 
-    async def ingest_file(self, filepath: Path, user_id: str = "default", wiki_type: Optional[str] = None) -> str:
-        content = filepath.read_text(encoding="utf-8")
-        file_hash = hashlib.sha256(content.encode()).hexdigest()
-        conn = await self._cm.get("memory.db")
-
-        cur = await conn.execute("SELECT id FROM rag_pages WHERE sha256_hash = ? AND user_id = ?", (file_hash, user_id))
+    async def _insert_page(self, conn, title: str, content: str, user_id: str, page_hash: str, wiki_type: Optional[str] = None, path: str = "") -> int | None:
+        """Insert a page into rag_pages + rag_fts + chunks. Returns page_id or None if duplicate."""
+        cur = await conn.execute("SELECT id FROM rag_pages WHERE sha256_hash = ? AND user_id = ?", (page_hash, user_id))
         existing = await cur.fetchone()
         if existing:
-            return "[SKIP] %s (already ingested)" % filepath.name
+            return None
 
         cursor = await conn.execute(
             "INSERT INTO rag_pages (layer, user_id, title, path, content, sha256_hash, wiki_type) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (self.layer, user_id, filepath.stem, str(filepath), content, file_hash, wiki_type),
+            (self.layer, user_id, title, path, content, page_hash, wiki_type),
         )
         page_id = cursor.lastrowid
 
@@ -168,15 +165,25 @@ class RAGEngine:
             try:
                 await conn.execute(
                     "INSERT INTO rag_fts(rowid, title, content, wiki_type) VALUES (?, ?, ?, ?)",
-                    (page_id, filepath.stem, content, wiki_type or ""),
+                    (page_id, title, content, wiki_type or ""),
                 )
             except Exception:
                 pass
 
-        num_chunks = await self._ingest_single_file(conn, page_id, content)
+        await self._ingest_single_file(conn, page_id, content)
+        return page_id
+
+    async def ingest_file(self, filepath: Path, user_id: str = "default", wiki_type: Optional[str] = None) -> str:
+        content = filepath.read_text(encoding="utf-8")
+        file_hash = hashlib.sha256(content.encode()).hexdigest()
+        conn = await self._cm.get("memory.db")
+
+        page_id = await self._insert_page(conn, filepath.stem, content, user_id, file_hash, wiki_type, str(filepath))
+        if page_id is None:
+            return "[SKIP] %s (already ingested)" % filepath.name
 
         await conn.commit()
-        return "[OK] %s (%d chunks)" % (filepath.name, num_chunks)
+        return "[OK] %s" % filepath.name
 
     async def ingest_text(
         self,
@@ -191,27 +198,11 @@ class RAGEngine:
         text_hash = hashlib.sha256(text.encode()).hexdigest()
         conn = await self._cm.get("memory.db")
 
-        cur = await conn.execute("SELECT id FROM rag_pages WHERE sha256_hash = ? AND user_id = ?", (text_hash, user_id))
-        existing = await cur.fetchone()
-        if existing:
-            return existing[0]
-
-        cursor = await conn.execute(
-            "INSERT INTO rag_pages (layer, user_id, title, path, content, sha256_hash, wiki_type) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (self.layer, user_id, title, path, text, text_hash, wiki_type),
-        )
-        page_id = cursor.lastrowid
-
-        if self._fts_available:
-            try:
-                await conn.execute(
-                    "INSERT INTO rag_fts(rowid, title, content, wiki_type) VALUES (?, ?, ?, ?)",
-                    (page_id, title, text, wiki_type or ""),
-                )
-            except Exception:
-                pass
-
-        await self._ingest_single_file(conn, page_id, text)
+        page_id = await self._insert_page(conn, title, text, user_id, text_hash, wiki_type, path)
+        if page_id is None:
+            cur = await conn.execute("SELECT id FROM rag_pages WHERE sha256_hash = ? AND user_id = ?", (text_hash, user_id))
+            existing = await cur.fetchone()
+            return existing[0] if existing else 0
 
         if relation_to is not None:
             await conn.execute(
@@ -398,19 +389,31 @@ class RAGEngine:
             merged[doc_id] = score
 
         sorted_ids = sorted(merged.keys(), key=lambda x: -merged[x])[:limit]
+        if not sorted_ids:
+            return []
+
         conn = await self._cm.get("memory.db")
+        placeholders = ",".join(["?"] * len(sorted_ids))
+        cur = await conn.execute(
+            f"SELECT id, title, content, wiki_type FROM rag_pages WHERE id IN ({placeholders})",
+            sorted_ids,
+        )
+        rows = await cur.fetchall()
+        by_id = {r[0]: r for r in rows}
+
         results = []
         for doc_id in sorted_ids:
-            row = await (await conn.execute("SELECT id, title, content, wiki_type FROM rag_pages WHERE id=?", (doc_id,))).fetchone()
+            row = by_id.get(doc_id)
             if row:
                 has_fts = doc_id in fts_ranks
                 has_bin = doc_id in bin_ranks
                 source = "rrf(fts+mib)" if (has_fts and has_bin) else ("fts5" if has_fts else "mib")
+                content = row[2]
                 results.append(
                     {
                         "id": row[0],
                         "title": row[1],
-                        "content": row[2][:500] + "..." if len(row[2]) > 500 else row[2],
+                        "content": content[:500] + "..." if len(content) > 500 else content,
                         "wiki_type": row[3],
                         "score": merged[doc_id],
                         "source": source,
