@@ -1,4 +1,4 @@
-# FileWiki
+# WikiManager
 
 File-based wiki with .md files as source of truth.
 
@@ -12,9 +12,9 @@ File-based wiki with .md files as source of truth.
 ## Usage
 
 ```python
-from wiki.file_wiki import FileWiki
+from wiki.manager import WikiManager
 
-fw = FileWiki(layer="user")
+fw = WikiManager(layer="user")
 
 # Add page
 fw.add_page(

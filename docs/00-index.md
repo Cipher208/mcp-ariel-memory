@@ -52,11 +52,11 @@ python -m mcp_server --transport stdio
 | 05 | [Knowledge Graph](05-graph.md) | EpistemicGraph, TemporalGraph |
 | 06 | [Lifecycle](06-lifecycle.md) | Type-aware Forgetting, EmotionTrigger, Consolidation, Importance Scheduler |
 | 07 | [Hooks](07-hooks.md) | 24 hooks (12 user + 12 agent), type-aware gating |
-| 08 | [Wiki](08-wiki.md) | FileWiki (.md files + FTS5), 14 types |
+| 08 | [Wiki](08-wiki.md) | WikiManager (.md files + FTS5), 14 types |
 | 09 | [Features](09-features.md) | Auth, Backup, Dashboard, Audit, RateLimit, Secrets |
 | 10 | [Shared](10-shared.md) | Saga+Retry+Idempotency, Importance Scorer, Middleware, Embeddings |
 | 11 | [Operations](11-operations.md) | Transports, Health, Auth, Scheduler, Configuration |
-| 12 | [Testing](12-testing.md) | pytest (338 tests + 25 Hypothesis), benchmarks, project structure |
+| 12 | [Testing](12-testing.md) | pytest (372 tests + 25 Hypothesis), benchmarks, project structure |
 
 ---
 
@@ -87,7 +87,7 @@ python -m mcp_server --transport http --port 8000
 
 - **Version:** 1.0.0
 - **MCP Tools:** 19
-- **Tests:** 338 passed (25 property-based Hypothesis)
+- **Tests:** 372 passed (25 property-based Hypothesis)
 - **Python files:** 70
 - **DB tables:** 23
 - **Hooks:** 24

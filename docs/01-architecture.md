@@ -79,9 +79,9 @@ Message → L1 (buffer)
 | `epi_tags` | graph/epistemic.py | Epistemic node tags (fast JOIN lookup) |
 | `temporal_events` | graph/temporal.py | Temporal events |
 | `temporal_links` | graph/temporal.py | Temporal links |
-| `user_wiki` | wiki/user_wiki.py | User wiki entries |
-| `agent_wiki` | wiki/agent_wiki.py | Agent wiki entries |
-| `wiki_index` | wiki/file_wiki.py | Wiki FTS5 index |
+| `user_wiki` | wiki/manager.py | User wiki entries |
+| `agent_wiki` | wiki/manager.py | Agent wiki entries |
+| `wiki_index` | wiki/manager.py | Wiki FTS5 index |
 | `memory_conflicts` | rag/conflict.py | Memory conflicts |
 | `memory_kind_registry` | shared/memory_types.py | Typed memory categories |
 | `importance_audit` | lifecycle/importance_scheduler.py | Importance rescore audit log |

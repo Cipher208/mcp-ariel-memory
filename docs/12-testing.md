@@ -125,7 +125,7 @@ mcp-ariel-memory/
 ├── graph/                     # Epistemic + Temporal (async)
 ├── lifecycle/                 # Forgetting + Emotion + Consolidation (async)
 ├── hooks/                     # 24 hooks
-├── wiki/                      # FileWiki (.md + FTS5, async)
+├── wiki/                      # WikiManager (.md + FTS5, async)
 ├── features/                  # Auth + Backup + Dashboard + Audit + RateLimit + Secrets (async)
 └── shared/                    # ConnectionManager + Cache + Saga + Middleware + Embeddings (async)
 ```

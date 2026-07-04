@@ -564,7 +564,7 @@ chunks = rag._chunk_text("A" * 1000, max_size=500, overlap=100)
 ### Constructor
 
 ```python
-MultiSourceRAG(rag: RAGEngine, wiki: FileWiki, cm: AsyncConnectionManager = None)
+MultiSourceRAG(rag: RAGEngine, wiki: WikiManager, cm: AsyncConnectionManager = None)
 ```
 
 ### `search()`
@@ -597,9 +597,9 @@ The MCP tool `memory_search_rrf` uses MultiSourceRAG under the hood when `source
 ```python
 from rag.multi_source import MultiSourceRAG
 from rag.engine import RAGEngine
-from wiki.file_wiki import FileWiki
+from wiki.manager import WikiManager
 
-ms = MultiSourceRAG(rag=RAGEngine(layer="user"), wiki=FileWiki(layer="user"))
+ms = MultiSourceRAG(rag=RAGEngine(layer="user"), wiki=WikiManager(layer="user"))
 results = await ms.search("memory architecture", user_id="alice", limit=5)
 # Merged + deduplicated results from RAG and Wiki
 ```

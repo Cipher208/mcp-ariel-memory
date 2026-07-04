@@ -1,13 +1,13 @@
-# AgentWiki
+# AgentWiki (deprecated - use WikiManager)
 
 Agent identity wiki for storing agent learning and evolution.
 
 ## Usage
 
 ```python
-from wiki.agent_wiki import AgentWiki
+from wiki.manager import WikiManager
 
-aw = AgentWiki()
+aw = WikiManager(layer='agent')
 
 # Add page
 await aw.add_page(
