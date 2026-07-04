@@ -3,6 +3,40 @@
 All notable changes to mcp-ariel-memory are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.0] - 2026-07-04
+
+### Security
+- **CRITICAL** Added path traversal guard (`shared/path_safety.py`) — `safe_resolve()` with symlink protection prevents crafted paths from escaping base directory.
+- Path traversal fix in `wiki/manager.py` (update/get/delete), `features/backup.py`, `features/backup_cron.py`, `features/import_export.py`.
+- All 8 SQL injection findings from skylos are **false positives** — standard SQLite parameterized query pattern.
+
+### Architecture
+- **Wiki unification** — merged `file_wiki.py`, `user_wiki.py`, `agent_wiki.py` into single `WikiManager` with layer-based separation (~900 lines of duplication removed).
+- **Hook wiring** — all 24 registered hooks now called via `hook_registry.fire()` in production code (was never invoked before). 21 `_fire_hook` calls across `tools_layer.py`.
+- **Dead code wiring** — connected `saga_crypto.read_state_legacy_or_encrypted` to `saga.py` and `backup_cron.py` (were defined but never called).
+- **N+1 query fix** — `_search_rrf` now batches page lookups with `IN` clause instead of N individual queries.
+- **RAG ingest dedup** — extracted `_insert_page` helper from `ingest_file`/`ingest_text`.
+- **Router simplification** — extracted `_match_route` helper from `route()`, flattened nested matching.
+
+### Fixed
+- **Hooks** Replaced `threading.Lock` with `ThreadPoolExecutor(max_workers=1)` in `hooks/shared.py` — no longer blocks the event loop.
+- **Schedulers** `importance_scheduler` now started in `lifespan()` with graceful shutdown.
+- **Periodic tasks** Added `forgetting.cleanup()` running every 15 minutes in background.
+- **Emotion trigger** Replaced direct `app.emotion_trigger.should_save()` with `fire("emotion_trigger", ...)` + fallback.
+- **Validation** Added `_validate_layer()` to all 17 MCP tool functions.
+- **Context inject** Now fires `auto_context` hook.
+
+### Quality
+- 372 tests pass (was 338, +34 new tests)
+- Repowise Hotspot: 3.88 → 4.28 (+0.40)
+- Repowise Average: 7.55 → 7.73 (+0.18)
+- Skylos Quality issues: 437 → 403 (-34)
+- Alert files: 18 → 15 (-3)
+
+### DevOps
+- 3 PRs merged: #47 (security), #48 (RAG), #49 (hooks)
+- Branch protection: lint + quality + typecheck + test (3.12) required
+
 ## [1.1.0] - 2026-07-03
 
 ### Security
