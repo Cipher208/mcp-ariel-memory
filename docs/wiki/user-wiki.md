@@ -1,13 +1,13 @@
-# UserWiki
+# UserWiki (deprecated - use WikiManager)
 
 User-specific wiki pages stored in database.
 
 ## Usage
 
 ```python
-from wiki.user_wiki import UserWiki
+from wiki.manager import WikiManager
 
-uw = UserWiki()
+uw = WikiManager(layer='user')
 
 # Add page
 await uw.add_page(

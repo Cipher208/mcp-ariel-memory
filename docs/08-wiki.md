@@ -1,8 +1,8 @@
-# Wiki — wiki/ (FileWiki + UserWiki/AgentWiki with FTS5)
+# Wiki — wiki/ (WikiManager with FTS5)
 
 ## Shared Utilities (wiki/shared.py)
 
-Common wiki logic extracted from agent_wiki.py, file_wiki.py, user_wiki.py:
+Common wiki logic:
 
 | Function | Purpose |
 |----------|---------|
@@ -15,9 +15,10 @@ Common wiki logic extracted from agent_wiki.py, file_wiki.py, user_wiki.py:
 | `build_count_query(table, user_id, wiki_type)` | COUNT query builder |
 | `format_search_result(row)` | FTS result formatter |
 
-## FileWiki (`wiki/file_wiki.py`) — core module
+## WikiManager (`wiki/manager.py`) — unified module
 
-.md files = source of truth + SQLite FTS5 index.
+Layer-based wiki: .md files = source of truth + SQLite FTS5 index.
+Replaces former FileWiki, UserWiki, AgentWiki classes.
 
 ### FTS5 content-sync table
 
@@ -65,11 +66,11 @@ wiki:
     external_dirs: ["/home/user/notes"]
 ```
 
-### FileWiki Methods
+### WikiManager Methods
 
 ```python
-from wiki.file_wiki import FileWiki
-uw = FileWiki(layer="user")
+from wiki.manager import WikiManager
+uw = WikiManager(layer="user")
 
 # add() — creates .md + indexes (skips on MD5 match)
 await uw.add("diary", "Day 1", "Content", tags=["work"])
@@ -84,7 +85,7 @@ await uw.reindex_all()
 await uw.sync_external(["/home/user/notes"])
 ```
 
-## UserWiki (`wiki/user_wiki.py`) — 7 types, 590 lines
+## UserWiki (layer=user) (deprecated - use WikiManager) (`wiki/manager.py`) — 7 types, 590 lines
 
 Legacy module for user wiki with FTS5. Each type is a separate category.
 
@@ -99,14 +100,14 @@ Legacy module for user wiki with FTS5. Each type is a separate category.
 | `retrospective` | Retrospective |
 
 ```python
-from wiki.user_wiki import UserWiki
-uw = UserWiki()
+from wiki.manager import WikiManager
+uw = WikiManager(layer='user')
 await uw.add("diary", "Day 1", "Started project", ["work"], 0.7)
 results = await uw.search("project")  # FTS5 search
 await uw.sync_external(["/home/user/notes"])  # import .md
 ```
 
-### UserWiki — All public methods
+### UserWiki (layer=user) (deprecated - use WikiManager) — All public methods
 
 | Method | Signature | Returns | Async |
 |--------|-----------|---------|-------|
@@ -124,7 +125,7 @@ await uw.sync_external(["/home/user/notes"])  # import .md
 
 **WikiEntry dataclass:** `entry_id: int, user_id: str, wiki_type: str, title: str, content: str, tags: List[str], importance: float, created_at: float, updated_at: float`
 
-## AgentWiki (`wiki/agent_wiki.py`) — 7 types, 590 lines
+## AgentWiki (layer=agent) (deprecated - use WikiManager) (`wiki/manager.py`) — 7 types, 590 lines
 
 Legacy module for agent wiki. Lore, references, decision journal.
 
@@ -139,14 +140,14 @@ Legacy module for agent wiki. Lore, references, decision journal.
 | `principle_log` | Principle journal |
 
 ```python
-from wiki.agent_wiki import AgentWiki
-aw = AgentWiki()
+from wiki.manager import WikiManager
+aw = WikiManager(layer='agent')
 await aw.add("decision_log", "DB Choice", "SQLite for simplicity", ["tech"], 0.8)
 results = await aw.search("SQLite")
 await aw.sync_external(["/path/to/lore"])
 ```
 
-### AgentWiki — All public methods
+### AgentWiki (layer=agent) (deprecated - use WikiManager) — All public methods
 
 | Method | Signature | Returns | Async |
 |--------|-----------|---------|-------|
@@ -225,13 +226,13 @@ updated: 2026-06-21T22:00:00
 Discussed the plan for the week.
 ```
 
-## FileWiki Methods (async)
+## WikiManager Methods (async)
 
 ```python
-from wiki.file_wiki import FileWiki
+from wiki.manager import WikiManager
 
-uw = FileWiki(layer="user")
-aw = FileWiki(layer="agent")
+uw = WikiManager(layer="user")
+aw = WikiManager(layer="agent")
 
 # Write
 path = await uw.add("diary", "Day 1", "Started project", tags=["work"], importance=0.7)
@@ -259,7 +260,7 @@ await uw.reindex_all()
 await uw.sync_external(["/home/user/notes"])
 ```
 
-### FileWiki — All public methods
+### WikiManager — All public methods
 
 | Method | Signature | Returns | Async |
 |--------|-----------|---------|-------|

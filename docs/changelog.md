@@ -19,7 +19,7 @@
 - Health endpoints
 
 ### Testing
-- 338 tests passing
+- 372 tests passing
 - 25 property-based Hypothesis tests
 - CI on Python 3.10-3.13
 - Type checking (mypy)
