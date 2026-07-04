@@ -157,24 +157,28 @@ load();
 
 
 class Dashboard:
-    def __init__(self, data_dir: Optional[str] = None):
+    def __init__(self, mm=None, data_dir: Optional[str] = None):
         self.data_dir = Path(data_dir or str(Path.home() / ".mcp-ariel-memory"))
+        if mm is None:
+            import sys
+
+            sys.path.insert(0, str(Path(__file__).parent.parent))
+            from core import MemoryManager
+            from shared.cache import MemoryCache
+
+            mm = MemoryManager(cache=MemoryCache())
+        self.mm = mm
 
     async def get_stats(self, user_id: str = "default") -> dict[str, Any]:
-        import sys
-
-        sys.path.insert(0, str(Path(__file__).parent.parent))
-        from core import memory_manager
         from graph.epistemic import EpistemicGraph
         from wiki.file_wiki import FileWiki
 
-        mm = memory_manager
         uw = FileWiki(layer="user")
         aw = FileWiki(layer="agent")
         ug = EpistemicGraph(layer="user")
 
-        um = mm.user_memory(user_id)
-        am = mm.agent_memory(user_id)
+        um = self.mm.user_memory(user_id)
+        am = self.mm.agent_memory(user_id)
 
         return {
             "l1_buffer": um.l1.size(),
@@ -191,27 +195,19 @@ class Dashboard:
         }
 
     async def get_user_facts(self, user_id: str = "default") -> list:
-        from core import memory_manager
-
-        facts = await memory_manager.user_memory(user_id).l4.get_all(user_id, limit=50)
+        facts = await self.mm.user_memory(user_id).l4.get_all(user_id, limit=50)
         return [{"key": f.key, "value": f.value, "importance": f.importance} for f in facts]
 
     async def get_agent_facts(self, user_id: str = "default") -> list:
-        from core import memory_manager
-
-        facts = await memory_manager.agent_memory(user_id).l4.get_all(user_id, limit=50)
+        facts = await self.mm.agent_memory(user_id).l4.get_all(user_id, limit=50)
         return [{"key": f.key, "value": f.value, "importance": f.importance} for f in facts]
 
     async def get_user_episodes(self, user_id: str = "default") -> list:
-        from core import memory_manager
-
-        eps = await memory_manager.user_memory(user_id).l3.get_episodes(user_id, limit=20)
+        eps = await self.mm.user_memory(user_id).l3.get_episodes(user_id, limit=20)
         return [{"summary": e.summary, "weight": e.emotional_weight, "tags": e.tags} for e in eps]
 
     async def get_agent_episodes(self, user_id: str = "default") -> list:
-        from core import memory_manager
-
-        eps = await memory_manager.agent_memory(user_id).l3.get_episodes(user_id, limit=20)
+        eps = await self.mm.agent_memory(user_id).l3.get_episodes(user_id, limit=20)
         return [{"summary": e.summary, "weight": e.emotional_weight, "tags": e.tags} for e in eps]
 
     async def get_audit(self, limit: int = 20) -> list:

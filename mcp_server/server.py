@@ -151,11 +151,14 @@ def _run_with_dashboard(host: str, port: int):
     from features.rate_limiting import ConnectionLimiter, RateLimiter
     from shared.metrics import metrics as m
 
-    dashboard = Dashboard()
+    ctx = AppContext()
+    dashboard = Dashboard(mm=ctx.mm)
     api_rate_limiter = RateLimiter()
     ws_limiter = ConnectionLimiter()
 
     def check_auth(request) -> bool:
+        if os.environ.get("MCP_AUTH_DISABLED"):
+            return True
         auth_enabled = config.get("auth", "bearer_token_enabled", default=True)
         if not auth_enabled:
             return True
@@ -191,7 +194,7 @@ def _run_with_dashboard(host: str, port: int):
         if not await check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         user_id = request.query_params.get("user_id", "default")
-        return JSONResponse(dashboard.get_stats(user_id))
+        return JSONResponse(await dashboard.get_stats(user_id))
 
     async def api_user_facts(request):
         if not check_auth(request):
@@ -199,7 +202,7 @@ def _run_with_dashboard(host: str, port: int):
         if not await check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         user_id = request.query_params.get("user_id", "default")
-        return JSONResponse(dashboard.get_user_facts(user_id))
+        return JSONResponse(await dashboard.get_user_facts(user_id))
 
     async def api_agent_facts(request):
         if not check_auth(request):
@@ -207,7 +210,7 @@ def _run_with_dashboard(host: str, port: int):
         if not await check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         user_id = request.query_params.get("user_id", "default")
-        return JSONResponse(dashboard.get_agent_facts(user_id))
+        return JSONResponse(await dashboard.get_agent_facts(user_id))
 
     async def api_user_episodes(request):
         if not check_auth(request):
@@ -215,7 +218,7 @@ def _run_with_dashboard(host: str, port: int):
         if not await check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         user_id = request.query_params.get("user_id", "default")
-        return JSONResponse(dashboard.get_user_episodes(user_id))
+        return JSONResponse(await dashboard.get_user_episodes(user_id))
 
     async def api_agent_episodes(request):
         if not check_auth(request):
@@ -223,14 +226,14 @@ def _run_with_dashboard(host: str, port: int):
         if not await check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
         user_id = request.query_params.get("user_id", "default")
-        return JSONResponse(dashboard.get_agent_episodes(user_id))
+        return JSONResponse(await dashboard.get_agent_episodes(user_id))
 
     async def api_audit(request):
         if not check_auth(request):
             return JSONResponse({"error": "Unauthorized"}, status_code=401)
         if not await check_rate_limit(request):
             return JSONResponse({"error": "Rate limit exceeded"}, status_code=429)
-        return JSONResponse(dashboard.get_audit())
+        return JSONResponse(await dashboard.get_audit())
 
     async def metrics_endpoint(request):
         if not check_auth(request):
