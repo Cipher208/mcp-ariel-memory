@@ -81,16 +81,13 @@ async def lifespan(server: FastMCP):
     # Periodic maintenance tasks
     async def _periodic_tasks():
         from lifecycle.forgetting import ForgettingSystem
-        from lifecycle.consolidation import ConsolidationEngine
 
         forgetting = ForgettingSystem()
-        consolidation = ConsolidationEngine()
 
         while True:
             try:
                 await asyncio.sleep(900)  # 15 minutes
-                await asyncio.to_thread(forgetting.cleanup)
-                await consolidation.consolidate_staging()
+                await forgetting.cleanup()
             except asyncio.CancelledError:
                 break
             except Exception as e:
