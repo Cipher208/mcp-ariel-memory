@@ -123,6 +123,7 @@ ignore_errors = true
 version_toml = ["pyproject.toml:project.version"]
 branch = "major"
 build_command = "pip install build && python -m build"
+push = false
 
 [tool.semantic_release.changelog]
 changelog_file = "CHANGELOG.md"
