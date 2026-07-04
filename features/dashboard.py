@@ -161,9 +161,11 @@ class Dashboard:
         self.data_dir = Path(data_dir or str(Path.home() / ".mcp-ariel-memory"))
         if mm is None:
             import sys
+
             sys.path.insert(0, str(Path(__file__).parent.parent))
             from core import MemoryManager
             from shared.cache import MemoryCache
+
             mm = MemoryManager(cache=MemoryCache())
         self.mm = mm
 
