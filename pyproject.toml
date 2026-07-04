@@ -118,33 +118,3 @@ exclude = ["tests"]
 [[tool.mypy.overrides]]
 module = ["tests.*"]
 ignore_errors = true
-
-[tool.semantic_release]
-version_toml = ["pyproject.toml:project.version"]
-branch = "major"
-build_command = "pip install build && python -m build"
-push = false
-
-[tool.semantic_release.changelog]
-changelog_file = "CHANGELOG.md"
-exclude_commits = ["^chore\\(deps\\)"]
-
-[[tool.semantic_release.changelog.categories]]
-title = "Features"
-match = "feat"
-
-[[tool.semantic_release.changelog.categories]]
-title = "Bug Fixes"
-match = "fix"
-
-[[tool.semantic_release.changelog.categories]]
-title = "Breaking Changes"
-match = "break"
-
-[[tool.semantic_release.changelog.categories]]
-title = "Documentation"
-match = "docs"
-
-[[tool.semantic_release.changelog.categories]]
-title = "Other"
-match = ".*"
