@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from config import config
+from shared.path_safety import safe_resolve
 
 
 class BackupManager:
@@ -50,6 +51,7 @@ class BackupManager:
 
         restored = []
         for db_file in manifest.get("files", []):
+            safe_resolve(self.base_dir, db_file)  # raises ValueError if traversal
             backup_file = src / db_file
             if backup_file.exists():
                 shutil.copy2(backup_file, self.base_dir / db_file)

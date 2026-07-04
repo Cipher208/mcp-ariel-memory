@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from config import config
+from shared.path_safety import safe_resolve
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,9 @@ class BackupCron:
     def _load_state(self):
         if self._state_file.exists():
             try:
-                state = json.loads(self._state_file.read_text(encoding="utf-8"))
+                from shared.saga_crypto import read_state_legacy_or_encrypted
+
+                state = read_state_legacy_or_encrypted(self._state_file)
                 self._last_backup = state.get("last_backup", 0.0)
                 self._last_wiki_sync = state.get("last_wiki_sync", 0.0)
             except Exception:
@@ -131,10 +134,10 @@ class BackupCron:
     def _sync_wiki(self):
         """Synchronize wiki files with disk."""
         try:
-            from wiki.file_wiki import FileWiki
+            from wiki.manager import WikiManager
 
             for layer in ["user", "agent"]:
-                fw = FileWiki(layer=layer)
+                fw = WikiManager(layer=layer)
                 raw = fw.reindex_all()
                 result: dict[str, Any] = asyncio.run(raw) if asyncio.iscoroutine(raw) else raw
                 if isinstance(result, dict) and result.get("indexed", 0) > 0:
@@ -162,6 +165,7 @@ class BackupCron:
 
         restored = []
         for db_file in manifest.get("files", []):
+            safe_resolve(self.base_dir, db_file)  # raises ValueError if traversal
             if db_file.endswith("/"):
                 # Restore wiki directory
                 src_wiki = src / db_file

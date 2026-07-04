@@ -158,47 +158,70 @@ class EmotionTrigger:
     def should_save(self, message: str, emotional_state: Optional[dict] = None, state_delta: Optional[dict] = None) -> tuple[bool, str, float]:
         msg_lower = message.lower()
 
-        # 1. Phrase patterns (high priority)
-        all_patterns = PHRASE_PATTERNS + PHRASE_PATTERNS_EN
-        for pattern, emotion, weight in all_patterns:
-            if re.search(pattern, msg_lower):
-                return True, f"emotion_{emotion}", weight
+        result = self._check_phrase_patterns(msg_lower)
+        if result:
+            return result
 
-        # 2. Emotion markers
-        for emotion, markers in EMOTION_MARKERS.items():
-            for marker in markers:
-                if marker in msg_lower:
-                    weight = 0.7 if emotion in ("love", "fear", "anger") else 0.5
-                    return True, f"emotion_{emotion}", weight
+        result = self._check_emotion_markers(msg_lower)
+        if result:
+            return result
 
-        # 3. Emoji
-        for emotion, emojis in EMOJI_MARKERS.items():
-            for emoji in emojis:
-                if emoji in message:
-                    weight = 0.7 if emotion in ("love", "fear", "anger") else 0.5
-                    return True, f"emotion_{emotion}", weight
+        result = self._check_emoji(message)
+        if result:
+            return result
 
-        # 4. Emotional state from context
-        if emotional_state:
-            if emotional_state.get("joy", 0) > 0.8 or emotional_state.get("interest", 0) > 0.8:
-                return True, "high_emotion", 0.6
+        result = self._check_emotional_state(emotional_state)
+        if result:
+            return result
 
-        # 5. State shift
-        if state_delta:
-            for key, delta in state_delta.items():
-                if abs(delta) > STATE_SHIFT_THRESHOLD:
-                    return True, f"state_shift_{key}", 0.4
+        result = self._check_state_shift(state_delta)
+        if result:
+            return result
 
-        # 6. Long message
         if len(message) > 300:
             return True, "long_message", 0.3
 
-        # 7. Multiple questions
         if message.count("?") >= 3:
             return True, "complex_question", 0.4
 
-        # 8. Exclamation marks
         if message.count("!") >= 2:
             return True, "exclamation", 0.3
 
         return False, "", 0.0
+
+    def _check_phrase_patterns(self, msg_lower: str) -> tuple[bool, str, float] | None:
+        for pattern, emotion, weight in PHRASE_PATTERNS + PHRASE_PATTERNS_EN:
+            if re.search(pattern, msg_lower):
+                return True, f"emotion_{emotion}", weight
+        return None
+
+    def _check_emotion_markers(self, msg_lower: str) -> tuple[bool, str, float] | None:
+        high_weight = ("love", "fear", "anger")
+        for emotion, markers in EMOTION_MARKERS.items():
+            for marker in markers:
+                if marker in msg_lower:
+                    weight = 0.7 if emotion in high_weight else 0.5
+                    return True, f"emotion_{emotion}", weight
+        return None
+
+    def _check_emoji(self, message: str) -> tuple[bool, str, float] | None:
+        high_weight = ("love", "fear", "anger")
+        for emotion, emojis in EMOJI_MARKERS.items():
+            for emoji in emojis:
+                if emoji in message:
+                    weight = 0.7 if emotion in high_weight else 0.5
+                    return True, f"emotion_{emotion}", weight
+        return None
+
+    def _check_emotional_state(self, emotional_state: Optional[dict]) -> tuple[bool, str, float] | None:
+        if emotional_state:
+            if emotional_state.get("joy", 0) > 0.8 or emotional_state.get("interest", 0) > 0.8:
+                return True, "high_emotion", 0.6
+        return None
+
+    def _check_state_shift(self, state_delta: Optional[dict]) -> tuple[bool, str, float] | None:
+        if state_delta:
+            for key, delta in state_delta.items():
+                if abs(delta) > STATE_SHIFT_THRESHOLD:
+                    return True, f"state_shift_{key}", 0.4
+        return None

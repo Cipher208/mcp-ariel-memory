@@ -130,16 +130,15 @@ class Saga:
 
     def _load_state(self, saga_id: str) -> dict | None:
         """Load state from disk (supports encrypted and legacy plain JSON)."""
+        from shared.saga_crypto import read_state_legacy_or_encrypted
+
         state_file = SAGA_DIR / (saga_id + ".json")
-        if state_file.exists():
-            try:
-                blob = state_file.read_bytes()
-                if _HAS_ENCRYPTION and is_encrypted_blob(state_file):
-                    return decrypt_json(blob)
-                return json.loads(blob.decode("utf-8"))
-            except Exception:
-                pass
-        return None
+        if not state_file.exists():
+            return None
+        try:
+            return read_state_legacy_or_encrypted(state_file)
+        except Exception:
+            return None
 
     def _cleanup_state(self):
         """Delete state file after completion."""
@@ -339,23 +338,30 @@ class Saga:
                 continue
 
             if isinstance(step.action, Saga):
-                inner = step.action
-                for j in range(len(inner._steps) - 1, -1, -1):
-                    inner_step = inner._steps[j]
-                    if inner_step.status == SagaStatus.COMPLETED and inner_step.compensation:
-                        try:
-                            await inner_step.compensation(inner_step.data)
-                            logger.info("Saga '%s' compensated inner step '%s'" % (self.name, inner_step.name))
-                        except Exception as e:
-                            logger.error("Saga '%s' inner compensation failed for '%s': %s" % (self.name, inner_step.name, e))
+                await self._compensate_inner_saga(step.action)
             elif step.compensation:
-                try:
-                    await step.compensation(step.data)
-                    logger.info("Saga '%s' compensated step '%s'" % (self.name, step.name))
-                except Exception as e:
-                    logger.error("Saga '%s' compensation failed for '%s': %s" % (self.name, step.name, e))
+                await self._compensate_step(step)
 
         self._status = SagaStatus.COMPENSATED
+
+    async def _compensate_inner_saga(self, inner: "Saga") -> None:
+        """Compensate all completed steps of a nested saga in reverse order."""
+        for j in range(len(inner._steps) - 1, -1, -1):
+            inner_step = inner._steps[j]
+            if inner_step.status == SagaStatus.COMPLETED and inner_step.compensation:
+                try:
+                    await inner_step.compensation(inner_step.data)
+                    logger.info("Saga '%s' compensated inner step '%s'" % (self.name, inner_step.name))
+                except Exception as e:
+                    logger.error("Saga '%s' inner compensation failed for '%s': %s" % (self.name, inner_step.name, e))
+
+    async def _compensate_step(self, step: SagaStep) -> None:
+        """Run compensation for a single step, logging success or failure."""
+        try:
+            await step.compensation(step.data)
+            logger.info("Saga '%s' compensated step '%s'" % (self.name, step.name))
+        except Exception as e:
+            logger.error("Saga '%s' compensation failed for '%s': %s" % (self.name, step.name, e))
 
     def get_state(self) -> dict:
         return {

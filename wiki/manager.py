@@ -1,6 +1,7 @@
 """
-File-based Wiki — .md files as source of truth + SQLite index for search.
-Architecture: files on disk = primary, DB = index/cache.
+WikiManager — unified wiki system with layer-based separation.
+Architecture: .md files on disk = primary, SQLite FTS5 = search index.
+Layers: user, agent, shared.
 """
 
 import json
@@ -10,6 +11,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from shared.connection import AsyncConnectionManager, connection_manager
+from shared.path_safety import safe_resolve
 from wiki.shared import (
     get_enabled_types,
     get_external_dirs,
@@ -41,9 +43,15 @@ ALL_AGENT_TYPES = [
     "principle_log",
 ]
 
+LAYER_TYPES = {
+    "user": ALL_USER_TYPES,
+    "agent": ALL_AGENT_TYPES,
+    "shared": ALL_USER_TYPES + ALL_AGENT_TYPES,
+}
 
-class FileWiki:
-    """Wiki where .md files are source of truth, SQLite is search index."""
+
+class WikiManager:
+    """Unified wiki: .md files on disk + SQLite FTS5 index, parameterized by layer."""
 
     def __init__(self, layer: str = "user", base_dir: Optional[str] = None, cm: Optional[AsyncConnectionManager] = None):
         self.layer = layer
@@ -85,7 +93,7 @@ class FileWiki:
         await conn.commit()
 
     def _get_enabled_types(self) -> list[str]:
-        all_types = ALL_USER_TYPES if "user" in self.layer else ALL_AGENT_TYPES
+        all_types = LAYER_TYPES.get(self.layer, ALL_USER_TYPES)
         return get_enabled_types(self.layer, all_types)
 
     def _type_dir(self, wiki_type: str) -> Path:
@@ -117,7 +125,7 @@ class FileWiki:
         importance: Optional[float] = None,
     ):
         """Update .md file and re-index."""
-        p = Path(file_path)
+        p = safe_resolve(self.base_dir, file_path)
         if not p.exists():
             return
 
@@ -134,7 +142,10 @@ class FileWiki:
         await self._index_file(p, wiki_type, new_title, new_content, new_tags, new_importance)
 
     async def get(self, file_path: str) -> WikiEntry | None:
-        p = Path(file_path)
+        try:
+            p = safe_resolve(self.base_dir, file_path)
+        except ValueError:
+            return None
         if not p.exists():
             return None
         parsed = self._parse_md(p.read_text(encoding="utf-8"))
@@ -240,7 +251,7 @@ class FileWiki:
         return entries
 
     async def delete(self, file_path: str) -> bool:
-        p = Path(file_path)
+        p = safe_resolve(self.base_dir, file_path)
         if p.exists():
             p.unlink()
         conn = await self._cm.get("memory.db")
@@ -408,7 +419,7 @@ class FileWiki:
     def _guess_type(self, path: Path, content: str) -> str:
         name = path.stem.lower()
         parent = path.parent.name.lower()
-        all_types = ALL_USER_TYPES if self.layer == "user" else ALL_AGENT_TYPES
+        all_types = LAYER_TYPES.get(self.layer, ALL_USER_TYPES)
 
         for t in all_types:
             if t in name or t in parent:

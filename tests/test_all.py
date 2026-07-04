@@ -91,10 +91,10 @@ def test_epistemic_graph():
 
 
 def test_user_wiki():
-    from wiki.file_wiki import FileWiki
+    from wiki.manager import WikiManager
 
     async def t():
-        w = FileWiki(layer="user")
+        w = WikiManager(layer="user")
         path = await w.add("work_notes", "Day 1", "Started project")
         assert path is not None
         results = await w.search("project")

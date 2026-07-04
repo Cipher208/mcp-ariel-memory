@@ -361,10 +361,10 @@ async def test_agent_hooks():
 @pytest.mark.asyncio
 async def test_file_wiki():
     from shared.connection import connection_manager
-    from wiki.file_wiki import FileWiki
+    from wiki.manager import WikiManager
 
     tmpdir = tempfile.mkdtemp()
-    fw = FileWiki(layer="user", base_dir=tmpdir, cm=connection_manager)
+    fw = WikiManager(layer="user", base_dir=tmpdir, cm=connection_manager)
     await fw.init_db()
 
     path = await fw.add("diary", "Day 1", "Started project", tags=["work"])
@@ -381,25 +381,25 @@ async def test_file_wiki():
 @pytest.mark.asyncio
 async def test_user_wiki():
     from shared.connection import connection_manager
-    from wiki.user_wiki import UserWiki
+    from wiki.manager import WikiManager
 
-    uw = UserWiki(cm=connection_manager)
+    uw = WikiManager(layer="user", cm=connection_manager)
     await uw.init_db()
 
-    entry_id = await uw.add("test_integ", "diary", "Day 1", "Content", ["work"])
-    assert entry_id > 0
+    path = await uw.add("diary", "Day 1", "Content", ["work"])
+    assert path is not None
 
 
 @pytest.mark.asyncio
 async def test_agent_wiki():
     from shared.connection import connection_manager
-    from wiki.agent_wiki import AgentWiki
+    from wiki.manager import WikiManager
 
-    aw = AgentWiki(cm=connection_manager)
+    aw = WikiManager(layer="agent", cm=connection_manager)
     await aw.init_db()
 
-    entry_id = await aw.add("test_integ", "decision_log", "Choice A", "Chose A", [])
-    assert entry_id > 0
+    path = await aw.add("decision_log", "Choice A", "Chose A", [])
+    assert path is not None
 
 
 # ═══════════════════════════════════════════════════════════════
