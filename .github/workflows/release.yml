@@ -2,40 +2,30 @@ name: Release
 
 on:
   push:
-    branches: [main, master]
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
-  id-token: write
 
 jobs:
   release:
-    name: Semantic Release
     runs-on: ubuntu-latest
-    concurrency: release
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
 
-      - name: Install dependencies
-        run: pip install python-semantic-release build
+      - name: Build
+        run: |
+          pip install build
+          python -m build
 
-      - name: Python Semantic Release
-        id: release
-        uses: python-semantic-release/python-semantic-release@v9
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          root_options: --no-commit
-
-      - name: Publish to PyPI
-        if: steps.release.outputs.released == 'true'
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_TOKEN }}
+          files: dist/*
+          generate_release_notes: true
