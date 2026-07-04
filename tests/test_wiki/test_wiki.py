@@ -1,4 +1,4 @@
-"""Tests for wiki/ module (FileWiki) — async."""
+"""Tests for wiki/ module (WikiManager) — async."""
 
 import asyncio
 import sys
@@ -8,10 +8,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
 def test_file_wiki_add_search():
-    from wiki.file_wiki import FileWiki
+    from wiki.manager import WikiManager
 
     async def t():
-        w = FileWiki(layer="user")
+        w = WikiManager(layer="user")
         path = await w.add("work_notes", "Test Entry 2026", "Test content here", tags=["test"])
         assert path is not None
         assert Path(path).exists()
@@ -22,19 +22,19 @@ def test_file_wiki_add_search():
 
 
 def test_file_wiki_enabled_types():
-    from wiki.file_wiki import FileWiki
+    from wiki.manager import WikiManager
 
-    w = FileWiki(layer="user")
+    w = WikiManager(layer="user")
     types = w.get_enabled_types()
     assert len(types) > 0
     assert "diary" in types
 
 
 def test_file_wiki_count():
-    from wiki.file_wiki import FileWiki
+    from wiki.manager import WikiManager
 
     async def t():
-        w = FileWiki(layer="user")
+        w = WikiManager(layer="user")
         await w.add("work_notes", "Count Test 2026", "content")
         assert await w.count() >= 1
 

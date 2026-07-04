@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from shared.connection import AsyncConnectionManager, connection_manager
+from shared.path_safety import safe_resolve
 
 
 class ImportExport:
@@ -58,6 +59,7 @@ class ImportExport:
         return str(filepath)
 
     async def import_user(self, filepath: str, target_user_id: Optional[str] = None) -> dict[str, int]:
+        safe_resolve(self.export_dir, filepath)  # raises ValueError if traversal
         data = json.loads(Path(filepath).read_text(encoding="utf-8"))
         user_id = target_user_id or data.get("user_id", "default")
         imported = {"core_memory": 0, "episodes": 0}

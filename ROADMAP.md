@@ -31,7 +31,7 @@
 
 ## 4. Wiki Restructuring
 
-- [ ] **Unify wiki system** — merge `file_wiki.py`, `user_wiki.py`, `agent_wiki.py` into one `WikiManager` with layer-based separation. Current 3 separate classes duplicate logic. Goal: single FTS5 index, shared sync logic, configurable per-layer behavior.
+- [x] **Unify wiki system** — merge `file_wiki.py`, `user_wiki.py`, `agent_wiki.py` into one `WikiManager` with layer-based separation. Current 3 separate classes duplicate logic. Goal: single FTS5 index, shared sync logic, configurable per-layer behavior.
 
 ## 4. Bug Fixes & Cleanup
 
@@ -161,5 +161,5 @@
 
 ---
 
-**Completed:** 35/65 items
-**Last updated:** 2026-07-03
+**Completed:** 36/65 items
+**Last updated:** 2026-07-04
