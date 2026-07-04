@@ -8,10 +8,9 @@ from wiki.manager import WikiManager
 async def user_wiki(tmp_path):
     wm = WikiManager(layer="user", base_dir=str(tmp_path / "wiki"))
     await wm.init_db()
-    # Clean entries from previous tests
+    # Clean entries from previous tests (FTS5 content tables auto-sync via triggers)
     conn = await wm._cm.get("memory.db")
     await conn.execute("DELETE FROM wiki_index WHERE layer='user'")
-    await conn.execute("DELETE FROM wiki_fts")
     await conn.commit()
     return wm
 
@@ -23,7 +22,6 @@ async def agent_wiki(tmp_path):
     # Clean entries from previous tests
     conn = await wm._cm.get("memory.db")
     await conn.execute("DELETE FROM wiki_index WHERE layer='agent'")
-    await conn.execute("DELETE FROM wiki_fts")
     await conn.commit()
     return wm
 

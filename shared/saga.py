@@ -357,6 +357,8 @@ class Saga:
 
     async def _compensate_step(self, step: SagaStep) -> None:
         """Run compensation for a single step, logging success or failure."""
+        if not step.compensation:
+            return
         try:
             await step.compensation(step.data)
             logger.info("Saga '%s' compensated step '%s'" % (self.name, step.name))
