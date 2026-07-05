@@ -1,9 +1,6 @@
 """Tests for shared/read_only.py — full coverage."""
 
 import sqlite3
-import time
-import pytest
-from pathlib import Path
 from shared.read_only import ReadOnlyReplica
 
 
