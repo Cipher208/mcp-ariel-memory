@@ -4,19 +4,25 @@ Tests the complete pipeline: tool function → hooks → core modules → databa
 Unlike test_tools_unit.py (which uses mocks), these test actual data flow.
 """
 
-import asyncio
 import pytest
 from unittest.mock import MagicMock
 from mcp_server.tools_layer import (
-    memory_remember, memory_recall, memory_forget,
-    memory_session_start, memory_session_end,
-    memory_episode_save, memory_episode_recall,
-    memory_graph_add, memory_graph_query,
-    memory_stats, memory_context_inject,
+    memory_remember,
+    memory_recall,
+    memory_forget,
+    memory_session_start,
+    memory_session_end,
+    memory_episode_save,
+    memory_episode_recall,
+    memory_graph_add,
+    memory_graph_query,
+    memory_stats,
+    memory_context_inject,
 )
 
 
 # ── AppContext fixture using global singletons ──
+
 
 def _make_app():
     """Create real AppContext using global singletons."""
@@ -58,6 +64,7 @@ def _make_ctx(app):
 # memory_remember — full logic path
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_remember_user_full_flow():
     """remember → L4 storage → recall retrieves same data."""
@@ -65,8 +72,12 @@ async def test_remember_user_full_flow():
     ctx = _make_ctx(app)
 
     result = await memory_remember(
-        layer="user", user_id="e2e_user", key="e2e_name",
-        value="Alice", importance=0.9, ctx=ctx,
+        layer="user",
+        user_id="e2e_user",
+        key="e2e_name",
+        value="Alice",
+        importance=0.9,
+        ctx=ctx,
     )
     assert result["status"] == "ok"
 
@@ -84,8 +95,12 @@ async def test_remember_agent_full_flow():
     ctx = _make_ctx(app)
 
     result = await memory_remember(
-        layer="agent", user_id="e2e_agent", key="e2e_decision",
-        value="Use async/await", importance=0.8, ctx=ctx,
+        layer="agent",
+        user_id="e2e_agent",
+        key="e2e_decision",
+        value="Use async/await",
+        importance=0.8,
+        ctx=ctx,
     )
     assert result["status"] == "ok"
     assert "graph_node_id" in result
@@ -108,6 +123,7 @@ async def test_remember_triggers_hooks():
         original_fire = None
 
         import mcp_server.tools_layer as tl
+
         original_fire = tl._fire_hook
 
         def tracking_fire(hook_name, layer, context):
@@ -117,8 +133,12 @@ async def test_remember_triggers_hooks():
         m.setattr(tl, "_fire_hook", tracking_fire)
 
         await memory_remember(
-            layer="user", user_id="e2e_hooks", key="e2e_hook_test",
-            value="test value", importance=0.5, ctx=ctx,
+            layer="user",
+            user_id="e2e_hooks",
+            key="e2e_hook_test",
+            value="test value",
+            importance=0.5,
+            ctx=ctx,
         )
 
         assert "message_received" in fire_calls
@@ -129,6 +149,7 @@ async def test_remember_triggers_hooks():
 # memory_recall — full logic path
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_recall_returns_stored_data():
     """recall should return data stored by remember."""
@@ -136,11 +157,18 @@ async def test_recall_returns_stored_data():
     ctx = _make_ctx(app)
 
     await memory_remember(
-        layer="user", user_id="e2e_recall", key="e2e_lang",
-        value="Python", importance=0.7, ctx=ctx,
+        layer="user",
+        user_id="e2e_recall",
+        key="e2e_lang",
+        value="Python",
+        importance=0.7,
+        ctx=ctx,
     )
     result = await memory_recall(
-        layer="user", user_id="e2e_recall", query="e2e_lang", ctx=ctx,
+        layer="user",
+        user_id="e2e_recall",
+        query="e2e_lang",
+        ctx=ctx,
     )
     assert len(result["results"]) > 0
     assert any("Python" in str(r) for r in result["results"])
@@ -153,7 +181,10 @@ async def test_recall_empty_returns_empty():
     ctx = _make_ctx(app)
 
     result = await memory_recall(
-        layer="user", user_id="e2e_empty_xyz", query="nonexistent_xyz_abc", ctx=ctx,
+        layer="user",
+        user_id="e2e_empty_xyz",
+        query="nonexistent_xyz_abc",
+        ctx=ctx,
     )
     assert result["results"] == []
 
@@ -162,6 +193,7 @@ async def test_recall_empty_returns_empty():
 # memory_forget — full logic path
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_forget_removes_data():
     """forget should remove the key from L4."""
@@ -169,11 +201,18 @@ async def test_forget_removes_data():
     ctx = _make_ctx(app)
 
     await memory_remember(
-        layer="user", user_id="e2e_forget", key="e2e_temp",
-        value="temporary", importance=0.5, ctx=ctx,
+        layer="user",
+        user_id="e2e_forget",
+        key="e2e_temp",
+        value="temporary",
+        importance=0.5,
+        ctx=ctx,
     )
     result = await memory_forget(
-        layer="user", user_id="e2e_forget", key="e2e_temp", ctx=ctx,
+        layer="user",
+        user_id="e2e_forget",
+        key="e2e_temp",
+        ctx=ctx,
     )
     assert result.get("deleted") is True
 
@@ -187,6 +226,7 @@ async def test_forget_removes_data():
 # memory_session_start / end — full logic path
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_session_lifecycle():
     """session_start → session_end creates and closes a session."""
@@ -194,14 +234,19 @@ async def test_session_lifecycle():
     ctx = _make_ctx(app)
 
     start_result = await memory_session_start(
-        layer="user", user_id="e2e_sess", ctx=ctx,
+        layer="user",
+        user_id="e2e_sess",
+        ctx=ctx,
     )
     assert "session_id" in start_result
     session_id = start_result["session_id"]
 
     end_result = await memory_session_end(
-        layer="user", user_id="e2e_sess", session_id=session_id,
-        summary="Test session complete", ctx=ctx,
+        layer="user",
+        user_id="e2e_sess",
+        session_id=session_id,
+        summary="Test session complete",
+        ctx=ctx,
     )
     assert end_result["status"] == "ok"
 
@@ -210,6 +255,7 @@ async def test_session_lifecycle():
 # memory_episode_save / recall — full logic path
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_episode_save_and_recall():
     """episode_save → episode_recall retrieves same data."""
@@ -217,14 +263,19 @@ async def test_episode_save_and_recall():
     ctx = _make_ctx(app)
 
     save_result = await memory_episode_save(
-        layer="user", user_id="e2e_epi",
-        summary="Met friend for coffee", weight=0.7,
-        tags=["social", "meeting"], ctx=ctx,
+        layer="user",
+        user_id="e2e_epi",
+        summary="Met friend for coffee",
+        weight=0.7,
+        tags=["social", "meeting"],
+        ctx=ctx,
     )
     assert "episode_id" in save_result
 
     recall_result = await memory_episode_recall(
-        layer="user", user_id="e2e_epi", ctx=ctx,
+        layer="user",
+        user_id="e2e_epi",
+        ctx=ctx,
     )
     assert len(recall_result["episodes"]) > 0
 
@@ -233,6 +284,7 @@ async def test_episode_save_and_recall():
 # memory_graph_add / query — full logic path
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_graph_add_and_query():
     """graph_add → graph_query retrieves same node."""
@@ -240,15 +292,20 @@ async def test_graph_add_and_query():
     ctx = _make_ctx(app)
 
     add_result = await memory_graph_add(
-        layer="user", user_id="e2e_graph",
-        content="Python is great for AI", node_type="fact",
-        tags=["python", "ai"], ctx=ctx,
+        layer="user",
+        user_id="e2e_graph",
+        content="Python is great for AI",
+        node_type="fact",
+        tags=["python", "ai"],
+        ctx=ctx,
     )
     assert "node_id" in add_result
 
     query_result = await memory_graph_query(
-        layer="user", user_id="e2e_graph",
-        node_type="fact", ctx=ctx,
+        layer="user",
+        user_id="e2e_graph",
+        node_type="fact",
+        ctx=ctx,
     )
     assert len(query_result["nodes"]) > 0
 
@@ -257,6 +314,7 @@ async def test_graph_add_and_query():
 # memory_stats — full logic path
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_stats_after_operations():
     """stats should reflect actual data after operations."""
@@ -264,8 +322,12 @@ async def test_stats_after_operations():
     ctx = _make_ctx(app)
 
     await memory_remember(
-        layer="user", user_id="e2e_stats", key="e2e_k1",
-        value="v1", importance=0.5, ctx=ctx,
+        layer="user",
+        user_id="e2e_stats",
+        key="e2e_k1",
+        value="v1",
+        importance=0.5,
+        ctx=ctx,
     )
     result = await memory_stats(layer="user", user_id="e2e_stats", ctx=ctx)
     assert isinstance(result, dict)
@@ -277,6 +339,7 @@ async def test_stats_after_operations():
 # memory_context_inject — full logic path
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_context_inject_after_remember():
     """context_inject should include recently stored facts."""
@@ -284,11 +347,17 @@ async def test_context_inject_after_remember():
     ctx = _make_ctx(app)
 
     await memory_remember(
-        layer="user", user_id="e2e_ctx", key="e2e_fav_color",
-        value="blue", importance=0.7, ctx=ctx,
+        layer="user",
+        user_id="e2e_ctx",
+        key="e2e_fav_color",
+        value="blue",
+        importance=0.7,
+        ctx=ctx,
     )
     result = await memory_context_inject(
-        layer="user", user_id="e2e_ctx", ctx=ctx,
+        layer="user",
+        user_id="e2e_ctx",
+        ctx=ctx,
     )
     assert isinstance(result, dict)
     assert any(k in result for k in ["l4_facts", "context", "facts"])
