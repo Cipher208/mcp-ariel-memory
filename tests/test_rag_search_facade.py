@@ -97,16 +97,20 @@ class TestUnifiedSearch:
 
 class TestAutoStrategy:
     def test_single_word_returns_fts(self, rag):
-        assert rag._auto_strategy("python") == "fts"
+        from rag.search import auto_strategy
+        assert auto_strategy("python") == "fts"
 
     def test_two_words_returns_fts(self, rag):
-        assert rag._auto_strategy("redis cluster") == "fts"
+        from rag.search import auto_strategy
+        assert auto_strategy("redis cluster") == "fts"
 
     def test_three_words_returns_hybrid(self, rag):
-        assert rag._auto_strategy("redis high throughput") == "hybrid"
+        from rag.search import auto_strategy
+        assert auto_strategy("redis high throughput") == "hybrid"
 
     def test_empty_query_returns_fts(self, rag):
-        assert rag._auto_strategy("") == "fts"
+        from rag.search import auto_strategy
+        assert auto_strategy("") == "fts"
 
 
 class TestSearchStrategyInit:
@@ -123,36 +127,40 @@ class TestSearchStrategyInit:
 
 class TestMaterializeCandidates:
     def test_deduplicates_by_id(self, rag):
+        from rag.search import materialize_candidates
         results = [
             {"id": 1, "title": "A", "content": "text", "wiki_type": None, "score": 0.8, "source": "fts5"},
             {"id": 1, "title": "A", "content": "text", "wiki_type": None, "score": 0.9, "source": "mib"},
         ]
-        candidates = rag._materialize_candidates(results)
+        candidates = materialize_candidates(results)
         assert len(candidates) == 1
         assert candidates[0].rrf_score == 0.9
         assert candidates[0].bin_score == 0.9
 
     def test_merge_scores(self, rag):
+        from rag.search import materialize_candidates
         results = [
             {"id": 1, "title": "A", "content": "text", "wiki_type": None, "score": 0.5, "source": "fts5"},
             {"id": 2, "title": "B", "content": "text", "wiki_type": None, "score": 0.7, "source": "mib"},
         ]
-        candidates = rag._materialize_candidates(results)
+        candidates = materialize_candidates(results)
         assert len(candidates) == 2
 
 
 class TestFormatResult:
     def test_truncates_long_content(self, rag):
         from rag.scoring import ScoredCandidate
+        from rag.search import format_result
 
         c = ScoredCandidate(id=1, page_id=1, title="T", content="x" * 600, wiki_type=None, rrf_score=0.5)
-        result = rag._format_result(c)
+        result = format_result(c)
         assert result["content"].endswith("...")
         assert len(result["content"]) == 503
 
     def test_preserves_short_content(self, rag):
         from rag.scoring import ScoredCandidate
+        from rag.search import format_result
 
         c = ScoredCandidate(id=1, page_id=1, title="T", content="short", wiki_type=None, rrf_score=0.5)
-        result = rag._format_result(c)
+        result = format_result(c)
         assert result["content"] == "short"
