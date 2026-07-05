@@ -3,14 +3,9 @@
 import pytest
 from unittest.mock import MagicMock
 from mcp_server.tools_ops import (
-    memory_api_key,
-    memory_backup,
-    memory_saga,
-    memory_data,
-    memory_sync_replica,
-    memory_cleanup,
-    memory_lucidity_purge,
-    memory_search_rrf,
+    memory_api_key, memory_backup, memory_saga,
+    memory_data, memory_sync_replica, memory_cleanup,
+    memory_lucidity_purge, memory_search,
 )
 
 
@@ -140,7 +135,7 @@ async def test_lucidity_purge():
 
 
 @pytest.mark.asyncio
-async def test_search_rrf():
+async def test_search():
     ctx = _make_ctx()
-    result = await memory_search_rrf(query="test", ctx=ctx)
+    result = await memory_search(query="test", ctx=ctx)
     assert isinstance(result, dict)

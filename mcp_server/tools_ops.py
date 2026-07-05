@@ -281,7 +281,7 @@ async def memory_lucidity_purge(
     ).dict()
 
 
-async def memory_search_rrf(
+async def memory_search(
     query: str = "",
     user_id: str = "default",
     limit: int = 10,
@@ -299,7 +299,7 @@ async def memory_search_rrf(
         sources: "all" (RAG + Wiki), "rag" (RAG only), or "wiki" (Wiki only)
     """
     metrics.inc("tool_calls")
-    metrics.inc("tool_search_rrf")
+    metrics.inc("tool_search")
     app = _get_ctx(ctx)
 
     include_rag = sources in ("all", "rag")
@@ -316,6 +316,10 @@ async def memory_search_rrf(
     return SearchResult(results=results, count=len(results), method=strategy).dict()
 
 
+# Backward compatibility alias
+memory_search_rrf = memory_search
+
+
 # Register all ops tools
 _register_tools: dict[str, Any] = {
     "memory_api_key": memory_api_key,
@@ -325,7 +329,7 @@ _register_tools: dict[str, Any] = {
     "memory_sync_replica": memory_sync_replica,
     "memory_cleanup": memory_cleanup,
     "memory_lucidity_purge": memory_lucidity_purge,
-    "memory_search_rrf": memory_search_rrf,
+    "memory_search": memory_search,
 }
 
 for _name, _func in _register_tools.items():

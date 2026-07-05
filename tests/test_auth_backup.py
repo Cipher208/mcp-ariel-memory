@@ -242,7 +242,7 @@ def test_mcp_tools_are_async():
     assert "memory_backup" in tool_names
     assert "memory_api_key" in tool_names
     assert "memory_lucidity_purge" in tool_names
-    assert "memory_search_rrf" in tool_names
+    assert "memory_search" in tool_names
 
     for tool in tools:
         assert inspect.iscoroutinefunction(tool.fn), f"{tool.name} is not async"
