@@ -1,12 +1,16 @@
 """E2E tests for mcp_server/tools_ops.py — operational tools."""
 
-import asyncio
 import pytest
 from unittest.mock import MagicMock
 from mcp_server.tools_ops import (
-    memory_api_key, memory_backup, memory_saga,
-    memory_data, memory_sync_replica, memory_cleanup,
-    memory_lucidity_purge, memory_search_rrf,
+    memory_api_key,
+    memory_backup,
+    memory_saga,
+    memory_data,
+    memory_sync_replica,
+    memory_cleanup,
+    memory_lucidity_purge,
+    memory_search_rrf,
 )
 
 
@@ -27,6 +31,7 @@ def _make_ctx():
     app.import_export = ImportExport()
     from rag.multi_source import MultiSourceRAG
     from rag.engine import RAGEngine
+
     app.user_multi = MultiSourceRAG(RAGEngine(layer="user"), app.user_wiki)
     app.agent_multi = MultiSourceRAG(RAGEngine(layer="agent"), app.agent_wiki)
     ctx.request_context = MagicMock()
@@ -37,6 +42,7 @@ def _make_ctx():
 # ═══════════════════════════════════════════════════════════════
 # memory_api_key
 # ═══════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_api_key_create():
@@ -56,6 +62,7 @@ async def test_api_key_list():
 # memory_backup
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_backup_list():
     ctx = _make_ctx()
@@ -66,6 +73,7 @@ async def test_backup_list():
 # ═══════════════════════════════════════════════════════════════
 # memory_saga
 # ═══════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_saga_list():
@@ -78,6 +86,7 @@ async def test_saga_list():
 # memory_data
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_data_export():
     ctx = _make_ctx()
@@ -88,6 +97,7 @@ async def test_data_export():
 # ═══════════════════════════════════════════════════════════════
 # memory_sync_replica
 # ═══════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_sync_replica():
@@ -100,6 +110,7 @@ async def test_sync_replica():
 # memory_cleanup
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_cleanup():
     ctx = _make_ctx()
@@ -110,6 +121,7 @@ async def test_cleanup():
 # ═══════════════════════════════════════════════════════════════
 # memory_lucidity_purge
 # ═══════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_lucidity_purge():
@@ -125,6 +137,7 @@ async def test_lucidity_purge():
 # ═══════════════════════════════════════════════════════════════
 # memory_search_rrf
 # ═══════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_search_rrf():

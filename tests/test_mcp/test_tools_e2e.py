@@ -7,13 +7,23 @@ Unlike test_tools_unit.py (which uses mocks), these test actual data flow.
 import pytest
 from unittest.mock import MagicMock
 from mcp_server.tools_layer import (
-    memory_remember, memory_recall, memory_forget,
-    memory_session_start, memory_session_end,
-    memory_episode_save, memory_episode_recall,
-    memory_graph_add, memory_graph_query,
-    memory_stats, memory_context_inject,
-    memory_session_list, memory_episode_list, memory_episode_get,
-    memory_graph_nodes, memory_graph_edges, memory_context,
+    memory_remember,
+    memory_recall,
+    memory_forget,
+    memory_session_start,
+    memory_session_end,
+    memory_episode_save,
+    memory_episode_recall,
+    memory_graph_add,
+    memory_graph_query,
+    memory_stats,
+    memory_context_inject,
+    memory_session_list,
+    memory_episode_list,
+    memory_episode_get,
+    memory_graph_nodes,
+    memory_graph_edges,
+    memory_context,
 )
 
 
@@ -363,6 +373,7 @@ async def test_context_inject_after_remember():
 # memory_session_list — full logic path
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_session_list():
     """session_list should return list of sessions."""
@@ -376,6 +387,7 @@ async def test_session_list():
 # ═══════════════════════════════════════════════════════════════
 # memory_episode_list — full logic path
 # ═══════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_episode_list():
@@ -391,13 +403,17 @@ async def test_episode_list():
 # memory_episode_get — full logic path
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_episode_get():
     """episode_get should return None for non-existent episode."""
     app = _make_app()
     ctx = _make_ctx(app)
     result = await memory_episode_get(
-        layer="user", user_id="e2e_epi_get", episode_id=999999, ctx=ctx,
+        layer="user",
+        user_id="e2e_epi_get",
+        episode_id=999999,
+        ctx=ctx,
     )
     assert isinstance(result, dict)
 
@@ -406,13 +422,16 @@ async def test_episode_get():
 # memory_graph_nodes — full logic path
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_graph_nodes():
     """graph_nodes should return list of nodes."""
     app = _make_app()
     ctx = _make_ctx(app)
     result = await memory_graph_nodes(
-        layer="user", user_id="e2e_graph_nodes", ctx=ctx,
+        layer="user",
+        user_id="e2e_graph_nodes",
+        ctx=ctx,
     )
     assert isinstance(result, dict)
     assert "nodes" in result
@@ -422,13 +441,16 @@ async def test_graph_nodes():
 # memory_graph_edges — full logic path
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_graph_edges():
     """graph_edges should return list of edges."""
     app = _make_app()
     ctx = _make_ctx(app)
     result = await memory_graph_edges(
-        layer="user", user_id="e2e_graph_edges", ctx=ctx,
+        layer="user",
+        user_id="e2e_graph_edges",
+        ctx=ctx,
     )
     assert isinstance(result, dict)
     assert "edges" in result
@@ -438,17 +460,24 @@ async def test_graph_edges():
 # memory_context — full logic path
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_context():
     """context should return context string."""
     app = _make_app()
     ctx = _make_ctx(app)
     await memory_remember(
-        layer="user", user_id="e2e_ctx2", key="e2e_ctx_key",
-        value="ctx_value", importance=0.5, ctx=ctx,
+        layer="user",
+        user_id="e2e_ctx2",
+        key="e2e_ctx_key",
+        value="ctx_value",
+        importance=0.5,
+        ctx=ctx,
     )
     result = await memory_context(
-        layer="user", user_id="e2e_ctx2", ctx=ctx,
+        layer="user",
+        user_id="e2e_ctx2",
+        ctx=ctx,
     )
     assert isinstance(result, dict)
 
@@ -456,6 +485,7 @@ async def test_context():
 # ═══════════════════════════════════════════════════════════════
 # Hook dispatch — verify ALL 24 hooks fire through tools
 # ═══════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_hook_dispatch_all_tools():
@@ -465,6 +495,7 @@ async def test_hook_dispatch_all_tools():
 
     fired_hooks = set()
     import mcp_server.tools_layer as tl
+
     original_fire = tl._fire_hook
 
     def tracking_fire(hook_name, layer, context):
@@ -476,48 +507,75 @@ async def test_hook_dispatch_all_tools():
 
         # memory_remember — fires message_received, emotion_trigger, importance_gate
         await memory_remember(
-            layer="user", user_id="e2e_hook_all", key="e2e_hk",
-            value="test hook dispatch", importance=0.5, ctx=ctx,
+            layer="user",
+            user_id="e2e_hook_all",
+            key="e2e_hk",
+            value="test hook dispatch",
+            importance=0.5,
+            ctx=ctx,
         )
 
         # memory_episode_save — fires emotion_trigger, state_delta, consolidation
         await memory_episode_save(
-            layer="user", user_id="e2e_hook_all",
-            summary="Test episode", weight=0.7, ctx=ctx,
+            layer="user",
+            user_id="e2e_hook_all",
+            summary="Test episode",
+            weight=0.7,
+            ctx=ctx,
         )
 
         # memory_session_end — fires consolidation, state_delta
         start = await memory_session_start(layer="user", user_id="e2e_hook_all", ctx=ctx)
         await memory_session_end(
-            layer="user", user_id="e2e_hook_all",
-            session_id=start["session_id"], summary="done", ctx=ctx,
+            layer="user",
+            user_id="e2e_hook_all",
+            session_id=start["session_id"],
+            summary="done",
+            ctx=ctx,
         )
 
         # memory_graph_add — fires type-specific hooks
         await memory_graph_add(
-            layer="user", user_id="e2e_hook_all",
-            content="Error occurred", node_type="error_analysis", ctx=ctx,
+            layer="user",
+            user_id="e2e_hook_all",
+            content="Error occurred",
+            node_type="error_analysis",
+            ctx=ctx,
         )
         await memory_graph_add(
-            layer="user", user_id="e2e_hook_all",
-            content="Decision made", node_type="decision_log", ctx=ctx,
+            layer="user",
+            user_id="e2e_hook_all",
+            content="Decision made",
+            node_type="decision_log",
+            ctx=ctx,
         )
 
         # memory_recall — fires retrieval_router, auto_context
         await memory_recall(
-            layer="user", user_id="e2e_hook_all", query="test", ctx=ctx,
+            layer="user",
+            user_id="e2e_hook_all",
+            query="test",
+            ctx=ctx,
         )
 
         # memory_context_inject — fires auto_context
         await memory_context_inject(
-            layer="user", user_id="e2e_hook_all", ctx=ctx,
+            layer="user",
+            user_id="e2e_hook_all",
+            ctx=ctx,
         )
 
         # Verify all expected hooks fired
         expected = {
-            "message_received", "emotion_trigger", "importance_gate",
-            "state_delta", "consolidation", "error_occurred", "decision_made",
-            "retrieval_router", "auto_context",
+            "message_received",
+            "emotion_trigger",
+            "importance_gate",
+            "state_delta",
+            "consolidation",
+            "error_occurred",
+            "decision_made",
+            "retrieval_router",
+            "auto_context",
         }
         missing = expected - fired_hooks
         assert not missing, f"Hooks not fired: {missing}"
