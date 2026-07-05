@@ -48,6 +48,7 @@ class RAGEngine:
     def _rrf_k(self) -> int:
         try:
             from config import config
+
             return int(config.get("rag", "rrf_k", default=60))
         except Exception:
             return 60
@@ -61,6 +62,7 @@ class RAGEngine:
             return None
         try:
             import numpy as np
+
             self._thresholds_cache = np.load(self.binary_thresholds_path)
         except (FileNotFoundError, Exception):
             return None
@@ -72,6 +74,7 @@ class RAGEngine:
         thr = self.thresholds if self.thresholds is not None else self._load_thresholds()
         if thr is not None:
             from rag.quantize import binary_from_threshold_array
+
             return binary_from_threshold_array(emb, thr)
         return embed_to_binary(emb, threshold=0.0, dim=len(emb))
 
@@ -85,6 +88,7 @@ class RAGEngine:
 
         if not self._fts_available:
             from shared.metrics import metrics
+
             metrics.inc("rag_fts5_unavailable_total")
             metrics.gauge("rag_fts5_enabled", 0)
             logger.warning("[rag] SQLite build lacks FTS5; lexical search will use LIKE fallback.")
@@ -140,7 +144,9 @@ class RAGEngine:
             )
         return len(chunks)
 
-    async def _insert_page(self, conn, title: str, content: str, user_id: str, page_hash: str, wiki_type: Optional[str] = None, path: str = "") -> int | None:
+    async def _insert_page(
+        self, conn, title: str, content: str, user_id: str, page_hash: str, wiki_type: Optional[str] = None, path: str = ""
+    ) -> int | None:
         cur = await conn.execute("SELECT id FROM rag_pages WHERE sha256_hash = ? AND user_id = ?", (page_hash, user_id))
         existing = await cur.fetchone()
         if existing:
@@ -176,7 +182,16 @@ class RAGEngine:
         await conn.commit()
         return "[OK] %s" % filepath.name
 
-    async def ingest_text(self, title: str, text: str, user_id: str = "default", wiki_type: Optional[str] = None, path: str = "", relation_to: Optional[int] = None, relation_type: str = "elaborates") -> int:
+    async def ingest_text(
+        self,
+        title: str,
+        text: str,
+        user_id: str = "default",
+        wiki_type: Optional[str] = None,
+        path: str = "",
+        relation_to: Optional[int] = None,
+        relation_type: str = "elaborates",
+    ) -> int:
         text_hash = hashlib.sha256(text.encode()).hexdigest()
         conn = await self._cm.get(DB_NAME)
 

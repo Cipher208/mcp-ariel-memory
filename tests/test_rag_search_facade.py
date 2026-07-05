@@ -98,18 +98,22 @@ class TestUnifiedSearch:
 class TestAutoStrategy:
     def test_single_word_returns_fts(self, rag):
         from rag.search import auto_strategy
+
         assert auto_strategy("python") == "fts"
 
     def test_two_words_returns_fts(self, rag):
         from rag.search import auto_strategy
+
         assert auto_strategy("redis cluster") == "fts"
 
     def test_three_words_returns_hybrid(self, rag):
         from rag.search import auto_strategy
+
         assert auto_strategy("redis high throughput") == "hybrid"
 
     def test_empty_query_returns_fts(self, rag):
         from rag.search import auto_strategy
+
         assert auto_strategy("") == "fts"
 
 
@@ -128,6 +132,7 @@ class TestSearchStrategyInit:
 class TestMaterializeCandidates:
     def test_deduplicates_by_id(self, rag):
         from rag.search import materialize_candidates
+
         results = [
             {"id": 1, "title": "A", "content": "text", "wiki_type": None, "score": 0.8, "source": "fts5"},
             {"id": 1, "title": "A", "content": "text", "wiki_type": None, "score": 0.9, "source": "mib"},
@@ -139,6 +144,7 @@ class TestMaterializeCandidates:
 
     def test_merge_scores(self, rag):
         from rag.search import materialize_candidates
+
         results = [
             {"id": 1, "title": "A", "content": "text", "wiki_type": None, "score": 0.5, "source": "fts5"},
             {"id": 2, "title": "B", "content": "text", "wiki_type": None, "score": 0.7, "source": "mib"},

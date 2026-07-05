@@ -1,7 +1,7 @@
 """RAG search strategies — FTS5, binary, hybrid, RRF."""
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from shared.constants import DB_NAME
 from shared.connection import AsyncConnectionManager
@@ -9,7 +9,7 @@ from shared.connection import AsyncConnectionManager
 logger = logging.getLogger(__name__)
 
 try:
-    from rag.quantize import embed_to_binary, hamming_distance, hamming_to_score
+    from rag.quantize import hamming_distance, hamming_to_score
 
     _HAS_BINARY = True
 except ImportError:
@@ -118,7 +118,16 @@ async def search_binary(
     return scored[:limit]
 
 
-async def search_rrf(cm: AsyncConnectionManager, query: str, user_id: str, limit: int, k: int = 60, binary_for_fn=None, binary_dim: int = 384, fts_available: bool = True) -> list[dict[str, Any]]:
+async def search_rrf(
+    cm: AsyncConnectionManager,
+    query: str,
+    user_id: str,
+    limit: int,
+    k: int = 60,
+    binary_for_fn=None,
+    binary_dim: int = 384,
+    fts_available: bool = True,
+) -> list[dict[str, Any]]:
     """Reciprocal Rank Fusion — merge FTS5 and binary results."""
     fts_results = await search_fts5(cm, query, user_id, limit=limit * 3, fts_available=fts_available)
     fts_ranks = {doc["id"]: rank for rank, doc in enumerate(fts_results)}
