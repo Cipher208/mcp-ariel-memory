@@ -1,31 +1,24 @@
-"""Tests for _chunk_text with overlap."""
+"""Tests for chunk_text with overlap."""
 
 import pytest
-from rag.engine import RAGEngine
+from rag.chunking import chunk_text
 
 
-@pytest.fixture
-def rag():
-    return RAGEngine(binary_dim=8)  # no DB needed
-
-
-def test_overlap_param_now_used(rag):
+def test_overlap_param_now_used():
     text = "Paragraph one is here.\n\n" * 30
-    chunks = rag._chunk_text(text, max_size=200, overlap=50)
-    assert all(len(c) <= 230 for c in chunks)  # max + 1 paragraph overlap
-    # Overlap between adjacent chunks > 0
+    chunks = chunk_text(text, max_size=200, overlap=50)
+    assert all(len(c) <= 230 for c in chunks)
     overlaps = sum(1 for a, b in zip(chunks, chunks[1:]) if any(line in b for line in a.split("\n\n") if line))
     assert overlaps >= len(chunks) - 1
 
 
-def test_overlap_validation(rag):
+def test_overlap_validation():
     with pytest.raises(ValueError):
-        rag._chunk_text("x", max_size=100, overlap=100)
+        chunk_text("x", max_size=100, overlap=100)
 
 
-def test_long_paragraph_word_split(rag):
+def test_long_paragraph_word_split():
     long_para = " ".join(["word"] * 300)
-    chunks = rag._chunk_text(long_para, max_size=100, overlap=20)
+    chunks = chunk_text(long_para, max_size=100, overlap=20)
     assert all(len(c) <= 120 for c in chunks)
-    # With overlap, word count may exceed 300 due to duplicated words at boundaries
     assert sum(len(c.split()) for c in chunks) >= 300
