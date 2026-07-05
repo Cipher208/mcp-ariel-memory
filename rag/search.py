@@ -1,0 +1,248 @@
+"""RAG search strategies — FTS5, binary, hybrid, RRF."""
+
+import logging
+from typing import Any
+
+from shared.constants import DB_NAME
+from shared.connection import AsyncConnectionManager
+
+logger = logging.getLogger(__name__)
+
+try:
+    from rag.quantize import hamming_distance, hamming_to_score
+
+    _HAS_BINARY = True
+except ImportError:
+    _HAS_BINARY = False
+
+
+async def search_fts5(cm: AsyncConnectionManager, query: str, user_id: str, limit: int, fts_available: bool) -> list[dict[str, Any]]:
+    """FTS5 search with LIKE fallback."""
+    conn = await cm.get(DB_NAME)
+    if fts_available:
+        try:
+            cur = await conn.execute(
+                """SELECT wp.id, wp.title, wp.content, wp.wiki_type, fts.rank
+                   FROM rag_fts fts JOIN rag_pages wp ON fts.rowid = wp.id
+                   WHERE rag_fts MATCH ? AND wp.user_id = ?
+                   ORDER BY fts.rank DESC LIMIT ?""",
+                (query, user_id, limit),
+            )
+            rows = await cur.fetchall()
+            return [
+                {
+                    "id": r[0],
+                    "title": r[1],
+                    "content": r[2][:500] + "..." if len(r[2]) > 500 else r[2],
+                    "wiki_type": r[3],
+                    "score": abs(r[4]) if r[4] else 0.0,
+                    "source": "fts5",
+                }
+                for r in rows
+            ]
+        except Exception:
+            pass
+
+    escaped_query = query.replace("%", "\\%").replace("_", "\\_")
+    cur = await conn.execute(
+        "SELECT id, title, content, wiki_type FROM rag_pages WHERE user_id=? AND (title LIKE ? OR content LIKE ?) LIMIT ?",
+        (user_id, f"%{escaped_query}%", f"%{escaped_query}%", limit),
+    )
+    rows = await cur.fetchall()
+    return [
+        {
+            "id": r[0],
+            "page_id": r[0],
+            "title": r[1] or "",
+            "content": r[2] or "",
+            "wiki_type": r[3],
+            "score": None,
+            "source": "fts5_like_fallback",
+        }
+        for r in rows
+    ]
+
+
+async def search_binary(
+    cm: AsyncConnectionManager,
+    query: str,
+    user_id: str,
+    limit: int,
+    binary_for_fn,
+    binary_dim: int,
+) -> list[dict[str, Any]]:
+    """Exhaustive linear scan over binary embeddings."""
+    if not _HAS_BINARY:
+        return []
+
+    from shared.embeddings import embed_text
+
+    q_emb = await embed_text(query)
+    q_bin = binary_for_fn(q_emb)
+    if q_bin is None:
+        return []
+
+    conn = await cm.get(DB_NAME)
+    cursor = await conn.execute(
+        """
+        SELECT c.id, c.page_id, c.content, c.bin_embedding,
+               p.title, p.wiki_type
+        FROM rag_chunks c
+        JOIN rag_pages p ON p.id = c.page_id
+        WHERE p.user_id = ?
+          AND c.bin_embedding IS NOT NULL
+        """,
+        (user_id,),
+    )
+
+    scored = []
+    BATCH_SIZE = 1000
+    while True:
+        rows = await cursor.fetchmany(BATCH_SIZE)
+        if not rows:
+            break
+        for r in rows:
+            d = hamming_distance(q_bin, r["bin_embedding"])
+            scored.append(
+                {
+                    "id": r["id"],
+                    "page_id": r["page_id"],
+                    "title": r["title"],
+                    "content": r["content"][:1024],
+                    "wiki_type": r["wiki_type"],
+                    "score": hamming_to_score(d, binary_dim),
+                    "source": "mib",
+                }
+            )
+    scored.sort(key=lambda x: (-x["score"], x["id"]))
+    return scored[:limit]
+
+
+async def search_rrf(
+    cm: AsyncConnectionManager,
+    query: str,
+    user_id: str,
+    limit: int,
+    k: int = 60,
+    binary_for_fn=None,
+    binary_dim: int = 384,
+    fts_available: bool = True,
+) -> list[dict[str, Any]]:
+    """Reciprocal Rank Fusion — merge FTS5 and binary results."""
+    fts_results = await search_fts5(cm, query, user_id, limit=limit * 3, fts_available=fts_available)
+    fts_ranks = {doc["id"]: rank for rank, doc in enumerate(fts_results)}
+
+    bin_ranks = {}
+    try:
+        bin_results = await search_binary(cm, query, user_id, limit * 3, binary_for_fn, binary_dim)
+        bin_ranks = {r["id"]: rank for rank, r in enumerate(bin_results)}
+    except Exception:
+        pass
+
+    def rrf(rank: int) -> float:
+        return 1.0 / (k + rank + 1)
+
+    merged = {}
+    for doc_id in set(fts_ranks.keys()) | set(bin_ranks.keys()):
+        score = 0.0
+        if doc_id in fts_ranks:
+            score += rrf(fts_ranks[doc_id])
+        if doc_id in bin_ranks:
+            score += rrf(bin_ranks[doc_id])
+        merged[doc_id] = score
+
+    sorted_ids = sorted(merged.keys(), key=lambda x: -merged[x])[:limit]
+    if not sorted_ids:
+        return []
+
+    conn = await cm.get(DB_NAME)
+    placeholders = ",".join(["?"] * len(sorted_ids))
+    cur = await conn.execute(
+        f"SELECT id, title, content, wiki_type FROM rag_pages WHERE id IN ({placeholders})",
+        sorted_ids,
+    )
+    rows = await cur.fetchall()
+    by_id = {r[0]: r for r in rows}
+
+    results = []
+    for doc_id in sorted_ids:
+        row = by_id.get(doc_id)
+        if row:
+            has_fts = doc_id in fts_ranks
+            has_bin = doc_id in bin_ranks
+            source = "rrf(fts+mib)" if (has_fts and has_bin) else ("fts5" if has_fts else "mib")
+            content = row[2]
+            results.append(
+                {
+                    "id": row[0],
+                    "title": row[1],
+                    "content": content[:500] + "..." if len(content) > 500 else content,
+                    "wiki_type": row[3],
+                    "score": merged[doc_id],
+                    "source": source,
+                }
+            )
+    return results
+
+
+def auto_strategy(query: str) -> str:
+    """Pick strategy based on query length."""
+    if len(query.split()) <= 2:
+        return "fts"
+    return "hybrid"
+
+
+def apply_type_boost(query: str, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Apply type-aware boost to search results based on query keywords."""
+    from shared.memory_types import boost_for_query
+
+    for r in results:
+        kind = r.get("memory_kind") or r.get("wiki_type") or "fact"
+        boost = boost_for_query(query, kind)
+        if boost > 0:
+            current_score = r.get("score") or 0.0
+            r["score"] = min(1.0, current_score + boost)
+            r["boost_by_memory_type"] = boost
+    return results
+
+
+def materialize_candidates(results: list[dict[str, Any]]) -> list:
+    """Convert raw search dicts to ScoredCandidate objects for the Scorer."""
+    from rag.scoring import ScoredCandidate
+
+    seen: dict[int, ScoredCandidate] = {}
+    for r in results:
+        rid = r["id"]
+        if rid in seen:
+            existing = seen[rid]
+            if r.get("source") == "mib" and existing.bin_score is None:
+                existing.bin_score = r["score"]
+            if r["score"] is not None:
+                existing.rrf_score = max(existing.rrf_score or 0.0, r["score"])
+        else:
+            seen[rid] = ScoredCandidate(
+                id=rid,
+                page_id=r.get("page_id", rid),
+                title=r["title"],
+                content=r["content"],
+                wiki_type=r.get("wiki_type"),
+                rrf_score=r["score"] or 0.0,
+                bin_score=r["score"] if r.get("source") == "mib" else None,
+                source=r.get("source", ""),
+            )
+    return list(seen.values())
+
+
+def format_result(c) -> dict[str, Any]:
+    """Convert a ScoredCandidate back to a result dict."""
+    content = c.content
+    if len(content) > 500:
+        content = content[:500] + "..."
+    return {
+        "id": c.id,
+        "title": c.title,
+        "content": content,
+        "wiki_type": c.wiki_type,
+        "score": c.final_score if c.final_score else c.rrf_score,
+        "source": c.source,
+    }
