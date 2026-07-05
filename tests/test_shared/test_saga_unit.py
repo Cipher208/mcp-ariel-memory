@@ -3,11 +3,13 @@
 import asyncio
 import json
 import time
-import pytest
-from pathlib import Path
 from shared.saga import (
-    Saga, SagaStep, SagaStatus, SagaWatchdog,
-    create_consolidation_saga, create_backup_saga,
+    Saga,
+    SagaStep,
+    SagaStatus,
+    SagaWatchdog,
+    create_consolidation_saga,
+    create_backup_saga,
 )
 
 
@@ -20,6 +22,7 @@ async def _failing(data):
 
 
 # ── Saga basics ──
+
 
 def test_add_step():
     s = Saga("test")
@@ -50,8 +53,10 @@ def test_get_state():
 
 # ── State persistence ──
 
+
 def test_save_state_creates_file(tmp_path):
     from shared import saga as saga_mod
+
     orig = saga_mod.SAGA_DIR
     saga_mod.SAGA_DIR = tmp_path
     try:
@@ -67,6 +72,7 @@ def test_save_state_creates_file(tmp_path):
 
 def test_load_state_roundtrip(tmp_path):
     from shared import saga as saga_mod
+
     orig = saga_mod.SAGA_DIR
     saga_mod.SAGA_DIR = tmp_path
     try:
@@ -85,6 +91,7 @@ def test_load_state_roundtrip(tmp_path):
 
 def test_load_state_missing(tmp_path):
     from shared import saga as saga_mod
+
     orig = saga_mod.SAGA_DIR
     saga_mod.SAGA_DIR = tmp_path
     try:
@@ -96,6 +103,7 @@ def test_load_state_missing(tmp_path):
 
 def test_cleanup_state(tmp_path):
     from shared import saga as saga_mod
+
     orig = saga_mod.SAGA_DIR
     saga_mod.SAGA_DIR = tmp_path
     try:
@@ -109,6 +117,7 @@ def test_cleanup_state(tmp_path):
 
 
 # ── Idempotency ──
+
 
 def test_compute_idempotency_key_none_without_fn():
     s = Saga("t")
@@ -139,15 +148,23 @@ def test_get_cached_result_none():
 
 # ── SagaWatchdog ──
 
+
 def test_watchdog_get_stuck_sagas(tmp_path):
     from shared import saga as saga_mod
+
     orig = saga_mod.SAGA_DIR
     saga_mod.SAGA_DIR = tmp_path
     try:
-        old = {"name": "old", "saga_id": "o1", "status": "running",
-               "current_step": 0, "started_at": time.time() - 120,
-               "data": {}, "completed_steps": [],
-               "steps": [{"name": "s1", "status": "completed", "result": {}}]}
+        old = {
+            "name": "old",
+            "saga_id": "o1",
+            "status": "running",
+            "current_step": 0,
+            "started_at": time.time() - 120,
+            "data": {},
+            "completed_steps": [],
+            "steps": [{"name": "s1", "status": "completed", "result": {}}],
+        }
         (tmp_path / "o1.json").write_text(json.dumps(old))
         wd = SagaWatchdog(max_age_seconds=60)
         stuck = wd.get_stuck_sagas()
@@ -159,13 +176,20 @@ def test_watchdog_get_stuck_sagas(tmp_path):
 
 def test_watchdog_recover_sets_manual_review(tmp_path):
     from shared import saga as saga_mod
+
     orig = saga_mod.SAGA_DIR
     saga_mod.SAGA_DIR = tmp_path
     try:
-        old = {"name": "r", "saga_id": "r1", "status": "stuck",
-               "current_step": 0, "started_at": time.time() - 120,
-               "data": {}, "completed_steps": [],
-               "steps": [{"name": "s1", "status": "completed", "result": {}}]}
+        old = {
+            "name": "r",
+            "saga_id": "r1",
+            "status": "stuck",
+            "current_step": 0,
+            "started_at": time.time() - 120,
+            "data": {},
+            "completed_steps": [],
+            "steps": [{"name": "s1", "status": "completed", "result": {}}],
+        }
         (tmp_path / "r1.json").write_text(json.dumps(old))
         wd = SagaWatchdog(max_age_seconds=60)
         result = wd.recover_saga("r1")
@@ -177,6 +201,7 @@ def test_watchdog_recover_sets_manual_review(tmp_path):
 
 def test_watchdog_recover_nonexistent(tmp_path):
     from shared import saga as saga_mod
+
     orig = saga_mod.SAGA_DIR
     saga_mod.SAGA_DIR = tmp_path
     try:
@@ -188,17 +213,30 @@ def test_watchdog_recover_nonexistent(tmp_path):
 
 def test_watchdog_cleanup_completed(tmp_path):
     from shared import saga as saga_mod
+
     orig = saga_mod.SAGA_DIR
     saga_mod.SAGA_DIR = tmp_path
     try:
-        done = {"name": "d", "saga_id": "d1", "status": "completed",
-                "current_step": 1, "started_at": time.time() - 7200,
-                "data": {}, "completed_steps": [0],
-                "steps": [{"name": "s1", "status": "completed", "result": {}}]}
-        run = {"name": "r", "saga_id": "r1", "status": "running",
-               "current_step": 0, "started_at": time.time(),
-               "data": {}, "completed_steps": [],
-               "steps": [{"name": "s1", "status": "running", "result": {}}]}
+        done = {
+            "name": "d",
+            "saga_id": "d1",
+            "status": "completed",
+            "current_step": 1,
+            "started_at": time.time() - 7200,
+            "data": {},
+            "completed_steps": [0],
+            "steps": [{"name": "s1", "status": "completed", "result": {}}],
+        }
+        run = {
+            "name": "r",
+            "saga_id": "r1",
+            "status": "running",
+            "current_step": 0,
+            "started_at": time.time(),
+            "data": {},
+            "completed_steps": [],
+            "steps": [{"name": "s1", "status": "running", "result": {}}],
+        }
         (tmp_path / "d1.json").write_text(json.dumps(done))
         (tmp_path / "r1.json").write_text(json.dumps(run))
         wd = SagaWatchdog(max_age_seconds=60)
@@ -212,6 +250,7 @@ def test_watchdog_cleanup_completed(tmp_path):
 
 def test_watchdog_start_stop(tmp_path):
     from shared import saga as saga_mod
+
     orig = saga_mod.SAGA_DIR
     saga_mod.SAGA_DIR = tmp_path
     try:
@@ -225,6 +264,7 @@ def test_watchdog_start_stop(tmp_path):
 
 
 # ── Helper functions ──
+
 
 def test_create_consolidation_saga():
     s = create_consolidation_saga("user1")
@@ -244,6 +284,7 @@ def test_consolidation_saga_execute():
         s = create_consolidation_saga("test_u")
         result = await s.execute()
         assert result is not None
+
     asyncio.run(t())
 
 
@@ -252,4 +293,5 @@ def test_backup_saga_execute():
         s = create_backup_saga()
         result = await s.execute()
         assert result is not None
+
     asyncio.run(t())

@@ -1,10 +1,13 @@
 """Tests for shared/middleware.py — actual API."""
 
 import asyncio
-import pytest
 from shared.middleware import (
-    MiddlewareContext, ImportanceGateMiddleware, DedupMiddleware,
-    ValidationMiddleware, AuditMiddleware, MiddlewarePipeline,
+    MiddlewareContext,
+    ImportanceGateMiddleware,
+    DedupMiddleware,
+    ValidationMiddleware,
+    AuditMiddleware,
+    MiddlewarePipeline,
 )
 
 
@@ -41,7 +44,9 @@ def test_importance_gate_blocks_low():
 def test_importance_gate_allows_high():
     gate = ImportanceGateMiddleware()
     ctx = MiddlewareContext(
-        args={"value": "This is a critical and important decision about our architecture that affects production systems and requires immediate attention"},
+        args={
+            "value": "This is a critical and important decision about our architecture that affects production systems and requires immediate attention"
+        },
         tool_name="memory_user_remember",
     )
 
@@ -105,6 +110,7 @@ def test_pipeline_runs():
 
     class CountMiddleware:
         name = "count"
+
         async def process(self, ctx, next_fn):
             ctx.metadata["count"] = True
             return await next_fn(ctx)

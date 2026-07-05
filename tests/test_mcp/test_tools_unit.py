@@ -1,17 +1,24 @@
 """Tests for mcp_server/tools_layer.py — tools with correct mock ctx."""
 
-import asyncio
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, AsyncMock
 from mcp_server.tools_layer import (
-    _validate_layer, _fire_hook, _get_cache_key,
-    memory_remember, memory_recall, memory_forget,
-    memory_session_start, memory_session_end,
-    memory_episode_save, memory_graph_add, memory_stats,
+    _validate_layer,
+    _fire_hook,
+    _get_cache_key,
+    memory_remember,
+    memory_recall,
+    memory_forget,
+    memory_session_start,
+    memory_session_end,
+    memory_episode_save,
+    memory_graph_add,
+    memory_stats,
 )
 
 
 # ── Helpers ──
+
 
 def test_validate_layer_valid():
     assert _validate_layer("user") == "user"
@@ -36,6 +43,7 @@ def test_fire_hook_no_handlers():
 
 # ── Mock ctx helper ──
 
+
 def _make_ctx(layer="user"):
     """Create mock MCP ctx with AppContext."""
     ctx = MagicMock()
@@ -55,6 +63,7 @@ def _make_ctx(layer="user"):
 
 
 # ── memory_remember ──
+
 
 @pytest.mark.asyncio
 async def test_remember_user():
@@ -90,6 +99,7 @@ async def test_remember_invalid_layer():
 
 # ── memory_recall ──
 
+
 @pytest.mark.asyncio
 async def test_recall():
     ctx, app = _make_ctx()
@@ -100,6 +110,7 @@ async def test_recall():
 
 # ── memory_forget ──
 
+
 @pytest.mark.asyncio
 async def test_forget():
     ctx, app = _make_ctx()
@@ -109,6 +120,7 @@ async def test_forget():
 
 
 # ── memory_session_start/end ──
+
 
 @pytest.mark.asyncio
 async def test_session_start():
@@ -130,6 +142,7 @@ async def test_session_end():
 
 # ── memory_episode_save ──
 
+
 @pytest.mark.asyncio
 async def test_episode_save():
     ctx, app = _make_ctx()
@@ -141,6 +154,7 @@ async def test_episode_save():
 
 # ── memory_graph_add ──
 
+
 @pytest.mark.asyncio
 async def test_graph_add():
     ctx, app = _make_ctx()
@@ -150,6 +164,7 @@ async def test_graph_add():
 
 
 # ── memory_stats ──
+
 
 @pytest.mark.asyncio
 async def test_stats():
