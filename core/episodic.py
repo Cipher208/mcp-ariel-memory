@@ -2,6 +2,7 @@
 L3 EpisodicMemory — async important moments with emotional weight
 """
 
+from shared.constants import DB_NAME
 import json
 import time
 from dataclasses import dataclass
@@ -26,7 +27,7 @@ class EpisodicMemory:
 
     async def _init_db(self):
         await self._cm.execute_script(
-            "memory.db",
+            DB_NAME,
             """
             CREATE TABLE IF NOT EXISTS episodes (
                 episode_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,7 +43,7 @@ class EpisodicMemory:
         )
 
     async def save(self, user_id: str, summary: str, emotional_weight: float = 0.5, tags: Optional[list[str]] = None) -> int:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cursor = await conn.execute(
             "INSERT INTO episodes (user_id, summary, emotional_weight, tags, created_at) VALUES (?, ?, ?, ?, ?)",
             (user_id, summary, emotional_weight, json.dumps(tags or []), time.time()),
@@ -51,7 +52,7 @@ class EpisodicMemory:
         return cursor.lastrowid
 
     async def get_episodes(self, user_id: str, limit: int = 20, offset: int = 0) -> list[Episode]:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cursor = await conn.execute(
             "SELECT * FROM episodes WHERE user_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?",
             (user_id, limit, offset),
@@ -60,7 +61,7 @@ class EpisodicMemory:
         return [self._row_to_episode(r) for r in rows]
 
     async def search_by_tag(self, user_id: str, tag: str, limit: int = 10) -> list[Episode]:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cursor = await conn.execute(
             "SELECT * FROM episodes WHERE user_id=? AND tags LIKE ? ORDER BY created_at DESC LIMIT ?",
             (user_id, f'%"{tag}"%', limit),
@@ -69,7 +70,7 @@ class EpisodicMemory:
         return [self._row_to_episode(r) for r in rows]
 
     async def search(self, user_id: str, query: str, limit: int = 10) -> list:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cursor = await conn.execute(
             "SELECT * FROM episodes WHERE user_id=? AND summary LIKE ? ORDER BY created_at DESC LIMIT ?",
             (user_id, f"%{query}%", limit),
@@ -79,7 +80,7 @@ class EpisodicMemory:
 
     async def archive_old(self, user_id: str, days: int = 90) -> int:
         """Archive old episodes into ArchivedMemories, then delete them."""
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cutoff = time.time() - (days * 86400)
         cursor = await conn.execute(
             "SELECT * FROM episodes WHERE user_id=? AND created_at < ? AND emotional_weight < 0.3",
@@ -112,7 +113,7 @@ class EpisodicMemory:
 
     async def count(self, user_id: str) -> int:
         """Count episodes for a user (fast COUNT query)."""
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cursor = await conn.execute(
             "SELECT COUNT(*) as cnt FROM episodes WHERE user_id=?",
             (user_id,),

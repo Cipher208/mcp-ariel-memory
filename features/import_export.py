@@ -2,6 +2,7 @@
 Import/Export — async import/export memory between instances
 """
 
+from shared.constants import DB_NAME
 import json
 import time
 from pathlib import Path
@@ -34,13 +35,13 @@ class ImportExport:
             "sessions": sessions,
         }
 
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cursor = await conn.execute("SELECT * FROM core_memory WHERE user_id=?", (user_id,))
         rows = await cursor.fetchall()
         for r in rows:
             core_memory.append({"key": r["key"], "value": r["value"], "importance": r["importance"], "created_at": r["created_at"]})
 
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cursor = await conn.execute("SELECT * FROM episodes WHERE user_id=?", (user_id,))
         rows = await cursor.fetchall()
         for r in rows:
@@ -64,7 +65,7 @@ class ImportExport:
         user_id = target_user_id or data.get("user_id", "default")
         imported = {"core_memory": 0, "episodes": 0}
 
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         for item in data.get("core_memory", []):
             await conn.execute(
                 "INSERT OR REPLACE INTO core_memory (user_id, key, value, importance, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -73,7 +74,7 @@ class ImportExport:
             imported["core_memory"] += 1
         await conn.commit()
 
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         for item in data.get("episodes", []):
             await conn.execute(
                 "INSERT INTO episodes (user_id, summary, emotional_weight, tags, created_at) VALUES (?, ?, ?, ?, ?)",

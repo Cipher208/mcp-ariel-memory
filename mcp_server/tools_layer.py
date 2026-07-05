@@ -5,6 +5,7 @@ Rate limiting is applied to all write operations.
 Caching is applied to context_inject and recall.
 """
 
+from shared.constants import DB_NAME
 import hashlib
 import logging
 import time
@@ -546,7 +547,7 @@ async def memory_episode_get(
     metrics.inc("tool_calls")
     metrics.inc("tool_episode_get")
     mem = _get_memory(app, layer, user_id)
-    conn = await mem.l3._cm.get("memory.db")
+    conn = await mem.l3._cm.get(DB_NAME)
     cur = await conn.execute(
         "SELECT * FROM episodes WHERE episode_id=? AND user_id=?",
         (episode_id, user_id),
@@ -585,7 +586,7 @@ async def memory_graph_nodes(
     if node_type:
         nodes = await graph.query_by_type(user_id, node_type, limit)
     else:
-        conn = await graph._cm.get("memory.db")
+        conn = await graph._cm.get(DB_NAME)
         cur = await conn.execute(
             "SELECT * FROM epi_nodes WHERE layer=? AND user_id=? ORDER BY confidence DESC LIMIT ?",
             (graph.layer, user_id, limit),
@@ -614,7 +615,7 @@ async def memory_graph_edges(
     metrics.inc("tool_calls")
     metrics.inc("tool_graph_edges")
     graph = _get_graph(app, layer)
-    conn = await graph._cm.get("memory.db")
+    conn = await graph._cm.get(DB_NAME)
     if node_id:
         cur = await conn.execute(
             """SELECT e.source_id, e.target_id, e.relation, e.weight,

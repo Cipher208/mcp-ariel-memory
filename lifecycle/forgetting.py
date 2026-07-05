@@ -2,6 +2,7 @@
 Forgetting System — type-aware decay, archiving, compression
 """
 
+from shared.constants import DB_NAME
 import logging
 import time
 from pathlib import Path
@@ -33,7 +34,7 @@ class ForgettingSystem:
         """Type-aware decay: instruction/rule/commitment never decay (decay_rate=0)."""
         try:
             now = time.time()
-            conn = await self._cm.get("memory.db")
+            conn = await self._cm.get(DB_NAME)
             cursor = await conn.execute("SELECT entry_id, memory_kind, importance, updated_at FROM core_memory")
 
             updates: list[tuple[float, int]] = []
@@ -69,7 +70,7 @@ class ForgettingSystem:
         """Type-aware archive: instruction/rule/commitment never archived.
         Goal/todo/commitment archived by expires_at. Others by age + importance."""
         try:
-            conn = await self._cm.get("memory.db")
+            conn = await self._cm.get(DB_NAME)
             now = time.time()
 
             # 1) Expired goals/todos/commitments
@@ -127,7 +128,7 @@ class ForgettingSystem:
 
     async def compress_duplicates(self) -> int:
         try:
-            conn = await self._cm.get("memory.db")
+            conn = await self._cm.get(DB_NAME)
             cursor = await conn.execute("SELECT user_id, key, COUNT(*) as cnt FROM core_memory GROUP BY user_id, key HAVING cnt > 1")
             duplicates = await cursor.fetchall()
             removed = 0

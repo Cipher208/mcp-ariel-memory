@@ -4,6 +4,7 @@ Architecture: .md files on disk = primary, SQLite FTS5 = search index.
 Layers: user, agent, shared.
 """
 
+from shared.constants import DB_NAME
 import json
 import time
 from dataclasses import dataclass
@@ -61,7 +62,7 @@ class WikiManager:
 
     async def init_db(self):
         await self._cm.execute_script(
-            "memory.db",
+            DB_NAME,
             """
             CREATE TABLE IF NOT EXISTS wiki_index (
                 entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,7 +83,7 @@ class WikiManager:
             CREATE INDEX IF NOT EXISTS idx_wiki_updated ON wiki_index(updated_at);
         """,
         )
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         await conn.execute("""
             CREATE VIRTUAL TABLE IF NOT EXISTS wiki_fts USING fts5(
                 title, content, wiki_type, tags,
@@ -149,7 +150,7 @@ class WikiManager:
         if not p.exists():
             return None
         parsed = self._parse_md(p.read_text(encoding="utf-8"))
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cur = await conn.execute("SELECT * FROM wiki_index WHERE file_path=?", (str(p),))
         row = await cur.fetchone()
         if row:
@@ -169,7 +170,7 @@ class WikiManager:
     async def search(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
         """FTS5 search across all indexed files."""
         try:
-            conn = await self._cm.get("memory.db")
+            conn = await self._cm.get(DB_NAME)
             cur = await conn.execute(
                 """SELECT wi.entry_id, wi.wiki_type, wi.file_path, wi.tags, wi.importance, fts.rank
                    FROM wiki_fts fts JOIN wiki_index wi ON fts.rowid = wi.entry_id
@@ -200,7 +201,7 @@ class WikiManager:
             return []
 
     async def list_by_type(self, wiki_type: str, limit: int = 20) -> list[WikiEntry]:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cur = await conn.execute(
             "SELECT * FROM wiki_index WHERE layer=? AND wiki_type=? ORDER BY updated_at DESC LIMIT ?",
             (self.layer, wiki_type, limit),
@@ -227,7 +228,7 @@ class WikiManager:
         return entries
 
     async def list_all(self, limit: int = 50) -> list[WikiEntry]:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cur = await conn.execute("SELECT * FROM wiki_index WHERE layer=? ORDER BY updated_at DESC LIMIT ?", (self.layer, limit))
         rows = await cur.fetchall()
         entries = []
@@ -254,13 +255,13 @@ class WikiManager:
         p = safe_resolve(self.base_dir, file_path)
         if p.exists():
             p.unlink()
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cur = await conn.execute("DELETE FROM wiki_index WHERE file_path=?", (str(p),))
         await conn.commit()
         return cur.rowcount > 0
 
     async def count(self, wiki_type: Optional[str] = None) -> int:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         if wiki_type:
             cur = await conn.execute("SELECT COUNT(*) FROM wiki_index WHERE layer=? AND wiki_type=?", (self.layer, wiki_type))
         else:
@@ -324,7 +325,7 @@ class WikiManager:
         content_hash = hashlib.md5(content.encode()).hexdigest()
         now = time.time()
 
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cur = await conn.execute("SELECT entry_id, content_hash FROM wiki_index WHERE file_path=?", (str(file_path),))
         existing = await cur.fetchone()
 

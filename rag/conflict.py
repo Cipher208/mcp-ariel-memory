@@ -3,6 +3,7 @@ Conflict Resolver — async, detects conflicting memory entries.
 Uses BM25 + char-trigram Jaccard hybrid for similarity (B3).
 """
 
+from shared.constants import DB_NAME
 import math
 import uuid
 from typing import Any
@@ -71,7 +72,7 @@ class ConflictResolver:
 
     async def _init_db(self):
         await self._cm.execute_script(
-            "memory.db",
+            DB_NAME,
             """
             CREATE TABLE IF NOT EXISTS memory_conflicts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -86,7 +87,7 @@ class ConflictResolver:
 
     async def check(self, user_id: str, new_content: str, min_similarity: float = 0.3) -> dict[str, Any]:
         await self._init_db()
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         keywords = [w for w in new_content.split() if len(w) > 3][:5]
         if not keywords:
             return {"content": new_content, "is_conflict": False}
@@ -121,7 +122,7 @@ class ConflictResolver:
 
     async def get_conflicts(self, conflict_group_id: str) -> list[dict[str, Any]]:
         await self._init_db()
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cur = await conn.execute(
             "SELECT id, content, created_at FROM memory_conflicts WHERE conflict_group_id=? ORDER BY created_at DESC",
             (conflict_group_id,),
@@ -132,7 +133,7 @@ class ConflictResolver:
     async def resolve(self, conflict_group_id: str, keep_id: int) -> bool:
         """B3: Archive deleted conflicts before removal, add audit trail."""
         await self._init_db()
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
 
         # Get entries to delete
         cur = await conn.execute(

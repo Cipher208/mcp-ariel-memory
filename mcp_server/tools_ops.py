@@ -3,6 +3,7 @@
 Merged into action-based tools to reduce tool count.
 """
 
+from shared.constants import DB_NAME
 import asyncio
 import time
 from pathlib import Path
@@ -216,7 +217,7 @@ async def memory_lucidity_purge(
     cutoff = time.time() - (hours * 3600)
 
     async def _delete_core():
-        conn = await app.mm.user_memory(user_id).l4._cm.get("memory.db")
+        conn = await app.mm.user_memory(user_id).l4._cm.get(DB_NAME)
         try:
             cursor = await conn.execute("DELETE FROM core_memory WHERE user_id=? AND created_at > ?", (user_id, cutoff))
             result = cursor.rowcount
@@ -226,7 +227,7 @@ async def memory_lucidity_purge(
             conn.close()
 
     async def _delete_episodes():
-        conn = await app.mm.user_memory(user_id).l3._cm.get("memory.db")
+        conn = await app.mm.user_memory(user_id).l3._cm.get(DB_NAME)
         try:
             cursor = await conn.execute("DELETE FROM episodes WHERE user_id=? AND created_at > ?", (user_id, cutoff))
             result = cursor.rowcount
@@ -245,7 +246,7 @@ async def memory_lucidity_purge(
         from features.audit_trail import AuditTrail
 
         at = AuditTrail()
-        conn = await at._cm.get("memory.db")
+        conn = await at._cm.get(DB_NAME)
         try:
             cursor = await conn.execute("DELETE FROM audit_log WHERE user_id=? AND timestamp > ?", (user_id, cutoff))
             result = cursor.rowcount
@@ -258,7 +259,7 @@ async def memory_lucidity_purge(
         from graph.epistemic import EpistemicGraph
 
         eg = EpistemicGraph(layer="user")
-        conn = await eg._cm.get("memory.db")
+        conn = await eg._cm.get(DB_NAME)
         try:
             cursor = await conn.execute("DELETE FROM epi_nodes WHERE user_id=? AND created_at > ?", (user_id, cutoff))
             result = cursor.rowcount
