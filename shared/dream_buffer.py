@@ -2,6 +2,7 @@
 DreamBuffer — async staging memories with TTL
 """
 
+from shared.constants import DB_NAME
 import json
 import time
 from typing import Any, Optional
@@ -15,7 +16,7 @@ class DreamBuffer:
 
     async def _init_db(self):
         await self._cm.execute_script(
-            "memory.db",
+            DB_NAME,
             """
             CREATE TABLE IF NOT EXISTS staging_memories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,7 +38,7 @@ class DreamBuffer:
         event_id: Optional[str] = None,
         metadata: Optional[dict] = None,
     ) -> int:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cursor = await conn.execute(
             "INSERT INTO staging_memories (user_id, session_id, event_id, content, importance, metadata) VALUES (?, ?, ?, ?, ?, ?)",
             (user_id, session_id, event_id, content, importance, json.dumps(metadata or {})),
@@ -46,7 +47,7 @@ class DreamBuffer:
         return cursor.lastrowid
 
     async def get_staging(self, user_id: str = "default", session_id: Optional[str] = None) -> list[dict[str, Any]]:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         if session_id:
             cursor = await conn.execute(
                 "SELECT * FROM staging_memories WHERE user_id=? AND session_id=? ORDER BY created_at",
@@ -69,7 +70,7 @@ class DreamBuffer:
         ]
 
     async def clear_staging(self, user_id: str = "default", session_id: Optional[str] = None) -> int:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         if session_id:
             cursor = await conn.execute("DELETE FROM staging_memories WHERE user_id=? AND session_id=?", (user_id, session_id))
         else:
@@ -79,7 +80,7 @@ class DreamBuffer:
 
     async def cleanup_old(self, max_age_hours: int = 24, max_count: int = 500) -> dict[str, int]:
         now = time.time()
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         result = {"by_age": 0, "by_count": 0}
         cutoff = now - (max_age_hours * 3600)
         cursor = await conn.execute(
@@ -105,11 +106,11 @@ class DreamBuffer:
         return result
 
     async def count(self, user_id: str = "default") -> int:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         row = await (await conn.execute("SELECT COUNT(*) FROM staging_memories WHERE user_id=?", (user_id,))).fetchone()
         return row[0] if row else 0
 
     async def count_all(self) -> int:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         row = await (await conn.execute("SELECT COUNT(*) FROM staging_memories")).fetchone()
         return row[0] if row else 0

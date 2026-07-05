@@ -2,6 +2,7 @@
 Rate Limiter — async SQLite-based per-user rate limiting + WebSocket connection limiting
 """
 
+from shared.constants import DB_NAME
 import threading
 import time
 from typing import Any, Optional
@@ -18,7 +19,7 @@ class RateLimiter:
 
     async def _init_db(self):
         await self._cm.execute_script(
-            "memory.db",
+            DB_NAME,
             """
             CREATE TABLE IF NOT EXISTS rate_limits (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,7 +33,7 @@ class RateLimiter:
     async def check(self, user_id: str) -> dict[str, Any]:
         now = time.time()
         cutoff = now - self._window_seconds
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         await conn.execute("DELETE FROM rate_limits WHERE timestamp < ?", (cutoff,))
         await conn.execute("INSERT INTO rate_limits (user_id, timestamp) VALUES (?, ?)", (user_id, now))
         cursor = await conn.execute(
@@ -56,7 +57,7 @@ class RateLimiter:
 
     async def get_stats(self, user_id: str) -> dict[str, Any]:
         cutoff = time.time() - self._window_seconds
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cursor = await conn.execute(
             "SELECT COUNT(*) as cnt FROM rate_limits WHERE user_id=? AND timestamp >= ?",
             (user_id, cutoff),
@@ -66,7 +67,7 @@ class RateLimiter:
 
     async def cleanup_old(self) -> int:
         cutoff = time.time() - (self._window_seconds * 10)
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cursor = await conn.execute("DELETE FROM rate_limits WHERE timestamp < ?", (cutoff,))
         await conn.commit()
         return cursor.rowcount

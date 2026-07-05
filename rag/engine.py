@@ -3,6 +3,7 @@ RAG Engine — FTS5 + binary embeddings hybrid search.
 All DB operations via AsyncConnectionManager (aiosqlite).
 """
 
+from shared.constants import DB_NAME
 import hashlib
 import logging
 from pathlib import Path
@@ -81,7 +82,7 @@ class RAGEngine:
         return embed_to_binary(emb, threshold=0.0, dim=len(emb))
 
     async def init_db(self):
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         try:
             compile_options = [r[0] for r in await (await conn.execute("PRAGMA compile_options")).fetchall()]
             self._fts_available = "ENABLE_FTS5" in compile_options
@@ -98,7 +99,7 @@ class RAGEngine:
             )
 
         await self._cm.execute_script(
-            "memory.db",
+            DB_NAME,
             """
             CREATE TABLE IF NOT EXISTS rag_pages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -178,7 +179,7 @@ class RAGEngine:
     async def ingest_file(self, filepath: Path, user_id: str = "default", wiki_type: Optional[str] = None) -> str:
         content = filepath.read_text(encoding="utf-8")
         file_hash = hashlib.sha256(content.encode()).hexdigest()
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
 
         page_id = await self._insert_page(conn, filepath.stem, content, user_id, file_hash, wiki_type, str(filepath))
         if page_id is None:
@@ -198,7 +199,7 @@ class RAGEngine:
         relation_type: str = "elaborates",
     ) -> int:
         text_hash = hashlib.sha256(text.encode()).hexdigest()
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
 
         page_id = await self._insert_page(conn, title, text, user_id, text_hash, wiki_type, path)
         if page_id is None:
@@ -254,7 +255,7 @@ class RAGEngine:
         return results
 
     async def _search_fts5(self, query: str, user_id: str = "default", limit: int = 10) -> list[dict[str, Any]]:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         if self._fts_available:
             try:
                 cur = await conn.execute(
@@ -331,7 +332,7 @@ class RAGEngine:
         if q_bin is None:
             return []
 
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cursor = await conn.execute(
             """
             SELECT c.id, c.page_id, c.content, c.bin_embedding,
@@ -394,7 +395,7 @@ class RAGEngine:
         if not sorted_ids:
             return []
 
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         placeholders = ",".join(["?"] * len(sorted_ids))
         cur = await conn.execute(
             f"SELECT id, title, content, wiki_type FROM rag_pages WHERE id IN ({placeholders})",
@@ -464,7 +465,7 @@ class RAGEngine:
         }
 
     async def get_relations(self, page_id: int, depth: int = 1) -> list[dict[str, Any]]:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         sql = """
         WITH RECURSIVE graph AS (
             SELECT r.source_id, r.target_id, r.relation_type, r.weight, 1 as d
@@ -481,7 +482,7 @@ class RAGEngine:
         return [{"id": r[0], "title": r[1], "relation": r[2], "weight": r[3]} for r in rows]
 
     async def add_relation(self, source_id: int, target_id: int, relation_type: str = "elaborates", weight: float = 0.8):
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         await conn.execute(
             "INSERT OR REPLACE INTO rag_relations (source_id, target_id, relation_type, weight) VALUES (?, ?, ?, ?)",
             (source_id, target_id, relation_type, weight),
@@ -489,7 +490,7 @@ class RAGEngine:
         await conn.commit()
 
     async def count_pages(self, user_id: Optional[str] = None) -> int:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         if user_id:
             row = await (await conn.execute("SELECT COUNT(*) FROM rag_pages WHERE user_id=?", (user_id,))).fetchone()
         else:
@@ -497,7 +498,7 @@ class RAGEngine:
         return row[0] if row else 0
 
     async def count_chunks(self) -> int:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         row = await (await conn.execute("SELECT COUNT(*) FROM rag_chunks")).fetchone()
         return row[0] if row else 0
 

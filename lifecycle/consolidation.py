@@ -3,6 +3,7 @@ Consolidation Engine — L1→L2→L3→L4 memory promotion (async)
 Type-aware promotion with memory_kind support.
 """
 
+from shared.constants import DB_NAME
 from typing import Any, Optional
 
 from shared.connection import AsyncConnectionManager, connection_manager
@@ -88,7 +89,7 @@ class ConsolidationEngine:
         return consolidated
 
     async def get_stats(self, user_id: str) -> dict[str, int]:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         total_cursor = await conn.execute("SELECT COUNT(*) FROM core_memory WHERE user_id=?", (user_id,))
         total = (await total_cursor.fetchone())[0]
         high_cursor = await conn.execute("SELECT COUNT(*) FROM core_memory WHERE user_id=? AND importance > 0.7", (user_id,))

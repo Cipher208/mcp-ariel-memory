@@ -2,6 +2,7 @@
 MemoryCompressor — async dedup and compression
 """
 
+from shared.constants import DB_NAME
 import time
 from typing import Optional
 
@@ -13,7 +14,7 @@ class MemoryCompressor:
         self._cm = cm or connection_manager
 
     async def deduplicate_core(self, user_id: str) -> int:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cursor = await conn.execute(
             "SELECT user_id, key, COUNT(*) as cnt FROM core_memory WHERE user_id=? GROUP BY user_id, key HAVING cnt > 1",
             (user_id,),
@@ -31,7 +32,7 @@ class MemoryCompressor:
         return removed
 
     async def compress_episodes(self, user_id: str, min_weight: float = 0.3) -> int:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cutoff = time.time() - 30 * 86400
         cursor = await conn.execute(
             "DELETE FROM episodes WHERE user_id=? AND emotional_weight < ? AND created_at < ?",

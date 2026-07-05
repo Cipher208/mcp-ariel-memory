@@ -2,6 +2,7 @@
 AuditTrail — async, SQLite-based audit logging with rotation
 """
 
+from shared.constants import DB_NAME
 import json
 import time
 from typing import Any, Optional
@@ -15,7 +16,7 @@ class AuditTrail:
 
     async def _init_db(self):
         await self._cm.execute_script(
-            "memory.db",
+            DB_NAME,
             """
             CREATE TABLE IF NOT EXISTS audit_log (
                 log_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,7 +33,7 @@ class AuditTrail:
         )
 
     async def log(self, user_id: str, action: str, layer: Optional[str] = None, target_id: Optional[str] = None, details: Optional[dict] = None):
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         await conn.execute(
             "INSERT INTO audit_log (user_id, action, layer, target_id, details, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
             (user_id, action, layer, target_id, json.dumps(details or {}), time.time()),
@@ -40,7 +41,7 @@ class AuditTrail:
         await conn.commit()
 
     async def get_history(self, user_id: str, limit: int = 50, action: Optional[str] = None) -> list[dict[str, Any]]:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         if action:
             cursor = await conn.execute(
                 "SELECT * FROM audit_log WHERE user_id=? AND action=? ORDER BY timestamp DESC LIMIT ?",
@@ -65,7 +66,7 @@ class AuditTrail:
         ]
 
     async def count(self, user_id: Optional[str] = None) -> int:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         if user_id:
             cursor = await conn.execute("SELECT COUNT(*) FROM audit_log WHERE user_id=?", (user_id,))
         else:
@@ -75,14 +76,14 @@ class AuditTrail:
 
     async def cleanup_old(self, retention_days: int = 30) -> int:
         cutoff = time.time() - (retention_days * 86400)
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cursor = await conn.execute("DELETE FROM audit_log WHERE timestamp < ?", (cutoff,))
         await conn.commit()
         return cursor.rowcount
 
     async def archive_and_prune(self, retention_days: int = 30, archive_dir: Optional[str] = None) -> dict[str, int]:
         cutoff = time.time() - (retention_days * 86400)
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cursor = await conn.execute(
             "SELECT * FROM audit_log WHERE timestamp < ? ORDER BY timestamp",
             (cutoff,),
@@ -116,7 +117,7 @@ class AuditTrail:
         return {"archived": len(rows), "pruned": cursor.rowcount}
 
     async def count_all(self) -> int:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cursor = await conn.execute("SELECT COUNT(*) FROM audit_log")
         row = await cursor.fetchone()
         return row[0] if row else 0

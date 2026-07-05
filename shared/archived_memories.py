@@ -2,6 +2,7 @@
 ArchivedMemories — async archived memory storage
 """
 
+from shared.constants import DB_NAME
 from typing import Any, Optional
 
 from shared.connection import AsyncConnectionManager, connection_manager
@@ -13,7 +14,7 @@ class ArchivedMemories:
 
     async def _init_db(self):
         await self._cm.execute_script(
-            "memory.db",
+            DB_NAME,
             """
             CREATE TABLE IF NOT EXISTS archived_memories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,7 +36,7 @@ class ArchivedMemories:
         original_id: Optional[int] = None,
         reason: str = "manual",
     ) -> int:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cursor = await conn.execute(
             "INSERT INTO archived_memories (user_id, original_id, content, memory_type, importance, archive_reason) VALUES (?, ?, ?, ?, ?, ?)",
             (user_id, original_id, content, memory_type, importance, reason),
@@ -44,7 +45,7 @@ class ArchivedMemories:
         return cursor.lastrowid
 
     async def get_archived(self, user_id: str = "default", limit: int = 50) -> list[dict[str, Any]]:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         cursor = await conn.execute(
             "SELECT * FROM archived_memories WHERE user_id=? ORDER BY archived_at DESC LIMIT ?",
             (user_id, limit),
@@ -62,12 +63,12 @@ class ArchivedMemories:
         ]
 
     async def count(self, user_id: str = "default") -> int:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         row = await (await conn.execute("SELECT COUNT(*) FROM archived_memories WHERE user_id=?", (user_id,))).fetchone()
         return row[0] if row else 0
 
     async def restore(self, archived_id: int) -> dict[str, Any] | None:
-        conn = await self._cm.get("memory.db")
+        conn = await self._cm.get(DB_NAME)
         row = await (await conn.execute("SELECT * FROM archived_memories WHERE id=?", (archived_id,))).fetchone()
         if row:
             await conn.execute("DELETE FROM archived_memories WHERE id=?", (archived_id,))
