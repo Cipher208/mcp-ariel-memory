@@ -42,7 +42,8 @@
 
 ## 5. Testing & CI
 
-- [ ] **Coverage** — add `--cov` in CI, reach 80% coverage
+- [x] **Coverage** — add `--cov` in CI, reach 80% coverage (current: 73%)
+- [ ] **Coverage 80%** — raise coverage from 73% to 80%: test server.py, tools_ops.py, backup_cron.py, saga.py, wiki/manager.py
 - [x] **Property-based testing** — 25 Hypothesis tests (similarity, scoring, quantize, secrets, ring buffer)
 - [x] **CI pipeline** — lint (ruff), typecheck (mypy), quality (skylos), security (gitleaks + pip-audit), test matrix (3.10-3.13)
 - [x] **Concurrency control** — cancel-in-progress on CI workflows
