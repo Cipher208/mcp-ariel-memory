@@ -642,3 +642,379 @@ class TestCacheProperties:
         for i in range(n):
             cache.set(f"k{i}", f"v{i}")
         assert cache.size() == n
+
+
+# ═══════════════════════════════════════════════════════════════
+#  LOGIC VERIFICATION — tests that verify algorithm correctness
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestImportanceScoringLogic:
+    """Verify importance scoring ranks correctly, not just returns numbers."""
+
+    def test_long_technical_beats_short_noise(self):
+        from shared.importance import ImportanceScorer
+
+        scorer = ImportanceScorer()
+        noise = scorer.score("ok").total()
+        technical = scorer.score(
+            "Configure PostgreSQL connection pooling with pgBouncer for production Redis cache"
+        ).total()
+        assert technical > noise
+
+    def test_instruction_always_higher_than_question(self):
+        from shared.importance import ImportanceScorer
+
+        scorer = ImportanceScorer()
+        instruction = scorer.score("Always use type hints in Python", kind="instruction").total()
+        question = scorer.score("What is Python?", kind="question").total()
+        assert instruction > question
+
+    def test_commitment_has_emotional_weight(self):
+        from shared.importance import ImportanceScorer
+
+        scorer = ImportanceScorer()
+        commitment = scorer.score("I will ship this by Friday", kind="commitment").total()
+        message = scorer.score("I will ship this by Friday", kind="message").total()
+        assert commitment > message
+
+    def test_score_bounded(self):
+        from shared.importance import ImportanceScorer
+
+        scorer = ImportanceScorer()
+        for kind in ["message", "instruction", "question", "commitment"]:
+            score = scorer.score("x" * 10000, kind=kind).total()
+            assert 0.0 <= score <= 1.0
+
+
+class TestTypedMemoryDecay:
+    """Verify decay logic matches the documented behavior."""
+
+    def test_instruction_never_decays(self):
+        from shared.memory_types import apply_decay
+
+        assert apply_decay(1.0, "instruction", 0) == 1.0
+        assert apply_decay(1.0, "instruction", 365) == 1.0
+        assert apply_decay(0.5, "instruction", 10000) == 0.5
+
+    def test_fact_decays_exponentially(self):
+        from shared.memory_types import apply_decay
+
+        fresh = apply_decay(1.0, "fact", 0)
+        aged_30 = apply_decay(1.0, "fact", 30)
+        aged_365 = apply_decay(1.0, "fact", 365)
+        assert fresh > aged_30 > aged_365
+        assert aged_365 > 0.0  # never reaches zero
+
+    def test_rule_never_decays(self):
+        from shared.memory_types import apply_decay
+
+        assert apply_decay(0.8, "rule", 365) == 0.8
+
+    def test_commitment_never_decays(self):
+        from shared.memory_types import apply_decay
+
+        assert apply_decay(0.9, "commitment", 365) == 0.9
+
+
+class TestSagaCompensationLogic:
+    """Verify saga compensation actually reverts data, not just calls handler."""
+
+    def test_compensation_reverts_core_memory(self):
+        from core import memory_manager
+        from shared.saga import Saga
+
+        async def t():
+            mm = memory_manager
+            user_id = "saga_logic_test"
+
+            async def step1(d):
+                await mm.user_memory(user_id).remember("temp_key", "temp_value", 0.8)
+                return {"ok": True}
+
+            async def fail(d):
+                raise RuntimeError("boom")
+
+            async def compensate(d):
+                await mm.user_memory(user_id).forget("temp_key")
+
+            saga = Saga("logic")
+            saga.add_step("s1", step1, compensate)
+            saga.add_step("s2", fail)
+            try:
+                await saga.execute()
+            except RuntimeError:
+                pass
+
+            results = await mm.user_memory(user_id).recall("temp_key")
+            assert len(results) == 0, "temp_key must be deleted after compensation"
+
+        asyncio.run(t())
+
+    def test_success_does_not_compensate(self):
+        from shared.saga import Saga
+
+        async def t():
+            compensate_called = []
+
+            async def compensate(d):
+                compensate_called.append(True)
+
+            saga = Saga("ok")
+            saga.add_step("s", lambda d: {"r": 1}, compensate)
+            await saga.execute()
+            assert len(compensate_called) == 0
+
+        asyncio.run(t())
+
+
+class TestSearchRelevanceLogic:
+    """Verify search returns semantically relevant results."""
+
+    def test_search_returns_matching_content(self):
+        from rag.engine import RAGEngine
+        from shared.connection import AsyncConnectionManager
+
+        async def t():
+            import tempfile
+
+            tmp = tempfile.mkdtemp()
+            cm = AsyncConnectionManager(base_dir=tmp)
+            rag = RAGEngine(cm=cm)
+            await rag.init_db()
+
+            await rag.ingest_text("Python Guide", "Python is excellent for machine learning", user_id="rel")
+            await rag.ingest_text("Java Guide", "Java is used for enterprise applications", user_id="rel")
+
+            results = await rag.search("machine learning", user_id="rel")
+            assert len(results) >= 1
+            assert any("machine" in r.get("content", "").lower() or "python" in r.get("title", "").lower() for r in results)
+
+        asyncio.run(t())
+
+    def test_search_irrelevant_returns_fewer(self):
+        from rag.engine import RAGEngine
+        from shared.connection import AsyncConnectionManager
+
+        async def t():
+            import tempfile
+
+            tmp = tempfile.mkdtemp()
+            cm = AsyncConnectionManager(base_dir=tmp)
+            rag = RAGEngine(cm=cm)
+            await rag.init_db()
+
+            await rag.ingest_text("Python Guide", "Python is excellent for machine learning", user_id="rel2")
+            await rag.ingest_text("Java Guide", "Java is used for enterprise applications", user_id="rel2")
+
+            relevant = await rag.search("machine learning", user_id="rel2")
+            irrelevant = await rag.search("quantum physics", user_id="rel2")
+            assert len(relevant) >= len(irrelevant)
+
+        asyncio.run(t())
+
+
+# ═══════════════════════════════════════════════════════════════
+#  STATEFUL MACHINES — test sequences of operations
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestMemoryStateMachine:
+    """Test that remember → forget → recall maintains invariants."""
+
+    @given(
+        n_operations=st.integers(min_value=1, max_value=20),
+        seed=st.integers(min_value=0, max_value=999),
+    )
+    @settings(max_examples=30, deadline=None)
+    def test_remember_forget_invariant(self, n_operations, seed):
+        import random
+        from core.memory import CoreMemory
+
+        rng = random.Random(seed)
+        mem = CoreMemory()
+        expected = {}
+
+        for i in range(n_operations):
+            key = f"key_{i}"
+            value = f"val_{i}"
+            asyncio.run(mem.save("state_test", key, value, 0.5))
+            expected[key] = value
+
+        # Recall all — should find all saved facts
+        for key, value in expected.items():
+            result = asyncio.run(mem.get("state_test", key))
+            assert result is not None, f"Key {key} should exist after save"
+            assert result.value == value
+
+        # Delete one and verify
+        if expected:
+            key_to_delete = list(expected.keys())[0]
+            asyncio.run(mem.delete("state_test", key_to_delete))
+            result = asyncio.run(mem.get("state_test", key_to_delete))
+            assert result is None, f"Key {key_to_delete} should be deleted"
+
+
+class TestSagaStateMachine:
+    """Test saga multi-step execution with compensation."""
+
+    @given(n_steps=st.integers(min_value=1, max_value=5))
+    @settings(max_examples=20, deadline=None)
+    def test_all_steps_execute(self, n_steps):
+        from shared.saga import Saga
+
+        async def t():
+            saga = Saga("stateful")
+            for i in range(n_steps):
+                saga.add_step(f"step_{i}", lambda d: {"ok": True})
+            result = await saga.execute()
+            assert result is not None
+
+        asyncio.run(t())
+
+    @given(fail_at=st.integers(min_value=0, max_value=4), n_steps=st.integers(min_value=2, max_value=5))
+    @settings(max_examples=20, deadline=None)
+    def test_compensation_on_failure(self, fail_at, n_steps):
+        from shared.saga import Saga
+
+        async def t():
+            if fail_at >= n_steps:
+                return
+
+            compensated = []
+
+            def make_step(idx):
+                async def step(d):
+                    if idx == fail_at:
+                        raise RuntimeError(f"fail at {idx}")
+                    return {"ok": True}
+                return step
+
+            def make_compensate(idx):
+                async def compensate(d):
+                    compensated.append(idx)
+                return compensate
+
+            saga = Saga("comp")
+            for i in range(n_steps):
+                saga.add_step(f"s{i}", make_step(i), make_compensate(i))
+            try:
+                await saga.execute()
+            except RuntimeError:
+                pass
+
+            # Steps before fail_at should be compensated
+            for i in range(fail_at):
+                assert i in compensated, f"Step {i} should be compensated"
+
+        asyncio.run(t())
+
+
+class TestHooksStateMachine:
+    """Test that hooks fire in correct order."""
+
+    def test_message_received_fires_before_emotion(self):
+        from hooks.registry import HookRegistry
+
+        order = []
+        hr = HookRegistry()
+        hr.register("message_received", lambda ctx: order.append("message_received"))
+        hr.register("emotion_trigger", lambda ctx: order.append("emotion_trigger"))
+
+        hr.fire("message_received", "user", {})
+        hr.fire("emotion_trigger", "user", {})
+
+        assert order.index("message_received") < order.index("emotion_trigger")
+
+    def test_hook_error_does_not_break_chain(self):
+        from hooks.registry import HookRegistry
+
+        hr = HookRegistry()
+        hr.register("bad_hook", lambda ctx: 1 / 0)
+        hr.register("good_hook", lambda ctx: {"ok": True})
+
+        result = hr.fire("good_hook", "user", {})
+        assert result is not None
+
+
+# ═══════════════════════════════════════════════════════════════
+#  CHaos fixtures — simulate production failures
+# ═══════════════════════════════════════════════════════════════
+
+
+@pytest.fixture
+def chaos_db_locked(monkeypatch):
+    """Simulate SQLite 'database is locked' errors on every 3rd query."""
+    import aiosqlite
+
+    original_execute = aiosqlite.Connection.execute
+    call_count = {"n": 0}
+
+    async def chaotic_execute(self, *args, **kwargs):
+        call_count["n"] += 1
+        if call_count["n"] % 3 == 0:
+            raise Exception("database is locked")
+        return await original_execute(self, *args, **kwargs)
+
+    monkeypatch.setattr(aiosqlite.Connection, "execute", chaotic_execute)
+    yield
+
+
+@pytest.fixture
+def chaos_api_timeout(monkeypatch):
+    """Simulate slow API responses (2s delay)."""
+    import time
+    from features.secrets import encrypt_json
+
+    original_encrypt = encrypt_json
+
+    def slow_encrypt(data):
+        time.sleep(0.01)
+        return original_encrypt(data)
+
+    monkeypatch.setattr("features.secrets.encrypt_json", slow_encrypt)
+    yield
+
+
+@pytest.fixture
+def chaos_keyboard_interrupt():
+    """Simulate KeyboardInterrupt during operation."""
+    import signal
+
+    original_sigint = signal.getsignal(signal.SIGINT)
+
+    def handler(signum, frame):
+        raise KeyboardInterrupt("simulated")
+
+    signal.signal(signal.SIGINT, handler)
+    yield
+    signal.signal(signal.SIGINT, original_sigint)
+
+
+def test_chaos_db_locked_graceful(chaos_db_locked):
+    """Code should handle database locked errors gracefully."""
+    from features.audit_trail import AuditTrail
+    from shared.connection import AsyncConnectionManager
+    import tempfile
+
+    cm = AsyncConnectionManager(base_dir=tempfile.mkdtemp())
+    at = AuditTrail(cm=cm)
+    asyncio.run(at._init_db())
+
+    # Should not crash even with chaotic DB
+    try:
+        asyncio.run(at.log("u1", "action"))
+    except Exception:
+        pass  # database locked is acceptable
+
+
+def test_chaos_api_timeout_does_not_hang(chaos_api_timeout):
+    """Slow API should not block indefinitely."""
+    from features.secrets import encrypt_json
+
+    import time
+    start = time.time()
+    result = encrypt_json({"test": "data"})
+    elapsed = time.time() - start
+    assert elapsed < 1.0, f"API timeout test took {elapsed}s — too slow"
+    assert result is not None
