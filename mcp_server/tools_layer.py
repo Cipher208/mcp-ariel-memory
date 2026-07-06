@@ -158,6 +158,7 @@ async def memory_remember(
     hooks = _get_hooks(app, layer)
     gate = await _fire_hook("importance_gate", layer, {"text": value, "key": key, "importance": importance})
     if gate.get("results") and any(r.get("bypass") for r in gate["results"] if isinstance(r, dict)):
+        logger.info("Importance gate bypassed: key=%s, importance=%.2f, user=%s", key, importance, user_id)
         return RememberResult(status="skipped", reason="below_importance_threshold").dict()
 
     mem = _get_memory(app, layer, user_id)
@@ -192,6 +193,15 @@ async def memory_remember(
 
     entry_id = await mem.remember(key, value, importance)
 
+    # Build graph node for user layer (same as agent layer)
+    node_id = await _get_graph(app, layer).add_node(
+        user_id,
+        value,
+        "fact",
+        [],
+        importance,
+    )
+
     # Fire emotion trigger hook (now handles L3 save internally)
     await _fire_hook("emotion_trigger", layer, {"text": value, "user_id": user_id, "key": key}, mem=mem)
 
@@ -200,7 +210,7 @@ async def memory_remember(
     # Fire post-save hooks
     await _fire_hook("message_received", layer, {"text": value, "key": key, "user_id": user_id}, mem=mem)
 
-    return RememberResult(status="ok", entry_id=entry_id).dict()
+    return RememberResult(status="ok", entry_id=entry_id, graph_node_id=node_id).dict()
 
 
 async def memory_recall(
@@ -762,6 +772,9 @@ async def memory_context_inject(
     mem = _get_memory(app, layer, user_id)
     wiki = _get_wiki(app, layer)
 
+    # Trigger wiki_agent hook when wiki is accessed
+    await _fire_hook("wiki_agent", layer, {"user_id": user_id, "query": "context_inject"})
+
     l4_facts = await mem.l4.get_all(user_id, 10)
     facts_text = "; ".join(["%s=%s" % (f.key, f.value[:30]) for f in l4_facts])
 
@@ -797,6 +810,10 @@ async def memory_context_inject(
         "wiki_count": len(wiki_entries),
     }
     _set_cached(cache_key, result)
+
+    # Trigger dream_buffer hook for context staging
+    await _fire_hook("dream_buffer", layer, {"text": "\n".join(context_parts), "user_id": user_id})
+
     return result
 
 

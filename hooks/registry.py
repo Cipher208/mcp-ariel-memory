@@ -18,10 +18,16 @@ logger = logging.getLogger(__name__)
 
 
 def _discover_hook_names(cls) -> set[str]:
-    """Auto-discover hook names from a class by inspecting its methods."""
-    return {
-        name.lstrip("_") for name, _ in inspect.getmembers(cls, predicate=inspect.isfunction) if name.startswith("_") and not name.startswith("__")
-    }
+    """Auto-discover hook names from registered handlers."""
+    # Only return names that are actual hook handlers, not helper methods
+    known_hooks = set()
+    for name, _ in inspect.getmembers(cls, predicate=inspect.isfunction):
+        if name.startswith("_") and not name.startswith("__"):
+            hook_name = name.lstrip("_")
+            # Skip internal methods that aren't hooks
+            if hook_name not in ("register_all", "calculate_importance"):
+                known_hooks.add(hook_name)
+    return known_hooks
 
 
 def _is_async(func: Callable) -> bool:

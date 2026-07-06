@@ -78,6 +78,8 @@ class BackupCron:
                         time.sleep(jitter)
                     self._do_backup()
                     self._cleanup_old()
+                    # Trigger nightly maintenance hooks
+                    self._fire_nightly_hooks()
 
                 # Wiki sync
                 if now - self._last_wiki_sync >= self.wiki_sync_interval * 60:
@@ -87,6 +89,16 @@ class BackupCron:
             except Exception as e:
                 logger.error("Backup cron error: %s" % e)
                 time.sleep(300)
+
+    def _fire_nightly_hooks(self):
+        """Trigger nightly maintenance hooks for both layers."""
+        try:
+            from hooks.registry import hook_registry
+            import asyncio
+            for layer in ["user", "agent"]:
+                asyncio.run(hook_registry.fire("nightly", layer, {"trigger": "backup_cron"}))
+        except Exception as e:
+            logger.error("Nightly hook error: %s" % e)
 
     def _do_backup(self) -> str:
         import shutil

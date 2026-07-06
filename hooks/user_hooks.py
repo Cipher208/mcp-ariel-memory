@@ -42,14 +42,22 @@ class UserHooks:
         text = ctx.get("text", "")
         importance = self._calculate_importance(text)
         if mem:
-            mem.l1.add("user", text, importance)
-        return {"saved_to_l1": True, "importance": importance, "text": text[:100]}
+            try:
+                mem.l1.add("user", text, importance)
+                return {"saved_to_l1": True, "importance": importance, "text": text[:100]}
+            except Exception:
+                return {"saved_to_l1": False, "importance": importance, "error": "add_failed"}
+        return {"saved_to_l1": False, "importance": importance}
 
     def _message_sent(self, ctx: dict[str, Any], mem=None) -> dict[str, Any]:
         text = ctx.get("text", "")
         if mem:
-            mem.l1.add("assistant", text, 0.3)
-        return {"saved_to_l1": True, "role": "assistant", "text": text[:100]}
+            try:
+                mem.l1.add("assistant", text, 0.3)
+                return {"saved_to_l1": True, "role": "assistant", "text": text[:100]}
+            except Exception:
+                return {"saved_to_l1": False, "error": "add_failed"}
+        return {"saved_to_l1": False, "role": "assistant", "text": text[:100]}
 
     def _state_delta(self, ctx: dict[str, Any]) -> dict[str, Any]:
         delta = ctx.get("delta", {})
@@ -66,9 +74,12 @@ class UserHooks:
         user_id = ctx.get("user_id", "default")
         should, reason, weight = self.emotion_trigger.should_save(text)
         if should and mem:
-            summary = "%s=%s" % (ctx.get("key", "text"), text[:50])
-            asyncio.run(mem.l3.save(user_id, summary, weight, [reason]))
-            return {"saved_episode": True, "reason": reason, "weight": weight}
+            try:
+                summary = "%s=%s" % (ctx.get("key", "text"), text[:50])
+                asyncio.run(mem.l3.save(user_id, summary, weight, [reason]))
+                return {"saved_episode": True, "reason": reason, "weight": weight}
+            except Exception:
+                return {"saved_episode": False, "reason": reason, "error": "save_failed"}
         return {"saved_episode": False, "reason": reason}
 
     def _nightly(self, ctx: dict[str, Any]) -> dict[str, Any]:

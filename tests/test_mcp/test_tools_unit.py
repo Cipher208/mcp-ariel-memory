@@ -39,7 +39,9 @@ def _make_ctx(layer="user"):
     app.user_hooks = MagicMock()
     app.agent_hooks = MagicMock()
     app.user_graph = MagicMock()
+    app.user_graph.add_node = AsyncMock(return_value=1)
     app.agent_graph = MagicMock()
+    app.agent_graph.add_node = AsyncMock(return_value=1)
     ctx.request_context = MagicMock()
     ctx.request_context.lifespan_context = app
     return ctx, app
