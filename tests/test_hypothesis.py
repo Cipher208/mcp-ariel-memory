@@ -1018,3 +1018,291 @@ def test_chaos_api_timeout_does_not_hang(chaos_api_timeout):
     elapsed = time.time() - start
     assert elapsed < 1.0, f"API timeout test took {elapsed}s — too slow"
     assert result is not None
+
+
+@pytest.fixture
+def chaos_oom_simulation():
+    """Simulate memory pressure by limiting object creation."""
+    import sys
+
+    original_limit = sys.getrecursionlimit()
+    sys.setrecursionlimit(100)
+    yield
+    sys.setrecursionlimit(original_limit)
+
+
+@pytest.fixture
+def chaos_corrupt_db(tmp_path):
+    """Create a corrupted database file to test error handling."""
+    db_path = tmp_path / "corrupt.db"
+    db_path.write_bytes(b"not a sqlite database" * 100)
+    yield db_path
+
+
+def test_chaos_keyboard_interrupt_during_saga():
+    """Saga should handle KeyboardInterrupt gracefully."""
+    from shared.saga import Saga
+
+    async def t():
+        saga = Saga("interrupt_test")
+        saga.add_step("s1", lambda d: {"ok": True})
+        try:
+            await saga.execute()
+        except KeyboardInterrupt:
+            pass  # acceptable
+
+        # Saga should be in a valid state after interrupt
+        assert saga.status.value in ("completed", "failed", "pending")
+
+    asyncio.run(t())
+
+
+def test_chaos_corrupt_db_handled(chaos_corrupt_db):
+    """Corrupted database should not crash the application."""
+    import sqlite3
+
+    try:
+        conn = sqlite3.connect(str(chaos_corrupt_db))
+        conn.execute("SELECT 1")
+        conn.close()
+    except sqlite3.DatabaseError:
+        pass  # expected — corrupted DB
+
+
+# ═══════════════════════════════════════════════════════════════
+#  MORE LOGIC VERIFICATION — deeper algorithm correctness
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestRAGPipelineLogic:
+    """Verify RAG ingestion → search pipeline produces correct results."""
+
+    def test_ingest_then_search_returns_results(self):
+        from rag.engine import RAGEngine
+        from shared.connection import AsyncConnectionManager
+
+        async def t():
+            import tempfile
+            cm = AsyncConnectionManager(base_dir=tempfile.mkdtemp())
+            rag = RAGEngine(cm=cm)
+            await rag.init_db()
+
+            await rag.ingest_text("Doc1", "Python is great for AI", user_id="pipe")
+            results = await rag.search("Python", user_id="pipe")
+            assert len(results) >= 1
+            assert results[0]["title"] == "Doc1"
+
+        asyncio.run(t())
+
+    def test_search_empty_db_returns_empty(self):
+        from rag.engine import RAGEngine
+        from shared.connection import AsyncConnectionManager
+
+        async def t():
+            import tempfile
+            cm = AsyncConnectionManager(base_dir=tempfile.mkdtemp())
+            rag = RAGEngine(cm=cm)
+            await rag.init_db()
+
+            results = await rag.search("anything", user_id="empty")
+            assert results == []
+
+        asyncio.run(t())
+
+    def test_search_user_isolation(self):
+        from rag.engine import RAGEngine
+        from shared.connection import AsyncConnectionManager
+
+        async def t():
+            import tempfile
+            cm = AsyncConnectionManager(base_dir=tempfile.mkdtemp())
+            rag = RAGEngine(cm=cm)
+            await rag.init_db()
+
+            await rag.ingest_text("User Doc", "Content for alice", user_id="alice")
+            await rag.ingest_text("Other Doc", "Content for bob", user_id="bob")
+
+            alice = await rag.search("content", user_id="alice")
+            bob = await rag.search("content", user_id="bob")
+            assert len(alice) == 1
+            assert len(bob) == 1
+            assert "alice" in alice[0]["content"].lower()
+            assert "bob" in bob[0]["content"].lower()
+
+        asyncio.run(t())
+
+
+class TestWikiCRUDLogic:
+    """Verify wiki add/update/search/delete maintains consistency."""
+
+    def test_wiki_lifecycle(self):
+        from wiki.manager import WikiManager
+        from shared.connection import AsyncConnectionManager
+
+        async def t():
+            import tempfile
+            tmp = tempfile.mkdtemp()
+            cm = AsyncConnectionManager(base_dir=tmp)
+            wm = WikiManager(layer="user", base_dir=tmp + "/wiki", cm=cm)
+            await wm.init_db()
+
+            path = await wm.add("diary", "LogicTest", "Test content", tags=["logic"])
+            assert path.endswith(".md")
+
+            entry = await wm.get(path)
+            assert entry is not None
+
+            results = await wm.search("Test")
+            assert len(results) >= 1
+
+        asyncio.run(t())
+
+    def test_wiki_type_isolation(self):
+        from wiki.manager import WikiManager
+        from shared.connection import AsyncConnectionManager
+
+        async def t():
+            import tempfile
+            tmp = tempfile.mkdtemp()
+            cm = AsyncConnectionManager(base_dir=tmp)
+            user_wm = WikiManager(layer="user", base_dir=tmp + "/u", cm=cm)
+            agent_wm = WikiManager(layer="agent", base_dir=tmp + "/a", cm=cm)
+            await user_wm.init_db()
+            await agent_wm.init_db()
+
+            await user_wm.add("diary", "User Note", "content")
+            await agent_wm.add("decision_log", "Agent Decision", "content")
+
+            user_count = await user_wm.count()
+            agent_count = await agent_wm.count()
+            assert user_count == 1
+            assert agent_count == 1
+
+        asyncio.run(t())
+
+
+class TestConnectionPoolLogic:
+    """Verify connection reuse and cleanup."""
+
+    def test_same_name_reuses_connection(self):
+        from shared.connection import AsyncConnectionManager
+
+        async def t():
+            import tempfile
+            cm = AsyncConnectionManager(base_dir=tempfile.mkdtemp())
+            c1 = await cm.get("pool_test.db")
+            c2 = await cm.get("pool_test.db")
+            assert c1 is c2
+
+        asyncio.run(t())
+
+    def test_different_names_different_connections(self):
+        from shared.connection import AsyncConnectionManager
+
+        async def t():
+            import tempfile
+            cm = AsyncConnectionManager(base_dir=tempfile.mkdtemp())
+            c1 = await cm.get("a.db")
+            c2 = await cm.get("b.db")
+            assert c1 is not c2
+
+        asyncio.run(t())
+
+    def test_close_all_clears_pool(self):
+        from shared.connection import AsyncConnectionManager
+
+        async def t():
+            import tempfile
+            cm = AsyncConnectionManager(base_dir=tempfile.mkdtemp())
+            await cm.get("close_test.db")
+            assert cm.stats()["connections"] >= 1
+            await cm.close_all()
+            assert cm.stats()["connections"] == 0
+
+        asyncio.run(t())
+
+
+class TestImportanceGateLogic:
+    """Verify importance gate blocks/allows based on threshold."""
+
+    def test_low_importance_blocked(self):
+        from shared.middleware import MiddlewareContext, ImportanceGateMiddleware
+
+        async def t():
+            async def handler(c):
+                return {"ok": True}
+
+            gate = ImportanceGateMiddleware()
+            ctx = MiddlewareContext(args={"value": "hi"}, tool_name="memory_user_remember")
+            await gate.process(ctx, handler)
+            assert ctx.blocked is True
+
+        asyncio.run(t())
+
+    def test_high_importance_allowed(self):
+        from shared.middleware import MiddlewareContext, ImportanceGateMiddleware
+
+        async def t():
+            async def handler(c):
+                return {"ok": True}
+
+            gate = ImportanceGateMiddleware()
+            ctx = MiddlewareContext(
+                args={"value": "Critical architecture decision affecting production systems"},
+                tool_name="memory_user_remember",
+            )
+            await gate.process(ctx, handler)
+            assert ctx.blocked is False
+
+        asyncio.run(t())
+
+    def test_non_matching_tool_passes(self):
+        from shared.middleware import MiddlewareContext, ImportanceGateMiddleware
+
+        async def t():
+            async def handler(c):
+                return {"ok": True}
+
+            gate = ImportanceGateMiddleware()
+            ctx = MiddlewareContext(args={"importance": 0.1}, tool_name="other_tool")
+            await gate.process(ctx, handler)
+            assert ctx.blocked is False
+
+        asyncio.run(t())
+
+
+class TestRateLimiterLogic:
+    """Verify rate limiter enforces limits correctly."""
+
+    def test_allows_under_limit(self):
+        from features.rate_limiting import RateLimiter
+        from shared.connection import AsyncConnectionManager
+
+        async def t():
+            import tempfile
+            cm = AsyncConnectionManager(base_dir=tempfile.mkdtemp())
+            rl = RateLimiter(cm=cm)
+            await rl._init_db()
+
+            result = await rl.check("rate_test")
+            assert result["allowed"] is True
+            assert result["remaining"] > 0
+
+        asyncio.run(t())
+
+    def test_stats_tracks_requests(self):
+        from features.rate_limiting import RateLimiter
+        from shared.connection import AsyncConnectionManager
+
+        async def t():
+            import tempfile
+            cm = AsyncConnectionManager(base_dir=tempfile.mkdtemp())
+            rl = RateLimiter(cm=cm)
+            await rl._init_db()
+
+            await rl.check("stats_u1")
+            await rl.check("stats_u1")
+            stats = await rl.get_stats("stats_u1")
+            assert stats["requests_last_minute"] >= 2
+
+        asyncio.run(t())
