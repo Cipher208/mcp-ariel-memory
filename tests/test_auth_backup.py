@@ -1,9 +1,9 @@
 """
-Tests for auth, backup, import/export, and MCP auto-start.
+Tests for auth, MCP metadata, and config — unique tests only.
+Backup/audit/rate_limiter/import_export are tested in test_integration.py.
 """
 
 import pytest
-import os
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -80,147 +80,6 @@ async def test_bearer_rotate():
 
 
 # ═══════════════════════════════════════════════════════════════
-# BACKUP TESTS
-# ═══════════════════════════════════════════════════════════════
-
-
-@pytest.mark.asyncio
-async def test_backup_create():
-    from features.backup import BackupManager
-
-    bm = BackupManager()
-    path = await bm.backup(label="test_backup")
-    assert path is not None
-    assert os.path.exists(path)
-
-
-@pytest.mark.asyncio
-async def test_backup_list():
-    from features.backup import BackupManager
-
-    bm = BackupManager()
-    await bm.backup(label="test_list")
-    backups = bm.list_backups()
-    assert len(backups) >= 1
-
-
-@pytest.mark.asyncio
-async def test_backup_restore():
-    from features.backup import BackupManager
-
-    bm = BackupManager()
-    path = await bm.backup(label="test_restore")
-    backup_name = os.path.basename(path)
-    result = await bm.restore(backup_name)
-    assert "restored" in result
-
-
-@pytest.mark.asyncio
-async def test_backup_cleanup():
-    from features.backup import BackupManager
-
-    bm = BackupManager()
-    removed = bm.cleanup_old()
-    assert isinstance(removed, int)
-
-
-# ═══════════════════════════════════════════════════════════════
-# IMPORT/EXPORT TESTS
-# ═══════════════════════════════════════════════════════════════
-
-
-@pytest.mark.asyncio
-async def test_export_import():
-    from features.import_export import ImportExport
-    from core import memory_manager
-
-    # Create some data
-    user = memory_manager.user_memory("export_test")
-    await user.remember("key1", "value1", 0.8)
-
-    ie = ImportExport()
-
-    # Export
-    export_path = await ie.export_user("export_test")
-    assert export_path is not None
-    assert os.path.exists(export_path)
-
-    # List exports
-    exports = ie.list_exports()
-    assert len(exports) >= 1
-
-
-# ═══════════════════════════════════════════════════════════════
-# AUDIT TRAIL TESTS
-# ═══════════════════════════════════════════════════════════════
-
-
-@pytest.mark.asyncio
-async def test_audit_log():
-    from features.audit_trail import AuditTrail
-
-    at = AuditTrail()
-    await at._init_db()
-    await at.log("audit_test", "test_action", "user", "target_1", {"key": "value"})
-    history = await at.get_history("audit_test")
-    assert len(history) >= 1
-    assert history[0]["action"] == "test_action"
-
-
-@pytest.mark.asyncio
-async def test_audit_count():
-    from features.audit_trail import AuditTrail
-
-    at = AuditTrail()
-    await at._init_db()
-    await at.log("count_test", "action1")
-    await at.log("count_test", "action2")
-    count = await at.count("count_test")
-    assert count >= 2
-
-
-@pytest.mark.asyncio
-async def test_audit_cleanup():
-    from features.audit_trail import AuditTrail
-
-    at = AuditTrail()
-    await at._init_db()
-    removed = await at.cleanup_old(retention_days=0)
-    assert isinstance(removed, int)
-
-
-# ═══════════════════════════════════════════════════════════════
-# RATE LIMITER TESTS
-# ═══════════════════════════════════════════════════════════════
-
-
-@pytest.mark.asyncio
-async def test_rate_limiter():
-    from features.rate_limiting import RateLimiter
-
-    rl = RateLimiter()
-    result = await rl.check("rate_test")
-    assert "allowed" in result
-    assert result["allowed"] is True
-
-
-@pytest.mark.asyncio
-async def test_rate_limiter_stats(tmp_path):
-    from features.rate_limiting import RateLimiter
-    from shared.connection import AsyncConnectionManager
-
-    cm = AsyncConnectionManager(base_dir=str(tmp_path))
-    await cm.execute_script(
-        "memory.db",
-        "CREATE TABLE IF NOT EXISTS rate_limits (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, timestamp REAL NOT NULL);",
-    )
-    rl = RateLimiter(cm=cm)
-    await rl.check("stats_test")
-    stats = await rl.get_stats("stats_test")
-    assert "requests_last_minute" in stats
-
-
-# ═══════════════════════════════════════════════════════════════
 # MCP AUTO-START TESTS
 # ═══════════════════════════════════════════════════════════════
 
@@ -290,7 +149,6 @@ def test_config_get():
     from config import Config
 
     config = Config()
-    # Default values should work
     assert config.get("layers", "user", "enabled", default=True) is True
 
 
@@ -298,6 +156,5 @@ def test_config_hooks():
     from config import Config
 
     config = Config()
-    # Should not crash
     result = config.is_hook_enabled("user", "message_received")
     assert isinstance(result, bool)
