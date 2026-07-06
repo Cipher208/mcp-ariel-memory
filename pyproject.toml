@@ -122,3 +122,6 @@ exclude = ["tests"]
 [[tool.mypy.overrides]]
 module = ["tests.*"]
 ignore_errors = true
+
+[tool.coverage.run]
+omit = ["demo.py", "__main__.py"]
