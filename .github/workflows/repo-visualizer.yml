@@ -1,0 +1,19 @@
+name: Repo Visualizer
+
+on:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: write
+
+jobs:
+  visualize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate repo visualization
+        uses: githubocto/repo-visualizer@main
+        with:
+          image_path: docs/repo-visualizer.svg
+          excluded_patterns: "node_modules,*.pyc,__pycache__,.git,dist,site,.mypy_cache,.ruff_cache,.hypothesis,.coverage,htmlcov"

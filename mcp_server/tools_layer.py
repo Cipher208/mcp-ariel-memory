@@ -717,15 +717,18 @@ async def memory_context(
     wiki_entries = await wiki.list_all(3)
     wiki_text = "; ".join(["[%s] %s" % (w.wiki_type, w.title) for w in wiki_entries])
 
+    # Lost-in-the-Middle prevention: L4 at start+end, L2/L1 in middle
     context_parts = []
     if facts_text:
-        context_parts.append("FACTS: " + facts_text)
-    if episodes_text:
-        context_parts.append("EPISODES: " + episodes_text)
+        context_parts.append("CORE FACTS (most important — remember these): " + facts_text)
     if recent_text:
         context_parts.append("RECENT: " + recent_text)
     if wiki_text:
         context_parts.append("WIKI: " + wiki_text)
+    if episodes_text:
+        context_parts.append("EPISODES: " + episodes_text)
+    if facts_text:
+        context_parts.append("REMEMBER: " + facts_text)
 
     result = ContextResult(
         context="\n".join(context_parts),
@@ -775,15 +778,20 @@ async def memory_context_inject(
     wiki_entries = await wiki.list_all(3)
     wiki_text = "; ".join(["[%s] %s" % (w.wiki_type, w.title) for w in wiki_entries])
 
+    # Lost-in-the-Middle prevention: L4 at start+end, L2/L1 in middle
+    # LLMs remember first and last items best, middle is forgotten
     context_parts = []
     if facts_text:
-        context_parts.append("FACTS: " + facts_text)
-    if episodes_text:
-        context_parts.append("EPISODES: " + episodes_text)
+        context_parts.append("CORE FACTS (most important — remember these): " + facts_text)
     if recent_text:
         context_parts.append("RECENT: " + recent_text)
     if wiki_text:
         context_parts.append("WIKI: " + wiki_text)
+    if episodes_text:
+        context_parts.append("EPISODES: " + episodes_text)
+    # Repeat critical facts at the end for recency bias
+    if facts_text:
+        context_parts.append("REMEMBER: " + facts_text)
 
     result = {
         "context": "\n".join(context_parts),
