@@ -95,6 +95,7 @@ class BackupCron:
         try:
             from hooks.registry import hook_registry
             import asyncio
+
             for layer in ["user", "agent"]:
                 asyncio.run(hook_registry.fire("nightly", layer, {"trigger": "backup_cron"}))
         except Exception as e:
