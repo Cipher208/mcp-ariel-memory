@@ -3,17 +3,23 @@
 ## Testing
 
 ```bash
-# All tests (313 tests)
+# All tests (250 tests)
 python -m pytest tests/ -v
 
 # Single test file
 python -m pytest tests/test_auth_crypto.py -v
 
+# With coverage
+python -m pytest tests/ --cov=. --cov-report=html
+
+# Property-based tests
+python -m pytest tests/test_hypothesis.py -v
+
 # MCP Inspector
 uv run mcp dev mcp_server.server
 ```
 
-**Status:** 313/313 pytest + 19/19 MCP tools. Python 3.10–3.13 CI matrix. Single `memory.db` file. Envelope encryption for sensitive data.
+**Status:** 250 pytest tests + 39 property-based Hypothesis tests. Python 3.10–3.13 CI matrix. Coverage: 73% (Codecov).
 
 ## Test Fixtures
 

@@ -1,5 +1,44 @@
 # Changelog
 
+## v1.4.0 (2026-07-06)
+
+### Testing
+- Test suite optimization: 364→250 tests
+- Parametrized 6 test files (user/agent, ru/en, auto_strategy)
+- Property-based expansion: 25→39 Hypothesis tests
+- Coverage tests for typed_export, backup, audit_trail, rate_limiting, agent_hooks, wiki, backup_cron, saga
+- Deleted 10 duplicate test files
+- Coverage: 73% (Codecov)
+
+## v1.3.1 (2026-07-06)
+
+### Fixed
+- aiosqlite 0.22.0 hang — pinned version in CI
+- CI test hang — rewrote e2e tests with temp databases
+- pytest_sessionfinish hook for process termination
+
+### Testing
+- 18 e2e tests covering all 25 MCP tools
+
+## v1.3.0 (2026-07-05)
+
+### Security
+- SQL injection findings: all false positives (parameterized queries)
+
+### Architecture
+- RAG engine split: engine.py → engine.py + search.py + chunking.py
+- Tool rename: memory_search_rrf → memory_search
+
+### Fixed
+- N+1 query in _search_rrf
+- Embedding dedup
+- Router simplification
+- DB_NAME constant extraction
+- Saga complexity reduction
+
+### Testing
+- 499 tests, coverage 77%
+
 ## v1.0.0 (2026-07-01)
 
 ### Features

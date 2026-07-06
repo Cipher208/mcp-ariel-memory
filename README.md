@@ -1,6 +1,6 @@
 # mcp-ariel-memory
 
-> **Give your AI agents real memory** — episodic recall, knowledge graphs, hybrid search, and envelope encryption in a single MCP server. 19 tools. 4-layer hierarchy. 490+ tests.
+> **Give your AI agents real memory** — episodic recall, knowledge graphs, hybrid search, and envelope encryption in a single MCP server. 19 tools. 4-layer hierarchy. 250+ tests.
 
 [![CI](https://github.com/Cipher208/mcp-ariel-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/Cipher208/mcp-ariel-memory/actions/workflows/ci.yml)
 [![codecov](https://img.shields.io/codecov/c/github/Cipher208/mcp-ariel-memory?logo=codecov&logoColor=white)](https://codecov.io/gh/Cipher208/mcp-ariel-memory)
@@ -64,7 +64,7 @@ graph TD
 | **Wiki** | 14 types, .md files as source of truth, FTS5 | None |
 | **24 hooks** | Intercept operations at every stage | 0 |
 | **Encryption** | libsodium secretbox (keychain-first) | Usually none |
-| **Tests** | 499 (25 property-based) | — |
+| **Tests** | 250 (39 property-based) | — |
 | **Dashboard** | Real-time HTML dashboard | — |
 
 ### Who needs this?
@@ -293,7 +293,7 @@ Full documentation with API reference, architecture diagrams, and guides:
 ## Testing
 
 ```bash
-# Run all tests (499 passed, 25 property-based)
+# Run all tests (250 passed, 39 property-based)
 pytest tests/ -v
 
 # Run with parallel execution
