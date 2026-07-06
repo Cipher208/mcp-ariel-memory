@@ -2,7 +2,6 @@
 
 import gc
 import os
-import sys
 
 # Disable backup_cron before any imports to prevent daemon threads
 os.environ["BACKUP_CRON_DISABLED"] = "1"
