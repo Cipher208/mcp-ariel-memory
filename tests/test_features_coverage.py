@@ -372,4 +372,62 @@ def test_backup_cron_state_persistence(tmp_path):
     assert bc._last_backup > 0
 
     bc2 = BackupCron(base_dir=str(tmp_path))
-    assert bc2._last_backup > 0 or "error" in result
+    assert bc2._last_backup > 0
+
+
+# ── saga (additional coverage) ──
+
+
+def test_saga_save_load_state(tmp_path):
+    from shared import saga as saga_mod
+    from shared.saga import Saga
+
+    orig_dir = saga_mod.SAGA_DIR
+    saga_mod.SAGA_DIR = tmp_path
+    try:
+        s = Saga("state_test")
+        s.add_step("s1", lambda d: {"ok": True})
+        s._saga_id = "st_1"
+        s._save_state()
+        assert (tmp_path / "st_1.json").exists()
+
+        state = s._load_state("st_1")
+        assert state is not None
+        assert state["name"] == "state_test"
+    finally:
+        saga_mod.SAGA_DIR = orig_dir
+
+
+def test_saga_cleanup_state(tmp_path):
+    from shared import saga as saga_mod
+    from shared.saga import Saga
+
+    orig_dir = saga_mod.SAGA_DIR
+    saga_mod.SAGA_DIR = tmp_path
+    try:
+        s = Saga("cleanup_test")
+        s._saga_id = "ct_1"
+        s._save_state()
+        assert (tmp_path / "ct_1.json").exists()
+
+        s._cleanup_state()
+        assert not (tmp_path / "ct_1.json").exists()
+    finally:
+        saga_mod.SAGA_DIR = orig_dir
+
+
+def test_saga_compute_idempotency_key():
+    from shared.saga import Saga, SagaStep
+
+    s = Saga("idem_key")
+    step = SagaStep(
+        name="test_step",
+        action=lambda d: {"ok": True},
+        idempotency_key_fn=lambda d: f"user:{d.get('user_id', 'x')}",
+    )
+    key = s._compute_idempotency_key(step)
+    assert key is not None
+    assert len(key) == 64  # SHA-256 hex
+
+    step_no_key = SagaStep(name="no_key", action=lambda d: {"ok": True})
+    assert s._compute_idempotency_key(step_no_key) is None or "error" in result
