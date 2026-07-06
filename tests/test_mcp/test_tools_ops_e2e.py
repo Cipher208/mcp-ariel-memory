@@ -3,9 +3,14 @@
 import pytest
 from unittest.mock import MagicMock
 from mcp_server.tools_ops import (
-    memory_api_key, memory_backup, memory_saga,
-    memory_data, memory_sync_replica, memory_cleanup,
-    memory_lucidity_purge, memory_search,
+    memory_api_key,
+    memory_backup,
+    memory_saga,
+    memory_data,
+    memory_sync_replica,
+    memory_cleanup,
+    memory_lucidity_purge,
+    memory_search,
 )
 
 
