@@ -657,9 +657,7 @@ class TestImportanceScoringLogic:
 
         scorer = ImportanceScorer()
         noise = scorer.score("ok").total()
-        technical = scorer.score(
-            "Configure PostgreSQL connection pooling with pgBouncer for production Redis cache"
-        ).total()
+        technical = scorer.score("Configure PostgreSQL connection pooling with pgBouncer for production Redis cache").total()
         assert technical > noise
 
     def test_instruction_always_higher_than_question(self):
@@ -888,11 +886,13 @@ class TestSagaStateMachine:
                     if idx == fail_at:
                         raise RuntimeError(f"fail at {idx}")
                     return {"ok": True}
+
                 return step
 
             def make_compensate(idx):
                 async def compensate(d):
                     compensated.append(idx)
+
                 return compensate
 
             saga = Saga("comp")
@@ -1013,6 +1013,7 @@ def test_chaos_api_timeout_does_not_hang(chaos_api_timeout):
     from features.secrets import encrypt_json
 
     import time
+
     start = time.time()
     result = encrypt_json({"test": "data"})
     elapsed = time.time() - start
@@ -1083,6 +1084,7 @@ class TestRAGPipelineLogic:
 
         async def t():
             import tempfile
+
             cm = AsyncConnectionManager(base_dir=tempfile.mkdtemp())
             rag = RAGEngine(cm=cm)
             await rag.init_db()
@@ -1100,6 +1102,7 @@ class TestRAGPipelineLogic:
 
         async def t():
             import tempfile
+
             cm = AsyncConnectionManager(base_dir=tempfile.mkdtemp())
             rag = RAGEngine(cm=cm)
             await rag.init_db()
@@ -1115,6 +1118,7 @@ class TestRAGPipelineLogic:
 
         async def t():
             import tempfile
+
             cm = AsyncConnectionManager(base_dir=tempfile.mkdtemp())
             rag = RAGEngine(cm=cm)
             await rag.init_db()
@@ -1141,6 +1145,7 @@ class TestWikiCRUDLogic:
 
         async def t():
             import tempfile
+
             tmp = tempfile.mkdtemp()
             cm = AsyncConnectionManager(base_dir=tmp)
             wm = WikiManager(layer="user", base_dir=tmp + "/wiki", cm=cm)
@@ -1163,6 +1168,7 @@ class TestWikiCRUDLogic:
 
         async def t():
             import tempfile
+
             tmp = tempfile.mkdtemp()
             cm = AsyncConnectionManager(base_dir=tmp)
             user_wm = WikiManager(layer="user", base_dir=tmp + "/u", cm=cm)
@@ -1189,6 +1195,7 @@ class TestConnectionPoolLogic:
 
         async def t():
             import tempfile
+
             cm = AsyncConnectionManager(base_dir=tempfile.mkdtemp())
             c1 = await cm.get("pool_test.db")
             c2 = await cm.get("pool_test.db")
@@ -1201,6 +1208,7 @@ class TestConnectionPoolLogic:
 
         async def t():
             import tempfile
+
             cm = AsyncConnectionManager(base_dir=tempfile.mkdtemp())
             c1 = await cm.get("a.db")
             c2 = await cm.get("b.db")
@@ -1213,6 +1221,7 @@ class TestConnectionPoolLogic:
 
         async def t():
             import tempfile
+
             cm = AsyncConnectionManager(base_dir=tempfile.mkdtemp())
             await cm.get("close_test.db")
             assert cm.stats()["connections"] >= 1
@@ -1280,6 +1289,7 @@ class TestRateLimiterLogic:
 
         async def t():
             import tempfile
+
             cm = AsyncConnectionManager(base_dir=tempfile.mkdtemp())
             rl = RateLimiter(cm=cm)
             await rl._init_db()
@@ -1296,6 +1306,7 @@ class TestRateLimiterLogic:
 
         async def t():
             import tempfile
+
             cm = AsyncConnectionManager(base_dir=tempfile.mkdtemp())
             rl = RateLimiter(cm=cm)
             await rl._init_db()
