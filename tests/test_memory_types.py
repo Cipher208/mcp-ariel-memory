@@ -44,42 +44,26 @@ def test_apply_decay_fact_exponential():
     assert val == pytest.approx(expected, abs=1e-6)
 
 
-def test_can_archive_instruction_false():
-    assert not can_archive("instruction", 0.1, days_since_update=365 * 10)
+@pytest.mark.parametrize("kind", ["instruction", "rule", "commitment"])
+def test_can_archive_protected(kind):
+    assert not can_archive(kind, 0.05, days_since_update=10000)
 
 
-def test_can_archive_rule_false():
-    assert not can_archive("rule", 0.05, days_since_update=10000)
-
-
-def test_can_archive_commitment_false():
-    assert not can_archive("commitment", 0.05, days_since_update=2000)
-
-
-def test_can_archive_fact_old_low_importance_true():
+def test_can_archive_fact():
     assert can_archive("fact", 0.1, days_since_update=200)
-
-
-def test_can_archive_recent_high_importance_false():
     assert not can_archive("fact", 0.9, days_since_update=200)
 
 
-def test_kind_for_text_detects_commitment():
-    assert kind_for_text("я обещаю сделать к пятнице") == MemoryKind.COMMITMENT
-    assert kind_for_text("I commit to ship by Friday") == MemoryKind.COMMITMENT
-
-
-def test_kind_for_text_detects_rule():
-    assert kind_for_text("запрещено удалять базы данных") == MemoryKind.RULE
-    assert kind_for_text("do not push to main") == MemoryKind.RULE
-
-
-def test_kind_for_text_detects_goal():
-    assert kind_for_text("моя цель — выучить Rust") == MemoryKind.GOAL
-
-
-def test_kind_for_text_falls_back_to_fact():
-    assert kind_for_text("что-то нейтральное") == MemoryKind.FACT
+@pytest.mark.parametrize("text,expected", [
+    ("я обещаю сделать к пятнице", MemoryKind.COMMITMENT),
+    ("I commit to ship by Friday", MemoryKind.COMMITMENT),
+    ("запрещено удалять базы данных", MemoryKind.RULE),
+    ("do not push to main", MemoryKind.RULE),
+    ("моя цель — выучить Rust", MemoryKind.GOAL),
+    ("что-то нейтральное", MemoryKind.FACT),
+])
+def test_kind_for_text(text, expected):
+    assert kind_for_text(text) == expected
 
 
 def test_boost_for_query_prefers_matching_type():

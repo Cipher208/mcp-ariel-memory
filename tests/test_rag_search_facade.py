@@ -96,25 +96,15 @@ class TestUnifiedSearch:
 
 
 class TestAutoStrategy:
-    def test_single_word_returns_fts(self, rag):
+    @pytest.mark.parametrize("query,expected", [
+        ("python", "fts"),
+        ("redis cluster", "fts"),
+        ("redis high throughput", "hybrid"),
+        ("", "fts"),
+    ])
+    def test_auto_strategy(self, rag, query, expected):
         from rag.search import auto_strategy
-
-        assert auto_strategy("python") == "fts"
-
-    def test_two_words_returns_fts(self, rag):
-        from rag.search import auto_strategy
-
-        assert auto_strategy("redis cluster") == "fts"
-
-    def test_three_words_returns_hybrid(self, rag):
-        from rag.search import auto_strategy
-
-        assert auto_strategy("redis high throughput") == "hybrid"
-
-    def test_empty_query_returns_fts(self, rag):
-        from rag.search import auto_strategy
-
-        assert auto_strategy("") == "fts"
+        assert auto_strategy(query) == expected
 
 
 class TestSearchStrategyInit:

@@ -27,15 +27,12 @@ def test_embed_to_binary_negative_threshold():
     assert packed_b == b"\x00"
 
 
-def test_hamming_distance_identical():
-    a = b"\xff" * 6
-    assert hamming_distance(a, a) == 0
-
-
-def test_hamming_distance_opposite():
-    a = b"\xff" * 6
-    b = b"\x00" * 6
-    assert hamming_distance(a, b) == 48  # 6 bytes * 8 bits
+@pytest.mark.parametrize("a,b,expected", [
+    (b"\xff" * 6, b"\xff" * 6, 0),
+    (b"\xff" * 6, b"\x00" * 6, 48),
+])
+def test_hamming_distance(a, b, expected):
+    assert hamming_distance(a, b) == expected
 
 
 def test_hamming_to_score():
