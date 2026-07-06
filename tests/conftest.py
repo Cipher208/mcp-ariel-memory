@@ -14,16 +14,24 @@ def master_key_env():
     """Set master key for encryption across all tests."""
     os.environ["MCP_MASTER_KEY"] = "test-secret-for-unit-tests-only"
     from features import secrets
-
     secrets._master_cache.clear()
     yield
     os.environ.pop("MCP_MASTER_KEY", None)
-    # Force cleanup of all resources
     gc.collect()
-    # Clear connection cache — avoids unawaited coroutine warnings from aiosqlite
+
+
+@pytest.fixture(scope="session", autouse=True)
+async def cleanup_db_connections():
+    """Guarantee all aiosqlite engines are closed before session ends."""
+    yield
     try:
         from shared.connection import connection_manager
-
+        for name, conn in list(connection_manager._conns.items()):
+            try:
+                if hasattr(conn, '_conn') and hasattr(conn._conn, 'close'):
+                    conn._conn.close()
+            except Exception:
+                pass
         connection_manager._conns.clear()
     except Exception:
         pass
