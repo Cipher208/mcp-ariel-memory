@@ -3,6 +3,45 @@
 All notable changes to mcp-ariel-memory are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.0] - 2026-07-05
+
+### Security
+- SQL injection findings (150): all **false positives** — standard SQLite parameterized query pattern. Added `SKY-D211` to skylos ignore list.
+
+### Architecture
+- **RAG engine split** — `rag/engine.py` (561 lines) split into 3 modules:
+  - `rag/engine.py` (224 lines) — ingest, relations, counts
+  - `rag/search.py` (239 lines) — FTS5, binary, hybrid, RRF search
+  - `rag/chunking.py` (60 lines) — text chunking with overlap
+- **Tool rename** — `memory_search_rrf` → `memory_search` (backward-compatible alias kept)
+
+### Fixed
+- **N+1 query** in `_search_rrf` — batched page lookups with `IN` clause instead of N individual queries.
+- **Embedding dedup** — extracted `_insert_page` helper from `ingest_file`/`ingest_text`.
+- **Router simplification** — extracted `_match_route` helper from `route()`.
+- **DB_NAME constant** — extracted `shared/constants.py`, replaced 121 occurrences of `"memory.db"`.
+- **Saga complexity** — extracted `_compensate_inner_saga` and `_compensate_step` from `_compensate` (CCN 22→11).
+- **Emotion trigger** — extracted 5 helper methods from `should_save` (CCN 20→9).
+
+### Testing
+- **499 tests** (was 338, +161 new tests)
+- **Coverage: 61% → 77%** (+16%)
+  - `shared/saga.py`: 58% → 79%
+  - `shared/saga_crypto.py`: 37% → 89%
+  - `shared/read_only.py`: 57% → 86%
+  - `shared/migrations.py`: 39% → 81%
+  - `mcp_server/tools_layer.py`: 15% → 53%
+- **All 25 MCP tools** tested (e2e + unit)
+- **24 hooks** verified through tool dispatch
+- **E2E tests** for full tool logic path (remember → L1 → episode → L4)
+- New test files: `test_saga_unit.py`, `test_middleware_unit.py`, `test_embeddings_unit.py`, `test_tools_unit.py`, `test_tools_e2e.py`, `test_tools_ops_e2e.py`, `test_saga_crypto_coverage.py`, `test_read_only_coverage.py`, `test_migrations_coverage.py`
+
+### Quality
+- **Skylos Grade: F (40) → A+ (100)** — SQL injection false positives suppressed via config
+- **Repowise Hotspot: 3.88 → 4.37** (+0.49)
+- **Repowise Average: 7.55 → 7.82** (+0.27)
+- Quality issues: 437 → 393 (-44)
+
 ## [1.2.0] - 2026-07-04
 
 ### Security

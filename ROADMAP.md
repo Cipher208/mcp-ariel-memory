@@ -36,7 +36,7 @@
 ## 4. Bug Fixes & Cleanup
 
 - [x] **Deprecated API cleanup** — removed `search_rrf()`, `search_binary()` (A7)
-- [ ] **Tool rename** — `memory_search_rrf` → `memory_search` (after MCP Registry update)
+- [x] **Tool rename** — `memory_search_rrf` → `memory_search` (after MCP Registry update)
 - [ ] **CLI improvements** — add `--version` flag, improve help messages
 - [ ] **Dashboard** — add live updates (WebSocket), improve UI
 
@@ -161,5 +161,5 @@
 
 ---
 
-**Completed:** 37/65 items
-**Last updated:** 2026-07-04
+**Completed:** 38/65 items
+**Last updated:** 2026-07-05
