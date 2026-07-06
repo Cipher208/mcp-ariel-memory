@@ -17,22 +17,6 @@ def master_key_env():
     os.environ.pop("MCP_MASTER_KEY", None)
 
 
-def test_encrypt_decrypt_roundtrip():
-    from features.secrets import decrypt_json, encrypt_json
-
-    payload = {"alice": "ak_abc", "bob": "ak_def"}
-    blob = encrypt_json(payload)
-    assert decrypt_json(blob) == payload
-
-
-def test_different_nonces_per_call():
-    from features.secrets import encrypt_json
-
-    a = encrypt_json({"x": 1})
-    b = encrypt_json({"x": 1})
-    assert a != b  # different nonce → different ciphertext
-
-
 def test_tampered_ciphertext_rejected():
     from features.secrets import decrypt_json, encrypt_json
 

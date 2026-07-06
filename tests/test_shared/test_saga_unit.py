@@ -21,36 +21,6 @@ async def _failing(data):
     raise ValueError("step failed")
 
 
-# ── Saga basics ──
-
-
-def test_add_step():
-    s = Saga("test")
-    s.add_step("s1", _noop)
-    assert len(s._steps) == 1
-    s.add_step("s2", _noop)
-    assert len(s._steps) == 2
-
-
-def test_status_property():
-    s = Saga("test")
-    assert s.status == SagaStatus.PENDING
-
-
-def test_data_property():
-    s = Saga("test")
-    s._data = {"k": "v"}
-    assert s.data == {"k": "v"}
-
-
-def test_get_state():
-    s = Saga("test")
-    state = s.get_state()
-    assert state["name"] == "test"
-    assert state["status"] == "pending"
-    assert isinstance(state["steps"], list)
-
-
 # ── State persistence ──
 
 

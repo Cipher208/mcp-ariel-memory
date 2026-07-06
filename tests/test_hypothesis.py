@@ -428,3 +428,125 @@ class TestPathSafetyProperties:
             assert str(result).startswith(str(tmp))
         except (ValueError, OSError):
             pass  # Rejection is also correct
+
+
+# ═══════════════════════════════════════════════════════════════
+#  features/secrets.py — encrypt/decrypt roundtrip
+# ═══════════════════════════════════════════════════════════════
+
+from features.secrets import encrypt_json, decrypt_json
+
+
+class TestSecretsProperties:
+    @given(data=st.dictionaries(st.text(min_size=1, max_size=20), st.text(max_size=100), min_size=1, max_size=5))
+    @settings(deadline=None, max_examples=30)
+    def test_encrypt_decrypt_roundtrip_dict(self, data):
+        blob = encrypt_json(data)
+        result = decrypt_json(blob)
+        assert result == data
+
+    @given(data=st.lists(st.text(min_size=1, max_size=50), min_size=1, max_size=5))
+    @settings(deadline=None, max_examples=30)
+    def test_encrypt_decrypt_roundtrip_list(self, data):
+        blob = encrypt_json(data)
+        result = decrypt_json(blob)
+        assert result == data
+
+    @given(
+        a=st.dictionaries(st.text(min_size=1, max_size=10), st.text(max_size=50), min_size=1),
+        b=st.dictionaries(st.text(min_size=1, max_size=10), st.text(max_size=50), min_size=1),
+    )
+    @settings(deadline=None, max_examples=30)
+    def test_different_inputs_different_ciphertext(self, a, b):
+        assume(a != b)
+        blob_a = encrypt_json(a)
+        blob_b = encrypt_json(b)
+        assert blob_a != blob_b
+
+    @given(data=st.dictionaries(st.text(min_size=1, max_size=10), st.integers(), min_size=1))
+    @settings(deadline=None, max_examples=20)
+    def test_min_blob_size(self, data):
+        """Encrypted blob must be at least nonce(24) + MAC(16) = 40 bytes."""
+        blob = encrypt_json(data)
+        assert len(blob) >= 40
+
+
+# ═══════════════════════════════════════════════════════════════
+#  shared/saga.py — Saga state machine invariants
+# ═══════════════════════════════════════════════════════════════
+
+from shared.saga import Saga
+
+
+class TestSagaProperties:
+    @given(name=st.text(min_size=1, max_size=50, alphabet=st.characters(blacklist_categories=("Cs",))))
+    @settings(max_examples=50)
+    def test_saga_name_preserved(self, name):
+        """Saga name is preserved in state."""
+        s = Saga(name)
+        assert s.get_state()["name"] == name
+
+    @given(n=st.integers(min_value=0, max_value=20))
+    @settings(max_examples=30)
+    def test_add_steps_count(self, n):
+        """Adding n steps results in n steps."""
+        s = Saga("test")
+        for i in range(n):
+            s.add_step(f"s{i}", lambda d: {"ok": True})
+        assert len(s._steps) == n
+
+
+# ═══════════════════════════════════════════════════════════════
+#  shared/embeddings.py — hash embedding invariants
+# ═══════════════════════════════════════════════════════════════
+
+from shared.embeddings import _hash_embedding, similarity
+
+
+class TestEmbeddingProperties:
+    @given(
+        text=st.text(min_size=1, max_size=200, alphabet=st.characters(blacklist_categories=("Cs",))),
+        dim=st.integers(min_value=16, max_value=256),
+    )
+    @settings(max_examples=50)
+    def test_hash_embedding_correct_dim(self, text, dim):
+        """Hash embedding always returns correct dimension."""
+        result = _hash_embedding(text, dim=dim)
+        assert len(result) == dim
+
+    @given(text=st.text(min_size=1, max_size=200, alphabet=st.characters(blacklist_categories=("Cs",))))
+    @settings(max_examples=50)
+    def test_hash_embedding_normalized(self, text):
+        """Hash embedding is always normalized (unit vector)."""
+        result = _hash_embedding(text, dim=64)
+        norm = sum(x**2 for x in result) ** 0.5
+        assert abs(norm - 1.0) < 0.01
+
+    @given(text=st.text(min_size=1, max_size=200, alphabet=st.characters(blacklist_categories=("Cs",))))
+    @settings(max_examples=50)
+    def test_hash_embedding_deterministic(self, text):
+        """Same input always produces same embedding."""
+        r1 = _hash_embedding(text, dim=32)
+        r2 = _hash_embedding(text, dim=32)
+        assert r1 == r2
+
+    @given(
+        v=st.lists(st.floats(min_value=-1.0, max_value=1.0, allow_nan=False, allow_infinity=False), min_size=2, max_size=20),
+    )
+    @settings(max_examples=50)
+    def test_similarity_self_is_one(self, v):
+        """Similarity of a non-zero vector with itself is ~1.0."""
+        assume(any(abs(x) > 0.01 for x in v))  # skip near-zero vectors
+        s = similarity(v, v)
+        assert abs(s - 1.0) < 0.05
+
+    @given(
+        v1=st.lists(st.floats(min_value=-1.0, max_value=1.0, allow_nan=False, allow_infinity=False), min_size=2, max_size=20),
+        v2=st.lists(st.floats(min_value=-1.0, max_value=1.0, allow_nan=False, allow_infinity=False), min_size=2, max_size=20),
+    )
+    @settings(max_examples=50)
+    def test_similarity_symmetric(self, v1, v2):
+        """Similarity is symmetric."""
+        s1 = similarity(v1, v2)
+        s2 = similarity(v2, v1)
+        assert abs(s1 - s2) < 1e-10
