@@ -224,6 +224,50 @@ def test_wiki_add_and_list(tmp_path):
     assert count >= 1
 
 
+def test_wiki_agent_layer(tmp_path):
+    from wiki.manager import WikiManager
+    from shared.connection import AsyncConnectionManager
+
+    wiki_dir = tmp_path / "wiki_agent"
+    wiki_dir.mkdir()
+    cm = AsyncConnectionManager(base_dir=str(tmp_path))
+    wm = WikiManager(layer="agent", base_dir=str(wiki_dir), cm=cm)
+    asyncio.run(wm.init_db())
+
+    path = asyncio.run(wm.add("decision_log", "Use YAGNI", "Always prefer simplicity"))
+    assert path.endswith(".md")
+
+    by_type = asyncio.run(wm.list_by_type("decision_log"))
+    assert len(by_type) >= 1
+
+
+def test_wiki_disabled_type_raises(tmp_path):
+    from wiki.manager import WikiManager
+    from shared.connection import AsyncConnectionManager
+
+    wiki_dir = tmp_path / "wiki_disabled"
+    wiki_dir.mkdir()
+    cm = AsyncConnectionManager(base_dir=str(tmp_path))
+    wm = WikiManager(layer="user", base_dir=str(wiki_dir), cm=cm)
+    asyncio.run(wm.init_db())
+
+    with pytest.raises(ValueError, match="disabled"):
+        asyncio.run(wm.add("nonexistent_type", "Title", "Content"))
+
+
+def test_wiki_enabled_types(tmp_path):
+    from wiki.manager import WikiManager
+    from shared.connection import AsyncConnectionManager
+
+    wiki_dir = tmp_path / "wiki_types"
+    wiki_dir.mkdir()
+    cm = AsyncConnectionManager(base_dir=str(tmp_path))
+    wm = WikiManager(layer="user", base_dir=str(wiki_dir), cm=cm)
+    types = wm.get_enabled_types()
+    assert "diary" in types
+    assert "relationships" in types
+
+
 def test_wiki_list_and_count(tmp_path):
     from wiki.manager import WikiManager
     from shared.connection import AsyncConnectionManager
@@ -286,4 +330,46 @@ def test_backup_cron_restore(tmp_path):
     backups = bc.list_backups()
     assert len(backups) >= 1
     result = bc.restore(backups[0]["name"])
-    assert "restored" in result or "error" in result
+    assert "restored" in result
+
+
+def test_backup_cron_restore_not_found(tmp_path):
+    from features.backup_cron import BackupCron
+
+    bc = BackupCron(base_dir=str(tmp_path))
+    result = bc.restore("nonexistent")
+    assert "error" in result
+
+
+def test_backup_cron_list_backups(tmp_path):
+    from features.backup_cron import BackupCron
+
+    bc = BackupCron(base_dir=str(tmp_path))
+    bc.backup_now()
+    bc.backup_now()
+    backups = bc.list_backups()
+    assert len(backups) >= 2
+    assert all("name" in b for b in backups)
+
+
+def test_backup_cron_status_details(tmp_path):
+    from features.backup_cron import BackupCron
+
+    bc = BackupCron(base_dir=str(tmp_path))
+    status = bc.status()
+    assert status["running"] is False
+    assert status["interval_hours"] > 0
+    assert status["jitter_seconds"] >= 0
+    assert status["retention_days"] > 0
+    assert status["backup_count"] >= 0
+
+
+def test_backup_cron_state_persistence(tmp_path):
+    from features.backup_cron import BackupCron
+
+    bc = BackupCron(base_dir=str(tmp_path))
+    bc.backup_now()
+    assert bc._last_backup > 0
+
+    bc2 = BackupCron(base_dir=str(tmp_path))
+    assert bc2._last_backup > 0 or "error" in result
