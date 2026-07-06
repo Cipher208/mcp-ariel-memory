@@ -9,13 +9,23 @@ from unittest.mock import MagicMock
 from shared.connection import AsyncConnectionManager
 from shared.migrations import MigrationManager
 from mcp_server.tools_layer import (
-    memory_remember, memory_recall, memory_forget,
-    memory_session_start, memory_session_end,
-    memory_episode_save, memory_episode_recall,
-    memory_graph_add, memory_graph_query,
-    memory_stats, memory_context_inject,
-    memory_session_list, memory_episode_list, memory_episode_get,
-    memory_graph_nodes, memory_graph_edges, memory_context,
+    memory_remember,
+    memory_recall,
+    memory_forget,
+    memory_session_start,
+    memory_session_end,
+    memory_episode_save,
+    memory_episode_recall,
+    memory_graph_add,
+    memory_graph_query,
+    memory_stats,
+    memory_context_inject,
+    memory_session_list,
+    memory_episode_list,
+    memory_episode_get,
+    memory_graph_nodes,
+    memory_graph_edges,
+    memory_context,
 )
 
 
@@ -63,6 +73,7 @@ def _make_ctx(app):
 # memory_remember
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_remember_user_full_flow(app):
     ctx = _make_ctx(app)
@@ -87,10 +98,13 @@ async def test_remember_triggers_hooks(app):
     ctx = _make_ctx(app)
     fired = set()
     import mcp_server.tools_layer as tl
+
     orig = tl._fire_hook
+
     def track(name, layer, ctx):
         fired.add(name)
         return orig(name, layer, ctx)
+
     with pytest.MonkeyPatch.context() as m:
         m.setattr(tl, "_fire_hook", track)
         await memory_remember(layer="user", user_id="eh", key="e_hk", value="test", importance=0.5, ctx=ctx)
@@ -101,6 +115,7 @@ async def test_remember_triggers_hooks(app):
 # ═══════════════════════════════════════════════════════════════
 # memory_recall
 # ═══════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_recall_returns_stored_data(app):
@@ -121,6 +136,7 @@ async def test_recall_empty_returns_empty(app):
 # memory_forget
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_forget_removes_data(app):
     ctx = _make_ctx(app)
@@ -136,6 +152,7 @@ async def test_forget_removes_data(app):
 # memory_session_start / end
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_session_lifecycle(app):
     ctx = _make_ctx(app)
@@ -148,6 +165,7 @@ async def test_session_lifecycle(app):
 # ═══════════════════════════════════════════════════════════════
 # memory_episode_save / recall
 # ═══════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_episode_save_and_recall(app):
@@ -162,6 +180,7 @@ async def test_episode_save_and_recall(app):
 # memory_graph_add / query
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_graph_add_and_query(app):
     ctx = _make_ctx(app)
@@ -174,6 +193,7 @@ async def test_graph_add_and_query(app):
 # ═══════════════════════════════════════════════════════════════
 # memory_stats
 # ═══════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_stats_after_operations(app):
@@ -188,6 +208,7 @@ async def test_stats_after_operations(app):
 # memory_context_inject
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_context_inject(app):
     ctx = _make_ctx(app)
@@ -200,6 +221,7 @@ async def test_context_inject(app):
 # memory_context
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_context(app):
     ctx = _make_ctx(app)
@@ -211,6 +233,7 @@ async def test_context(app):
 # ═══════════════════════════════════════════════════════════════
 # memory_session_list / episode_list / episode_get
 # ═══════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_session_list(app):
@@ -239,6 +262,7 @@ async def test_episode_get(app):
 # memory_graph_nodes / edges
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_graph_nodes(app):
     ctx = _make_ctx(app)
@@ -259,13 +283,16 @@ async def test_graph_edges(app):
 # Hook dispatch — verify ALL hooks fire through tools
 # ═══════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_hook_dispatch_all_tools(app):
     """Verify hooks fire through tool calls."""
     ctx = _make_ctx(app)
     fired = set()
     import mcp_server.tools_layer as tl
+
     orig = tl._fire_hook
+
     def track(name, layer, ctx):
         fired.add(name)
         return orig(name, layer, ctx)
@@ -286,6 +313,15 @@ async def test_hook_dispatch_all_tools(app):
         await memory_recall(layer="user", user_id="eha", query="test", ctx=ctx)
         await memory_context_inject(layer="user", user_id="eha", ctx=ctx)
 
-        expected = {"message_received", "emotion_trigger", "state_delta", "consolidation", "error_occurred", "decision_made", "retrieval_router", "auto_context"}
+        expected = {
+            "message_received",
+            "emotion_trigger",
+            "state_delta",
+            "consolidation",
+            "error_occurred",
+            "decision_made",
+            "retrieval_router",
+            "auto_context",
+        }
         missing = expected - fired
         assert not missing, f"Hooks not fired: {missing}"
