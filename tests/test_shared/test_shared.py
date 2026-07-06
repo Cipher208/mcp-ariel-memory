@@ -7,16 +7,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
-def test_cache():
-    from shared.cache import MemoryCache
-
-    mc = MemoryCache(max_size=5, ttl=60)
-    mc.set("k", "v")
-    assert mc.get("k") == "v"
-    mc.delete("k")
-    assert mc.get("k") is None
-
-
 def test_dream_buffer():
     from shared.dream_buffer import DreamBuffer
 

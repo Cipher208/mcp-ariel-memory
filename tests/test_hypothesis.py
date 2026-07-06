@@ -550,3 +550,89 @@ class TestEmbeddingProperties:
         s1 = similarity(v1, v2)
         s2 = similarity(v2, v1)
         assert abs(s1 - s2) < 1e-10
+
+
+# ═══════════════════════════════════════════════════════════════
+#  shared/connection.py — database operation invariants
+# ═══════════════════════════════════════════════════════════════
+
+import uuid
+from shared.connection import AsyncConnectionManager
+
+
+class TestConnectionProperties:
+    @given(n=st.integers(min_value=1, max_value=20))
+    @settings(max_examples=20)
+    def test_insert_fetchall_roundtrip(self, n):
+        """Insert n rows, fetchall returns exactly n rows."""
+        async def t():
+            cm = AsyncConnectionManager(base_dir="/tmp")
+            name = f"prop_{uuid.uuid4().hex[:8]}.db"
+            conn = await cm.get(name)
+            await conn.execute("CREATE TABLE IF NOT EXISTS t (id INTEGER)")
+            await conn.executemany("INSERT INTO t VALUES (?)", [(i,) for i in range(n)])
+            await conn.commit()
+            cur = await conn.execute("SELECT COUNT(*) FROM t")
+            row = await cur.fetchone()
+            return row[0]
+        result = asyncio.run(t())
+        assert result == n
+
+    def test_get_reuses_connection(self):
+        """Getting the same DB name returns the same connection object."""
+        async def t():
+            cm = AsyncConnectionManager(base_dir="/tmp")
+            c1 = await cm.get("reuse_test.db")
+            c2 = await cm.get("reuse_test.db")
+            return c1 is c2
+        result = asyncio.run(t())
+        assert result is True
+
+    def test_execute_script_works(self):
+        """execute_script runs DDL and DML."""
+        async def t():
+            cm = AsyncConnectionManager(base_dir="/tmp")
+            name = f"script_{uuid.uuid4().hex[:8]}.db"
+            await cm.execute_script(name, "CREATE TABLE t (x INTEGER); INSERT INTO t VALUES (42);")
+            conn = await cm.get(name)
+            cur = await conn.execute("SELECT x FROM t")
+            row = await cur.fetchone()
+            return row[0]
+        result = asyncio.run(t())
+        assert result == 42
+
+
+# ═══════════════════════════════════════════════════════════════
+#  shared/cache.py — cache get/set invariant
+# ═══════════════════════════════════════════════════════════════
+
+from shared.cache import MemoryCache
+
+
+class TestCacheProperties:
+    @given(
+        key=st.text(min_size=1, max_size=50, alphabet=st.characters(blacklist_categories=("Cs",))),
+        value=st.text(min_size=1, max_size=200, alphabet=st.characters(blacklist_categories=("Cs",))),
+    )
+    @settings(max_examples=100)
+    def test_set_get_roundtrip(self, key, value):
+        """set(k, v) → get(k) returns v."""
+        cache = MemoryCache()
+        cache.set(key, value)
+        assert cache.get(key) == value
+
+    @given(key=st.text(min_size=1, max_size=50, alphabet=st.characters(blacklist_categories=("Cs",))))
+    @settings(max_examples=50)
+    def test_get_missing_returns_none(self, key):
+        """get(k) for missing key returns None."""
+        cache = MemoryCache()
+        assert cache.get(key) is None
+
+    @given(n=st.integers(min_value=1, max_value=20))
+    @settings(max_examples=20)
+    def test_size_after_inserts(self, n):
+        """After inserting n unique keys, size == n."""
+        cache = MemoryCache()
+        for i in range(n):
+            cache.set(f"k{i}", f"v{i}")
+        assert cache.size() == n
