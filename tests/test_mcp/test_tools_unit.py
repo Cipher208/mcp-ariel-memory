@@ -18,8 +18,9 @@ from mcp_server.tools_layer import (
 # ── Helpers ──
 
 
-def test_fire_hook_no_handlers():
-    result = _fire_hook("nonexistent_hook", "user", {})
+@pytest.mark.asyncio
+async def test_fire_hook_no_handlers():
+    result = await _fire_hook("nonexistent_hook", "user", {})
     assert result.get("skipped") is True
 
 

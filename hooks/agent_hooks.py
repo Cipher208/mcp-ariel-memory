@@ -27,18 +27,19 @@ class AgentHooks:
         self._register_all()
 
     def _register_all(self):
-        hook_registry.register("error_occurred", self._error_occurred)
-        hook_registry.register("decision_made", self._decision_made)
-        hook_registry.register("self_correction", self._self_correction)
-        hook_registry.register("personality_shift", self._personality_shift)
-        hook_registry.register("emotion_context", self._emotion_context)
-        hook_registry.register("wiki_agent", self._wiki_agent)
-        hook_registry.register("consolidation", self._consolidation)
-        hook_registry.register("forgetting_ritual", self._forgetting_ritual)
-        hook_registry.register("auto_context", self._auto_context)
-        hook_registry.register("retrieval_router", self._retrieval_router)
-        hook_registry.register("conflict_resolver", self._conflict_resolver)
-        hook_registry.register("emotion", self._emotion)
+        hook_registry.register("importance_gate", self._importance_gate, layer="agent")
+        hook_registry.register("error_occurred", self._error_occurred, layer="agent")
+        hook_registry.register("decision_made", self._decision_made, layer="agent")
+        hook_registry.register("self_correction", self._self_correction, layer="agent")
+        hook_registry.register("personality_shift", self._personality_shift, layer="agent")
+        hook_registry.register("emotion_context", self._emotion_context, layer="agent")
+        hook_registry.register("wiki_agent", self._wiki_agent, layer="agent")
+        hook_registry.register("consolidation", self._consolidation, layer="both")
+        hook_registry.register("forgetting_ritual", self._forgetting_ritual, layer="both")
+        hook_registry.register("auto_context", self._auto_context, layer="both")
+        hook_registry.register("retrieval_router", self._retrieval_router, layer="both")
+        hook_registry.register("conflict_resolver", self._conflict_resolver, layer="both")
+        hook_registry.register("emotion", self._emotion, layer="agent")
 
     def _importance_gate(self, ctx: dict[str, Any]) -> dict[str, Any]:
         """Filter agent messages by importance. Type-aware with agent keywords."""

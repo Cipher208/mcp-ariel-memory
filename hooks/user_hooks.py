@@ -2,6 +2,7 @@
 User Layer Hooks - 12 hooks for user memory events
 """
 
+import asyncio
 from typing import Any, Optional
 
 from lifecycle.emotion_trigger import EmotionTrigger
@@ -23,27 +24,32 @@ class UserHooks:
         self._register_all()
 
     def _register_all(self):
-        hook_registry.register("message_received", self._message_received)
-        hook_registry.register("message_sent", self._message_sent)
-        hook_registry.register("state_delta", self._state_delta)
-        hook_registry.register("consolidation", self._consolidation)
-        hook_registry.register("emotion_trigger", self._emotion_trigger)
-        hook_registry.register("nightly", self._nightly)
-        hook_registry.register("importance_gate", self._importance_gate)
-        hook_registry.register("auto_context", self._auto_context)
-        hook_registry.register("forgetting_ritual", self._forgetting_ritual)
-        hook_registry.register("retrieval_router", self._retrieval_router)
-        hook_registry.register("conflict_resolver", self._conflict_resolver)
-        hook_registry.register("dream_buffer", self._dream_buffer)
+        hook_registry.register("message_received", self._message_received, layer="user")
+        hook_registry.register("message_sent", self._message_sent, layer="user")
+        hook_registry.register("state_delta", self._state_delta, layer="user")
+        hook_registry.register("consolidation", self._consolidation, layer="both")
+        hook_registry.register("emotion_trigger", self._emotion_trigger, layer="user")
+        hook_registry.register("nightly", self._nightly, layer="user")
+        hook_registry.register("importance_gate", self._importance_gate, layer="user")
+        hook_registry.register("auto_context", self._auto_context, layer="both")
+        hook_registry.register("forgetting_ritual", self._forgetting_ritual, layer="both")
+        hook_registry.register("retrieval_router", self._retrieval_router, layer="both")
+        hook_registry.register("conflict_resolver", self._conflict_resolver, layer="both")
+        hook_registry.register("dream_buffer", self._dream_buffer, layer="user")
 
-    def _message_received(self, ctx: dict[str, Any]) -> dict[str, Any]:
+    def _message_received(self, ctx: dict[str, Any], mem=None) -> dict[str, Any]:
+        """Store message in L1 buffer for recent context."""
         text = ctx.get("text", "")
         importance = self._calculate_importance(text)
-        return {"action": "store_to_l1", "importance": importance, "text": text[:100]}
+        if mem:
+            mem.l1.add("user", text, importance)
+        return {"saved_to_l1": True, "importance": importance, "text": text[:100]}
 
-    def _message_sent(self, ctx: dict[str, Any]) -> dict[str, Any]:
+    def _message_sent(self, ctx: dict[str, Any], mem=None) -> dict[str, Any]:
         text = ctx.get("text", "")
-        return {"action": "store_to_l1", "role": "assistant", "text": text[:100]}
+        if mem:
+            mem.l1.add("assistant", text, 0.3)
+        return {"saved_to_l1": True, "role": "assistant", "text": text[:100]}
 
     def _state_delta(self, ctx: dict[str, Any]) -> dict[str, Any]:
         delta = ctx.get("delta", {})
@@ -54,12 +60,16 @@ class UserHooks:
     def _consolidation(self, ctx: dict[str, Any]) -> dict[str, Any]:
         return consolidation(ctx, self.user_id)
 
-    def _emotion_trigger(self, ctx: dict[str, Any]) -> dict[str, Any]:
+    def _emotion_trigger(self, ctx: dict[str, Any], mem=None) -> dict[str, Any]:
+        """Evaluate emotional content and save episode if weighty."""
         text = ctx.get("text", "")
+        user_id = ctx.get("user_id", "default")
         should, reason, weight = self.emotion_trigger.should_save(text)
-        if should:
-            return {"action": "save_episode", "reason": reason, "weight": weight}
-        return {"action": "skip"}
+        if should and mem:
+            summary = "%s=%s" % (ctx.get("key", "text"), text[:50])
+            asyncio.run(mem.l3.save(user_id, summary, weight, [reason]))
+            return {"saved_episode": True, "reason": reason, "weight": weight}
+        return {"saved_episode": False, "reason": reason}
 
     def _nightly(self, ctx: dict[str, Any]) -> dict[str, Any]:
         return {"action": "create_diary", "summary": ctx.get("daily_summary", "")}

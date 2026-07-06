@@ -913,7 +913,8 @@ class TestSagaStateMachine:
 class TestHooksStateMachine:
     """Test that hooks fire in correct order."""
 
-    def test_message_received_fires_before_emotion(self):
+    @pytest.mark.asyncio
+    async def test_message_received_fires_before_emotion(self):
         from hooks.registry import HookRegistry
 
         order = []
@@ -921,19 +922,20 @@ class TestHooksStateMachine:
         hr.register("message_received", lambda ctx: order.append("message_received"))
         hr.register("emotion_trigger", lambda ctx: order.append("emotion_trigger"))
 
-        hr.fire("message_received", "user", {})
-        hr.fire("emotion_trigger", "user", {})
+        await hr.fire("message_received", "user", {})
+        await hr.fire("emotion_trigger", "user", {})
 
         assert order.index("message_received") < order.index("emotion_trigger")
 
-    def test_hook_error_does_not_break_chain(self):
+    @pytest.mark.asyncio
+    async def test_hook_error_does_not_break_chain(self):
         from hooks.registry import HookRegistry
 
         hr = HookRegistry()
         hr.register("bad_hook", lambda ctx: 1 / 0)
         hr.register("good_hook", lambda ctx: {"ok": True})
 
-        result = hr.fire("good_hook", "user", {})
+        result = await hr.fire("good_hook", "user", {})
         assert result is not None
 
 

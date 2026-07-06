@@ -63,12 +63,12 @@ def _validate_layer(layer: str) -> str:
     return layer
 
 
-def _fire_hook(hook_name: str, layer: str, context: dict) -> dict:
+async def _fire_hook(hook_name: str, layer: str, context: dict, mem=None) -> dict:
     """Fire a hook safely — logs errors but never breaks the tool."""
     from hooks.registry import hook_registry
 
     try:
-        return hook_registry.fire(hook_name, layer, context)
+        return await hook_registry.fire(hook_name, layer, context, mem=mem)
     except Exception as e:
         logger.warning("Hook %s failed: %s", hook_name, e)
         return {"error": str(e)}
@@ -156,7 +156,7 @@ async def memory_remember(
         return rate_limit
 
     hooks = _get_hooks(app, layer)
-    gate = _fire_hook("importance_gate", layer, {"text": value, "key": key, "importance": importance})
+    gate = await _fire_hook("importance_gate", layer, {"text": value, "key": key, "importance": importance})
     if gate.get("results") and any(r.get("bypass") for r in gate["results"] if isinstance(r, dict)):
         return RememberResult(status="skipped", reason="below_importance_threshold").dict()
 
@@ -179,30 +179,26 @@ async def memory_remember(
         _context_cache.pop(_get_cache_key(layer, user_id), None)
 
         # Fire post-save hooks
-        _fire_hook("message_received", layer, {"text": value, "key": key, "user_id": user_id})
-        _fire_hook("emotion_trigger", layer, {"text": value, "user_id": user_id})
+        await _fire_hook("message_received", layer, {"text": value, "key": key, "user_id": user_id}, mem=mem)
+        await _fire_hook("emotion_trigger", layer, {"text": value, "user_id": user_id, "key": key}, mem=mem)
         if "error" in key.lower():
-            _fire_hook("error_occurred", layer, {"key": key, "value": value, "user_id": user_id})
+            await _fire_hook("error_occurred", layer, {"key": key, "value": value, "user_id": user_id})
         elif "decision" in key.lower():
-            _fire_hook("decision_made", layer, {"key": key, "value": value, "user_id": user_id})
+            await _fire_hook("decision_made", layer, {"key": key, "value": value, "user_id": user_id})
         elif "correction" in key.lower():
-            _fire_hook("self_correction", layer, {"key": key, "value": value, "user_id": user_id})
+            await _fire_hook("self_correction", layer, {"key": key, "value": value, "user_id": user_id})
 
         return RememberResult(status="ok", entry_id=entry_id, graph_node_id=node_id).dict()
 
     entry_id = await mem.remember(key, value, importance)
 
-    # Fire emotion trigger hook (with direct fallback)
-    emotion_result = _fire_hook("emotion_trigger", layer, {"text": value, "user_id": user_id})
-    if not emotion_result.get("results"):
-        should_save, emotion_reason, emotion_weight = app.emotion_trigger.should_save(value)
-        if should_save:
-            await mem.l3.save(user_id, "%s=%s" % (key, value[:50]), emotion_weight, [emotion_reason])
+    # Fire emotion trigger hook (now handles L3 save internally)
+    await _fire_hook("emotion_trigger", layer, {"text": value, "user_id": user_id, "key": key}, mem=mem)
 
     _context_cache.pop(_get_cache_key(layer, user_id), None)
 
     # Fire post-save hooks
-    _fire_hook("message_received", layer, {"text": value, "key": key, "user_id": user_id})
+    await _fire_hook("message_received", layer, {"text": value, "key": key, "user_id": user_id}, mem=mem)
 
     return RememberResult(status="ok", entry_id=entry_id).dict()
 
@@ -227,7 +223,7 @@ async def memory_recall(
     metrics.inc("tool_calls")
     metrics.inc("tool_recall")
 
-    _fire_hook("retrieval_router", layer, {"query": query, "user_id": user_id, "limit": limit})
+    await _fire_hook("retrieval_router", layer, {"query": query, "user_id": user_id, "limit": limit})
 
     cached = _get_recall_cache(query, user_id, layer, limit)
     if cached is not None:
@@ -236,7 +232,7 @@ async def memory_recall(
     results = await _get_memory(app, layer, user_id).recall(query, limit)
     _set_recall_cache(query, user_id, layer, limit, results)
 
-    _fire_hook("auto_context", layer, {"query": query, "results_count": len(results), "user_id": user_id})
+    await _fire_hook("auto_context", layer, {"query": query, "results_count": len(results), "user_id": user_id})
 
     return RecallResult(results=results, count=len(results)).dict()
 
@@ -290,7 +286,7 @@ async def memory_session_start(
 
     session_id = await _get_memory(app, layer, user_id).l2.create_session(user_id)
 
-    _fire_hook("message_received", layer, {"text": "session_started", "session_id": session_id, "user_id": user_id})
+    await _fire_hook("message_received", layer, {"text": "session_started", "session_id": session_id, "user_id": user_id})
 
     return SessionResult(session_id=session_id).dict()
 
@@ -321,8 +317,8 @@ async def memory_session_end(
 
     await _get_memory(app, layer, user_id).l2.close_session(session_id, summary)
 
-    _fire_hook("consolidation", layer, {"trigger": "session_end", "session_id": session_id, "user_id": user_id})
-    _fire_hook("state_delta", layer, {"trigger": "session_end", "session_id": session_id, "summary": summary, "user_id": user_id})
+    await _fire_hook("consolidation", layer, {"trigger": "session_end", "session_id": session_id, "user_id": user_id})
+    await _fire_hook("state_delta", layer, {"trigger": "session_end", "session_id": session_id, "summary": summary, "user_id": user_id})
 
     return SessionResult(status="ok").dict()
 
@@ -357,9 +353,9 @@ async def memory_episode_save(
     _context_cache.pop(_get_cache_key(layer, user_id), None)
 
     # Fire post-save hooks
-    _fire_hook("emotion_trigger", layer, {"summary": summary, "emotional_weight": weight, "user_id": user_id})
-    _fire_hook("state_delta", layer, {"summary": summary, "tags": tags, "user_id": user_id})
-    _fire_hook("consolidation", layer, {"trigger": "episode_save", "user_id": user_id})
+    await _fire_hook("emotion_trigger", layer, {"summary": summary, "emotional_weight": weight, "user_id": user_id})
+    await _fire_hook("state_delta", layer, {"summary": summary, "tags": tags, "user_id": user_id})
+    await _fire_hook("consolidation", layer, {"trigger": "episode_save", "user_id": user_id})
 
     return EpisodeResult(episode_id=episode_id).dict()
 
@@ -384,7 +380,7 @@ async def memory_episode_recall(
     metrics.inc("tool_calls")
     metrics.inc("tool_episode_recall")
 
-    _fire_hook("retrieval_router", layer, {"query": tag or "episodes", "user_id": user_id, "limit": limit})
+    await _fire_hook("retrieval_router", layer, {"query": tag or "episodes", "user_id": user_id, "limit": limit})
 
     mem = _get_memory(app, layer, user_id)
     if tag:
@@ -432,7 +428,7 @@ async def memory_graph_add(
     }
     hook_name = hook_map.get(node_type)
     if hook_name:
-        _fire_hook(hook_name, layer, {"node_type": node_type, "content": content, "user_id": user_id})
+        await _fire_hook(hook_name, layer, {"node_type": node_type, "content": content, "user_id": user_id})
 
     return GraphNodeResult(node_id=node_id).dict()
 
@@ -459,7 +455,7 @@ async def memory_graph_query(
     metrics.inc("tool_calls")
     metrics.inc("tool_graph_query")
 
-    _fire_hook("retrieval_router", layer, {"query": tag or node_type, "user_id": user_id, "limit": limit})
+    await _fire_hook("retrieval_router", layer, {"query": tag or node_type, "user_id": user_id, "limit": limit})
 
     graph = _get_graph(app, layer)
     if tag:
@@ -755,7 +751,7 @@ async def memory_context_inject(
     metrics.inc("tool_calls")
     metrics.inc("tool_context_inject")
 
-    _fire_hook("auto_context", layer, {"query": "context_inject", "user_id": user_id})
+    await _fire_hook("auto_context", layer, {"query": "context_inject", "user_id": user_id})
 
     cache_key = _get_cache_key(layer, user_id)
     cached = _get_cached(cache_key)
