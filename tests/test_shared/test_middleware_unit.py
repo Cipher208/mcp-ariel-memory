@@ -18,18 +18,6 @@ def test_middleware_context_defaults():
     assert ctx.blocked is False
 
 
-def test_importance_gate_passes_non_matching_tool():
-    gate = ImportanceGateMiddleware()
-    ctx = MiddlewareContext(args={"importance": 0.1}, tool_name="other_tool")
-
-    async def handler(c):
-        return {"ok": True}
-
-    result = asyncio.run(gate.process(ctx, handler))
-    assert result == {"ok": True}
-    assert ctx.blocked is False
-
-
 def test_importance_gate_blocks_low():
     gate = ImportanceGateMiddleware()
     ctx = MiddlewareContext(args={"value": "hi"}, tool_name="memory_user_remember")

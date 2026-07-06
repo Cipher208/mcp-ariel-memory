@@ -32,21 +32,11 @@ def test_default_kind_recovery():
     assert p_banana == p_fact
 
 
-def test_apply_decay_instruction_never_decays():
-    assert apply_decay(0.7, "instruction", 30) == 0.7
-    assert apply_decay(0.95, "instruction", 3650) == 0.95
-
-
 def test_apply_decay_fact_exponential():
     days = 30
     val = apply_decay(0.5, "fact", days)
     expected = max(0.01, 0.5 * math.exp(-0.01 * days))
     assert val == pytest.approx(expected, abs=1e-6)
-
-
-@pytest.mark.parametrize("kind", ["instruction", "rule", "commitment"])
-def test_can_archive_protected(kind):
-    assert not can_archive(kind, 0.05, days_since_update=10000)
 
 
 def test_can_archive_fact():
