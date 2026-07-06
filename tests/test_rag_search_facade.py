@@ -96,14 +96,18 @@ class TestUnifiedSearch:
 
 
 class TestAutoStrategy:
-    @pytest.mark.parametrize("query,expected", [
-        ("python", "fts"),
-        ("redis cluster", "fts"),
-        ("redis high throughput", "hybrid"),
-        ("", "fts"),
-    ])
+    @pytest.mark.parametrize(
+        "query,expected",
+        [
+            ("python", "fts"),
+            ("redis cluster", "fts"),
+            ("redis high throughput", "hybrid"),
+            ("", "fts"),
+        ],
+    )
     def test_auto_strategy(self, rag, query, expected):
         from rag.search import auto_strategy
+
         assert auto_strategy(query) == expected
 
 

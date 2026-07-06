@@ -9,6 +9,7 @@ import pytest
 
 def test_typed_export_import():
     from features.typed_export import do_export, do_reclassify, do_backfill
+
     assert callable(do_export)
     assert callable(do_reclassify)
     assert callable(do_backfill)
@@ -16,6 +17,7 @@ def test_typed_export_import():
 
 def test_typed_export_main():
     from features.typed_export import main
+
     assert callable(main)
 
 

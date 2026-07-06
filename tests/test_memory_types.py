@@ -44,14 +44,17 @@ def test_can_archive_fact():
     assert not can_archive("fact", 0.9, days_since_update=200)
 
 
-@pytest.mark.parametrize("text,expected", [
-    ("я обещаю сделать к пятнице", MemoryKind.COMMITMENT),
-    ("I commit to ship by Friday", MemoryKind.COMMITMENT),
-    ("запрещено удалять базы данных", MemoryKind.RULE),
-    ("do not push to main", MemoryKind.RULE),
-    ("моя цель — выучить Rust", MemoryKind.GOAL),
-    ("что-то нейтральное", MemoryKind.FACT),
-])
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("я обещаю сделать к пятнице", MemoryKind.COMMITMENT),
+        ("I commit to ship by Friday", MemoryKind.COMMITMENT),
+        ("запрещено удалять базы данных", MemoryKind.RULE),
+        ("do not push to main", MemoryKind.RULE),
+        ("моя цель — выучить Rust", MemoryKind.GOAL),
+        ("что-то нейтральное", MemoryKind.FACT),
+    ],
+)
 def test_kind_for_text(text, expected):
     assert kind_for_text(text) == expected
 

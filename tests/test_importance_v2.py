@@ -48,10 +48,13 @@ def test_length_s_curve_capped(scorer):
     assert s_long.length == 1.0
 
 
-@pytest.mark.parametrize("text", [
-    "Redis cluster на постгресе с JWT на /api/auth",
-    "the redis postgres jwt oauth api is critical for production",
-])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Redis cluster на постгресе с JWT на /api/auth",
+        "the redis postgres jwt oauth api is critical for production",
+    ],
+)
 def test_technical_keywords(scorer, text):
     s = scorer.score(text)
     assert s.tech_keyword > 0.3

@@ -565,6 +565,7 @@ class TestConnectionProperties:
     @settings(max_examples=20)
     def test_insert_fetchall_roundtrip(self, n):
         """Insert n rows, fetchall returns exactly n rows."""
+
         async def t():
             cm = AsyncConnectionManager(base_dir="/tmp")
             name = f"prop_{uuid.uuid4().hex[:8]}.db"
@@ -575,21 +576,25 @@ class TestConnectionProperties:
             cur = await conn.execute("SELECT COUNT(*) FROM t")
             row = await cur.fetchone()
             return row[0]
+
         result = asyncio.run(t())
         assert result == n
 
     def test_get_reuses_connection(self):
         """Getting the same DB name returns the same connection object."""
+
         async def t():
             cm = AsyncConnectionManager(base_dir="/tmp")
             c1 = await cm.get("reuse_test.db")
             c2 = await cm.get("reuse_test.db")
             return c1 is c2
+
         result = asyncio.run(t())
         assert result is True
 
     def test_execute_script_works(self):
         """execute_script runs DDL and DML."""
+
         async def t():
             cm = AsyncConnectionManager(base_dir="/tmp")
             name = f"script_{uuid.uuid4().hex[:8]}.db"
@@ -598,6 +603,7 @@ class TestConnectionProperties:
             cur = await conn.execute("SELECT x FROM t")
             row = await cur.fetchone()
             return row[0]
+
         result = asyncio.run(t())
         assert result == 42
 

@@ -24,7 +24,9 @@ def test_gate_blocks_low():
 def test_gate_allows_high():
     gate = ImportanceGateMiddleware()
     ctx = MiddlewareContext(
-        args={"value": "This is a critical and important decision about our architecture that affects production systems and requires immediate attention"},
+        args={
+            "value": "This is a critical and important decision about our architecture that affects production systems and requires immediate attention"
+        },
         tool_name="memory_user_remember",
     )
     asyncio.run(gate.process(ctx, _handler))
@@ -46,6 +48,7 @@ def test_pipeline_runs():
 
     class Count:
         name = "count"
+
         async def process(self, ctx, next_fn):
             ctx.metadata["count"] = True
             return await next_fn(ctx)

@@ -14,7 +14,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 async def _setup():
     from shared.migrations import migration_manager
+
     await migration_manager.migrate()
+
 
 asyncio.run(_setup())
 
@@ -22,6 +24,7 @@ asyncio.run(_setup())
 @pytest.fixture
 async def mm():
     from core import memory_manager
+
     return memory_manager
 
 

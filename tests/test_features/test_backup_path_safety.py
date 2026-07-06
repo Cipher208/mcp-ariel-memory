@@ -13,10 +13,13 @@ def bm(tmp_path):
     return BackupManager(base_dir=str(data_dir))
 
 
-@pytest.mark.parametrize("manifest_files,should_reject", [
-    (["../../etc/crontab", "memory.db"], True),
-    (["/etc/passwd"], True),
-])
+@pytest.mark.parametrize(
+    "manifest_files,should_reject",
+    [
+        (["../../etc/crontab", "memory.db"], True),
+        (["/etc/passwd"], True),
+    ],
+)
 def test_restore_rejects_traversal(bm, manifest_files, should_reject):
     backup_dir = bm.backup_dir / "crafted"
     backup_dir.mkdir()

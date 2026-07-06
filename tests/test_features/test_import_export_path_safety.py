@@ -12,6 +12,7 @@ def ie(tmp_path):
     class FakeCM:
         def __init__(self, base):
             self._base = base
+
         @property
         def base_dir(self):
             return self._base
@@ -25,5 +26,6 @@ def ie(tmp_path):
 @pytest.mark.parametrize("path", ["../../etc/passwd", "/etc/passwd"])
 def test_import_rejects_traversal(ie, path):
     import asyncio
+
     with pytest.raises(ValueError, match="escapes base directory"):
         asyncio.run(ie.import_user(path))

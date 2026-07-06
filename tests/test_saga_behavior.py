@@ -145,13 +145,16 @@ async def test_idempotent_replay(tmp_path):
     from shared.connection import AsyncConnectionManager
 
     m = AsyncConnectionManager(base_dir=str(tmp_path))
-    await m.execute_script("memory.db", """
+    await m.execute_script(
+        "memory.db",
+        """
         CREATE TABLE IF NOT EXISTS saga_step_log (
             saga_id TEXT NOT NULL, step_name TEXT NOT NULL, params_hash TEXT NOT NULL,
             result_json BLOB, completed_at REAL NOT NULL,
             PRIMARY KEY (saga_id, step_name, params_hash)
         ) WITHOUT ROWID
-    """)
+    """,
+    )
     old_cm = _conn_mod.connection_manager
     _conn_mod.connection_manager = m
 
