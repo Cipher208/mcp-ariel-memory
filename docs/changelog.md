@@ -5,7 +5,10 @@
 ### Testing
 - Test suite optimization: 364→250 tests
 - Parametrized 6 test files (user/agent, ru/en, auto_strategy)
-- Property-based expansion: 25→39 Hypothesis tests
+- Property-based expansion: 25→79 Hypothesis tests
+- Logic verification: ImportanceScoring, TypedDecay, SagaCompensation, SearchRelevance, RAGPipeline, WikiCRUD, ConnectionPool, ImportanceGate, RateLimiter
+- Stateful machines: MemoryManager, Saga multi-step, Hooks execution order
+- Chaos fixtures: database_locked, api_timeout, keyboard_interrupt, corrupt_db
 - Coverage tests for typed_export, backup, audit_trail, rate_limiting, agent_hooks, wiki, backup_cron, saga
 - Deleted 10 duplicate test files
 - Coverage: 73% (Codecov)

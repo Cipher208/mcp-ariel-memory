@@ -10,9 +10,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - **Parametrized** 6 files: test_rag_scoring, test_rag_search_facade, test_memory_types, test_importance_v2, test_mib_quantize, test_tools_unit.
 - **Property-based expansion** — 25→39 tests: ImportanceGate, MemoryTypes, PathSafety, Saga, Connection, Cache, Embeddings, Secrets.
 - **Coverage tests** — 32 new tests for typed_export, backup, audit_trail, rate_limiting, agent_hooks, wiki, backup_cron, saga.
+- **Logic verification** — 10 tests verifying algorithm correctness: ImportanceScoring, TypedDecay, SagaCompensation, SearchRelevance, RAGPipeline, WikiCRUD, ConnectionPool, ImportanceGate, RateLimiter.
+- **Stateful machines** — 6 tests for MemoryManager, Saga multi-step, Hooks execution order.
+- **Chaos fixtures** — 4 fixtures: database_locked, api_timeout, keyboard_interrupt, corrupt_db.
 - **Deleted 10 duplicate files**: test_all, test_mcp/test_mcp, test_lifecycle, test_hooks, test_graph, test_rag, test_rag_edge_cases, test_tools_layer, test_tools_ops, test_saga_compensation/retry/idempotency.
 - **Removed getter/setter tests** that tested third-party library behavior.
-- **Coverage**: 73% (Codecov) with 39 property-based invariant tests.
+- **Coverage**: 73% (Codecov) with 79 property-based/logic/chaos tests.
 
 ## [1.3.1] - 2026-07-06
 

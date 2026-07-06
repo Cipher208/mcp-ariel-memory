@@ -64,7 +64,7 @@ graph TD
 | **Wiki** | 14 types, .md files as source of truth, FTS5 | None |
 | **24 hooks** | Intercept operations at every stage | 0 |
 | **Encryption** | libsodium secretbox (keychain-first) | Usually none |
-| **Tests** | 250 (39 property-based) | — |
+| **Tests** | 250 (79 property-based/logic/chaos) | — |
 | **Dashboard** | Real-time HTML dashboard | — |
 
 ### Who needs this?

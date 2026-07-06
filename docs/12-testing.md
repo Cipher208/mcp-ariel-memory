@@ -19,7 +19,7 @@ python -m pytest tests/test_hypothesis.py -v
 uv run mcp dev mcp_server.server
 ```
 
-**Status:** 250 pytest tests + 39 property-based Hypothesis tests. Python 3.10–3.13 CI matrix. Coverage: 73% (Codecov).
+**Status:** 250 pytest tests + 79 property-based/logic/chaos tests. Python 3.10–3.13 CI matrix. Coverage: 73% (Codecov).
 
 ## Test Fixtures
 
