@@ -1,6 +1,5 @@
 """Shared fixtures for all tests."""
 
-import asyncio
 import gc
 import os
 
@@ -19,12 +18,17 @@ def master_key_env():
     secrets._master_cache.clear()
     yield
     os.environ.pop("MCP_MASTER_KEY", None)
-    # Force cleanup of all resources to prevent aiosqlite hanging
+    # Force cleanup of all resources
     gc.collect()
-    # Close any remaining aiosqlite connections
+    # Close any remaining aiosqlite connections synchronously
     try:
         from shared.connection import connection_manager
 
-        asyncio.run(connection_manager.close_all())
+        for name, conn in list(connection_manager._conns.items()):
+            try:
+                conn.close()
+            except Exception:
+                pass
+        connection_manager._conns.clear()
     except Exception:
         pass
