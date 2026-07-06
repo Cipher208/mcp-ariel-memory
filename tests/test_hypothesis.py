@@ -324,3 +324,107 @@ class TestReflexBufferConcurrency:
             t.join(timeout=10)
 
         assert not errors, f"Concurrent read/write failed: {errors}"
+
+
+# ═══════════════════════════════════════════════════════════════
+#  shared/middleware.py — ImportanceGate threshold invariant
+# ═══════════════════════════════════════════════════════════════
+
+import asyncio
+import tempfile
+from shared.middleware import MiddlewareContext, ImportanceGateMiddleware
+
+
+class TestImportanceGateProperties:
+    """ImportanceGate must correctly block/allow based on content scoring."""
+
+    @given(value=st.text(min_size=0, max_size=500))
+    @settings(max_examples=100)
+    def test_gate_always_returns_bool(self, value):
+        """Gate must never crash — always returns a result."""
+        gate = ImportanceGateMiddleware()
+        ctx = MiddlewareContext(args={"value": value}, tool_name="memory_user_remember")
+
+        async def handler(c):
+            return {"ok": True}
+
+        result = asyncio.run(gate.process(ctx, handler))
+        assert result is not None
+        assert isinstance(ctx.blocked, bool)
+
+    @given(score=st.floats(min_value=0.0, max_value=1.0))
+    @settings(max_examples=50)
+    def test_non_matching_tool_passes(self, score):
+        """Non-memory tools should always pass through."""
+        gate = ImportanceGateMiddleware()
+        ctx = MiddlewareContext(args={"importance": score}, tool_name="other_tool")
+
+        async def handler(c):
+            return {"ok": True}
+
+        asyncio.run(gate.process(ctx, handler))
+        assert ctx.blocked is False
+
+
+# ═══════════════════════════════════════════════════════════════
+#  shared/memory_types.py — decay and archive invariants
+# ═══════════════════════════════════════════════════════════════
+
+from shared.memory_types import apply_decay, can_archive, kind_for_text, MemoryKind
+
+
+class TestMemoryTypeProperties:
+    """Memory type policies must hold for all inputs."""
+
+    @given(days=st.integers(min_value=0, max_value=36500))
+    @settings(max_examples=50)
+    def test_instruction_never_decays(self, days):
+        """Instruction importance stays constant regardless of age."""
+        assert apply_decay(0.7, "instruction", days) == 0.7
+        assert apply_decay(1.0, "instruction", days) == 1.0
+
+    @given(days=st.integers(min_value=1, max_value=3650))
+    @settings(max_examples=50)
+    def test_fact_always_decays(self, days):
+        """Fact importance decreases over time."""
+        fresh = apply_decay(0.5, "fact", 1)
+        aged = apply_decay(0.5, "fact", days)
+        if days > 1:
+            assert aged <= fresh
+
+    @given(kind=st.sampled_from(["instruction", "rule", "commitment"]))
+    @settings(max_examples=30)
+    def test_protected_kinds_never_archive(self, kind):
+        """Protected kinds cannot be archived regardless of age/importance."""
+        assert can_archive(kind, 0.01, days_since_update=99999) is False
+
+    @given(text=st.text(min_size=3, max_size=200, alphabet=st.characters(blacklist_categories=("Cs",))))
+    @settings(max_examples=100)
+    def test_kind_for_text_returns_valid(self, text):
+        """kind_for_text always returns a valid MemoryKind."""
+        result = kind_for_text(text)
+        assert isinstance(result, MemoryKind)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  shared/path_safety.py — path traversal invariant
+# ═══════════════════════════════════════════════════════════════
+
+from pathlib import Path
+
+
+class TestPathSafetyProperties:
+    """safe_resolve must never escape the base directory."""
+
+    @given(target=st.text(min_size=0, max_size=50, alphabet=st.characters(blacklist_categories=("Cs",))))
+    @settings(max_examples=100)
+    def test_resolve_stays_within_base(self, target):
+        """Resolved path must always start with base."""
+        from shared.path_safety import safe_resolve
+
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            result = safe_resolve(tmp, target)
+            assert str(result).startswith(str(tmp))
+        except (ValueError, OSError):
+            pass  # Rejection is also correct
