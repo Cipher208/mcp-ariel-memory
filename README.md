@@ -1,6 +1,6 @@
 # mcp-ariel-memory
 
-> **Give your AI agents real memory** — episodic recall, knowledge graphs, hybrid search, and envelope encryption in a single MCP server. 19 tools. 4-layer hierarchy. 499 tests.
+> **Give your AI agents real memory** — episodic recall, knowledge graphs, hybrid search, and envelope encryption in a single MCP server. 19 tools. 4-layer hierarchy. 490+ tests.
 
 [![CI](https://github.com/Cipher208/mcp-ariel-memory/actions/workflows/ci.yml/badge.svg)](https://github.com/Cipher208/mcp-ariel-memory/actions/workflows/ci.yml)
 [![codecov](https://img.shields.io/codecov/c/github/Cipher208/mcp-ariel-memory?logo=codecov&logoColor=white)](https://codecov.io/gh/Cipher208/mcp-ariel-memory)

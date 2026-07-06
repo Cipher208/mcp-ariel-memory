@@ -3,6 +3,18 @@
 All notable changes to mcp-ariel-memory are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.1] - 2026-07-06
+
+### Fixed
+- **aiosqlite 0.22.0 hang** — pinned `aiosqlite>=0.21.0,!=0.22.0` in CI workflow. Version 0.22.0 changed worker thread architecture, causing pytest to hang indefinitely after tests complete.
+- **CI test hang** — rewrote e2e tests to use `AsyncConnectionManager(base_dir=tmp_path)` instead of global `connection_manager`. Each test now creates its own temp database, preventing aiosqlite connection leak.
+- **pytest_sessionfinish** hook added with `os._exit(0)` as safety net for process termination.
+- **Event loop scope** — confirmed `asyncio_default_fixture_loop_scope = "function"` in pyproject.toml.
+
+### Testing
+- **E2e tests restored** — 18 tests covering all 25 MCP tools with real data flow (temp DB, not mocks).
+- Hook dispatch verified: message_received, emotion_trigger, state_delta, consolidation, error_occurred, decision_made, retrieval_router, auto_context.
+
 ## [1.3.0] - 2026-07-05
 
 ### Security
