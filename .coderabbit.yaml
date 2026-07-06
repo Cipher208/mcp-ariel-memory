@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+  path_instructions:
+    - path: "mcp_server/**/*.py"
+      instructions: |
+        Review MCP server code. Focus on:
+        - Async correctness (no blocking calls in async functions)
+        - Error handling (no bare except)
+        - Type annotations on public functions
+        - SQL injection prevention (parameterized queries only)
+    - path: "shared/**/*.py"
+      instructions: |
+        Review shared modules. Focus on:
+        - Thread safety (no shared mutable state without locks)
+        - Connection management (proper cleanup, no leaks)
+        - Cryptographic operations (correct nonce handling)
+    - path: "tests/**/*.py"
+      instructions: |
+        Review test code. Focus on:
+        - Test isolation (no shared state between tests)
+        - Async test correctness
+        - No hardcoded paths or credentials
+        - Property-based tests should have proper shrink strategies
+    - path: "rag/**/*.py"
+      instructions: |
+        Review RAG engine. Focus on:
+        - FTS5 query safety (no user input in SQL)
+        - Binary search correctness (hamming distance math)
+        - Search result ranking consistency
+
+chat:
+  auto_reply: true
