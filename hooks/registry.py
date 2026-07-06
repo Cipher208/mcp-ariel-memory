@@ -10,7 +10,7 @@ import asyncio
 import inspect
 import logging
 from collections.abc import Callable
-from typing import Any, Optional
+from typing import Any
 
 from config import config
 
