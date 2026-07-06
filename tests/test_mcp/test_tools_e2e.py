@@ -4,12 +4,10 @@ Each test creates a temporary database via AsyncConnectionManager(base_dir=tmp_p
 No global connection_manager is used, so no aiosqlite hang on exit.
 """
 
-import asyncio
 import pytest
 from unittest.mock import MagicMock
 from shared.connection import AsyncConnectionManager
 from shared.migrations import MigrationManager
-from core import MemoryManager
 from mcp_server.tools_layer import (
     memory_remember, memory_recall, memory_forget,
     memory_session_start, memory_session_end,
