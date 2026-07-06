@@ -17,6 +17,8 @@
 - [x] **Float blobs migration** — `keep_float_blobs` config + migration v7 (drop column)
 - [x] **Expand batched reads** — fetchmany(1000) in forgetting, scheduler
 - [x] **Connection pooling** — cache_size=64MB, temp_store=MEMORY
+- [ ] **Alembic schema migrations** — replace raw SQL migrations with Alembic for versioned, reversible schema changes. Run migrations in CI before Docker build.
+- [ ] **ONNX embeddings** — export BAAI/bge-small-en-v1.5 to ONNX + INT8 quantization via HuggingFace optimum. 4-5x faster inference, lower RAM. Blocks GIL on CPU currently.
 - [ ] **HNSW index** — integrate hnswlib for binary search (replaces O(n) scan). Config: `binary.index: "hnsw"` with fallback to brute-force. Requires migration for index storage.
 - [ ] **FTS5 improvements** — add triggers for auto-sync content (currently manual INSERT)
 - [ ] **Extended indexes** — add indexes for `temporal_events`, `temporal_links`
