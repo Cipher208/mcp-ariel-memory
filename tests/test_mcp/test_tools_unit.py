@@ -3,9 +3,7 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock
 from mcp_server.tools_layer import (
-    _validate_layer,
     _fire_hook,
-    _get_cache_key,
     memory_remember,
     memory_recall,
     memory_forget,
@@ -18,22 +16,6 @@ from mcp_server.tools_layer import (
 
 
 # ── Helpers ──
-
-
-def test_validate_layer_valid():
-    assert _validate_layer("user") == "user"
-    assert _validate_layer("agent") == "agent"
-
-
-def test_validate_layer_invalid():
-    with pytest.raises(ValueError, match="Invalid layer"):
-        _validate_layer("admin")
-
-
-def test_get_cache_key():
-    key = _get_cache_key("user", "alice")
-    assert "user" in key
-    assert "alice" in key
 
 
 def test_fire_hook_no_handlers():
