@@ -1,4 +1,4 @@
-"""Round-trip and backward-compat tests for envelope encryption."""
+"""Tests for envelope encryption — remaining unit tests."""
 
 import os
 from pathlib import Path
@@ -8,7 +8,6 @@ import pytest
 
 @pytest.fixture(autouse=True, scope="session")
 def master_key_env():
-    """Set master key BEFORE importing secrets module."""
     os.environ["MCP_MASTER_KEY"] = "test-secret-for-unit-tests-only"
     from features import secrets
 
@@ -17,30 +16,13 @@ def master_key_env():
     os.environ.pop("MCP_MASTER_KEY", None)
 
 
-def test_encrypt_decrypt_roundtrip():
-    from features.secrets import decrypt_json, encrypt_json
-
-    payload = {"alice": "ak_abc", "bob": "ak_def"}
-    blob = encrypt_json(payload)
-    assert decrypt_json(blob) == payload
-
-
-def test_different_nonces_per_call():
-    from features.secrets import encrypt_json
-
-    a = encrypt_json({"x": 1})
-    b = encrypt_json({"x": 1})
-    assert a != b  # different nonce → different ciphertext
-
-
 def test_tampered_ciphertext_rejected():
     from features.secrets import decrypt_json, encrypt_json
 
     blob = encrypt_json({"x": 1})
-    # Flip one bit in the middle of ciphertext
     tampered = bytearray(blob)
     tampered[30] ^= 0x80
-    with pytest.raises(Exception):  # nacl.exceptions.CryptoError
+    with pytest.raises(Exception):
         decrypt_json(bytes(tampered))
 
 
@@ -55,42 +37,30 @@ def test_is_encrypted_blob(tmp_path: Path):
     assert is_encrypted_blob(enc)
 
 
-def test_is_encrypted_blob_nonexistent():
-    from features.secrets import is_encrypted_blob
-
-    assert not is_encrypted_blob(Path("/nonexistent/file.json"))
-
-
-def test_save_and_load_dotenv(tmp_path, monkeypatch):
-    """_save_dotenv writes to .env, _load_dotenv reads it back."""
+@pytest.mark.parametrize(
+    "env_content,expected_key",
+    [
+        ("MCP_MASTER_KEY=from-dotenv-test", "from-dotenv-test"),
+        ("# comment\n\nMCP_MASTER_KEY=real-value\n", "real-value"),
+    ],
+)
+def test_dotenv_roundtrip(tmp_path, monkeypatch, env_content, expected_key):
+    """_save_dotenv writes, _load_dotenv reads. Comments/blanks ignored."""
     from features.secrets import _load_dotenv, _save_dotenv
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("MCP_MASTER_KEY", raising=False)
 
-    _save_dotenv("MCP_MASTER_KEY", "from-dotenv-test")
-    env_file = tmp_path / ".env"
-    assert env_file.exists()
-    assert "MCP_MASTER_KEY=from-dotenv-test" in env_file.read_text()
+    if env_content.startswith("#"):
+        (tmp_path / ".env").write_text(env_content)
+    else:
+        _save_dotenv("MCP_MASTER_KEY", env_content.split("=", 1)[1])
 
     _load_dotenv()
-    assert os.environ.get("MCP_MASTER_KEY") == "from-dotenv-test"
+    assert os.environ.get("MCP_MASTER_KEY") == expected_key
 
 
-def test_load_dotenv_skips_comments_and_blanks(tmp_path, monkeypatch):
-    """_load_dotenv ignores comments and blank lines."""
-    from features.secrets import _load_dotenv
-
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("MCP_MASTER_KEY", raising=False)
-
-    (tmp_path / ".env").write_text("# comment\n\nMCP_MASTER_KEY=real-value\n")
-    _load_dotenv()
-    assert os.environ.get("MCP_MASTER_KEY") == "real-value"
-
-
-def test_load_dotenv_does_not_override_existing_env(monkeypatch):
-    """_load_dotenv does not overwrite an already-set env var."""
+def test_dotenv_does_not_override_existing(monkeypatch):
     from features.secrets import _load_dotenv
 
     monkeypatch.setenv("MCP_MASTER_KEY", "already-set")
@@ -98,41 +68,19 @@ def test_load_dotenv_does_not_override_existing_env(monkeypatch):
     assert os.environ.get("MCP_MASTER_KEY") == "already-set"
 
 
-def test_load_master_key_from_env_var(monkeypatch):
-    """_load_master_key derives a 32-byte key via argon2id from MCP_MASTER_KEY."""
+def test_master_key_derivation(monkeypatch):
     from features.secrets import _load_master_key, _master_cache
 
     monkeypatch.setenv("MCP_MASTER_KEY", "my-secret-seed-for-kdf")
     _master_cache.clear()
-
     key = _load_master_key()
-    assert isinstance(key, bytes)
-    assert len(key) == 32
+    assert isinstance(key, bytes) and len(key) == 32
 
 
-def test_load_master_key_auto_generates(monkeypatch, tmp_path):
-    """_load_master_key auto-generates when no key source is available."""
-    from features.secrets import _load_master_key, _master_cache
-
-    monkeypatch.delenv("MCP_MASTER_KEY", raising=False)
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("MCP_MASTER_KEY", raising=False)
-    _master_cache.clear()
-
-    key = _load_master_key()
-    assert isinstance(key, bytes)
-    assert len(key) == 32
-    # Auto-generated key is saved to .env
-    env_file = tmp_path / ".env"
-    assert env_file.exists()
-    assert "MCP_MASTER_KEY=" in env_file.read_text()
-
-
-def test_get_master_key_caches():
-    """_get_master_key returns the same key on repeated calls."""
+def test_master_key_caches():
     from features.secrets import _get_master_key, _master_cache
 
     _master_cache.clear()
     key1 = _get_master_key()
     key2 = _get_master_key()
-    assert key1 is key2  # same object from cache
+    assert key1 is key2

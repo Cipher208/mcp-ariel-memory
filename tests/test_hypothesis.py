@@ -324,3 +324,321 @@ class TestReflexBufferConcurrency:
             t.join(timeout=10)
 
         assert not errors, f"Concurrent read/write failed: {errors}"
+
+
+# ═══════════════════════════════════════════════════════════════
+#  shared/middleware.py — ImportanceGate threshold invariant
+# ═══════════════════════════════════════════════════════════════
+
+import asyncio
+import tempfile
+from shared.middleware import MiddlewareContext, ImportanceGateMiddleware
+
+
+class TestImportanceGateProperties:
+    """ImportanceGate must correctly block/allow based on content scoring."""
+
+    @given(value=st.text(min_size=0, max_size=500))
+    @settings(max_examples=100)
+    def test_gate_always_returns_bool(self, value):
+        """Gate must never crash — always returns a result."""
+        gate = ImportanceGateMiddleware()
+        ctx = MiddlewareContext(args={"value": value}, tool_name="memory_user_remember")
+
+        async def handler(c):
+            return {"ok": True}
+
+        result = asyncio.run(gate.process(ctx, handler))
+        assert result is not None
+        assert isinstance(ctx.blocked, bool)
+
+    @given(score=st.floats(min_value=0.0, max_value=1.0))
+    @settings(max_examples=50)
+    def test_non_matching_tool_passes(self, score):
+        """Non-memory tools should always pass through."""
+        gate = ImportanceGateMiddleware()
+        ctx = MiddlewareContext(args={"importance": score}, tool_name="other_tool")
+
+        async def handler(c):
+            return {"ok": True}
+
+        asyncio.run(gate.process(ctx, handler))
+        assert ctx.blocked is False
+
+
+# ═══════════════════════════════════════════════════════════════
+#  shared/memory_types.py — decay and archive invariants
+# ═══════════════════════════════════════════════════════════════
+
+from shared.memory_types import apply_decay, can_archive, kind_for_text, MemoryKind
+
+
+class TestMemoryTypeProperties:
+    """Memory type policies must hold for all inputs."""
+
+    @given(days=st.integers(min_value=0, max_value=36500))
+    @settings(max_examples=50)
+    def test_instruction_never_decays(self, days):
+        """Instruction importance stays constant regardless of age."""
+        assert apply_decay(0.7, "instruction", days) == 0.7
+        assert apply_decay(1.0, "instruction", days) == 1.0
+
+    @given(days=st.integers(min_value=1, max_value=3650))
+    @settings(max_examples=50)
+    def test_fact_always_decays(self, days):
+        """Fact importance decreases over time."""
+        fresh = apply_decay(0.5, "fact", 1)
+        aged = apply_decay(0.5, "fact", days)
+        if days > 1:
+            assert aged <= fresh
+
+    @given(kind=st.sampled_from(["instruction", "rule", "commitment"]))
+    @settings(max_examples=30)
+    def test_protected_kinds_never_archive(self, kind):
+        """Protected kinds cannot be archived regardless of age/importance."""
+        assert can_archive(kind, 0.01, days_since_update=99999) is False
+
+    @given(text=st.text(min_size=3, max_size=200, alphabet=st.characters(blacklist_categories=("Cs",))))
+    @settings(max_examples=100)
+    def test_kind_for_text_returns_valid(self, text):
+        """kind_for_text always returns a valid MemoryKind."""
+        result = kind_for_text(text)
+        assert isinstance(result, MemoryKind)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  shared/path_safety.py — path traversal invariant
+# ═══════════════════════════════════════════════════════════════
+
+from pathlib import Path
+
+
+class TestPathSafetyProperties:
+    """safe_resolve must never escape the base directory."""
+
+    @given(target=st.text(min_size=0, max_size=50, alphabet=st.characters(blacklist_categories=("Cs",))))
+    @settings(max_examples=100)
+    def test_resolve_stays_within_base(self, target):
+        """Resolved path must always start with base."""
+        from shared.path_safety import safe_resolve
+
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            result = safe_resolve(tmp, target)
+            assert str(result).startswith(str(tmp))
+        except (ValueError, OSError):
+            pass  # Rejection is also correct
+
+
+# ═══════════════════════════════════════════════════════════════
+#  features/secrets.py — encrypt/decrypt roundtrip
+# ═══════════════════════════════════════════════════════════════
+
+from features.secrets import encrypt_json, decrypt_json
+
+
+class TestSecretsProperties:
+    @given(data=st.dictionaries(st.text(min_size=1, max_size=20), st.text(max_size=100), min_size=1, max_size=5))
+    @settings(deadline=None, max_examples=30)
+    def test_encrypt_decrypt_roundtrip_dict(self, data):
+        blob = encrypt_json(data)
+        result = decrypt_json(blob)
+        assert result == data
+
+    @given(data=st.lists(st.text(min_size=1, max_size=50), min_size=1, max_size=5))
+    @settings(deadline=None, max_examples=30)
+    def test_encrypt_decrypt_roundtrip_list(self, data):
+        blob = encrypt_json(data)
+        result = decrypt_json(blob)
+        assert result == data
+
+    @given(
+        a=st.dictionaries(st.text(min_size=1, max_size=10), st.text(max_size=50), min_size=1),
+        b=st.dictionaries(st.text(min_size=1, max_size=10), st.text(max_size=50), min_size=1),
+    )
+    @settings(deadline=None, max_examples=30)
+    def test_different_inputs_different_ciphertext(self, a, b):
+        assume(a != b)
+        blob_a = encrypt_json(a)
+        blob_b = encrypt_json(b)
+        assert blob_a != blob_b
+
+    @given(data=st.dictionaries(st.text(min_size=1, max_size=10), st.integers(), min_size=1))
+    @settings(deadline=None, max_examples=20)
+    def test_min_blob_size(self, data):
+        """Encrypted blob must be at least nonce(24) + MAC(16) = 40 bytes."""
+        blob = encrypt_json(data)
+        assert len(blob) >= 40
+
+
+# ═══════════════════════════════════════════════════════════════
+#  shared/saga.py — Saga state machine invariants
+# ═══════════════════════════════════════════════════════════════
+
+from shared.saga import Saga
+
+
+class TestSagaProperties:
+    @given(name=st.text(min_size=1, max_size=50, alphabet=st.characters(blacklist_categories=("Cs",))))
+    @settings(max_examples=50)
+    def test_saga_name_preserved(self, name):
+        """Saga name is preserved in state."""
+        s = Saga(name)
+        assert s.get_state()["name"] == name
+
+    @given(n=st.integers(min_value=0, max_value=20))
+    @settings(max_examples=30)
+    def test_add_steps_count(self, n):
+        """Adding n steps results in n steps."""
+        s = Saga("test")
+        for i in range(n):
+            s.add_step(f"s{i}", lambda d: {"ok": True})
+        assert len(s._steps) == n
+
+
+# ═══════════════════════════════════════════════════════════════
+#  shared/embeddings.py — hash embedding invariants
+# ═══════════════════════════════════════════════════════════════
+
+from shared.embeddings import _hash_embedding, similarity
+
+
+class TestEmbeddingProperties:
+    @given(
+        text=st.text(min_size=1, max_size=200, alphabet=st.characters(blacklist_categories=("Cs",))),
+        dim=st.integers(min_value=16, max_value=256),
+    )
+    @settings(max_examples=50)
+    def test_hash_embedding_correct_dim(self, text, dim):
+        """Hash embedding always returns correct dimension."""
+        result = _hash_embedding(text, dim=dim)
+        assert len(result) == dim
+
+    @given(text=st.text(min_size=1, max_size=200, alphabet=st.characters(blacklist_categories=("Cs",))))
+    @settings(max_examples=50)
+    def test_hash_embedding_normalized(self, text):
+        """Hash embedding is always normalized (unit vector)."""
+        result = _hash_embedding(text, dim=64)
+        norm = sum(x**2 for x in result) ** 0.5
+        assert abs(norm - 1.0) < 0.01
+
+    @given(text=st.text(min_size=1, max_size=200, alphabet=st.characters(blacklist_categories=("Cs",))))
+    @settings(max_examples=50)
+    def test_hash_embedding_deterministic(self, text):
+        """Same input always produces same embedding."""
+        r1 = _hash_embedding(text, dim=32)
+        r2 = _hash_embedding(text, dim=32)
+        assert r1 == r2
+
+    @given(
+        v=st.lists(st.floats(min_value=-1.0, max_value=1.0, allow_nan=False, allow_infinity=False), min_size=2, max_size=20),
+    )
+    @settings(max_examples=50)
+    def test_similarity_self_is_one(self, v):
+        """Similarity of a non-zero vector with itself is ~1.0."""
+        assume(any(abs(x) > 0.01 for x in v))  # skip near-zero vectors
+        s = similarity(v, v)
+        assert abs(s - 1.0) < 0.05
+
+    @given(
+        v1=st.lists(st.floats(min_value=-1.0, max_value=1.0, allow_nan=False, allow_infinity=False), min_size=2, max_size=20),
+        v2=st.lists(st.floats(min_value=-1.0, max_value=1.0, allow_nan=False, allow_infinity=False), min_size=2, max_size=20),
+    )
+    @settings(max_examples=50)
+    def test_similarity_symmetric(self, v1, v2):
+        """Similarity is symmetric."""
+        s1 = similarity(v1, v2)
+        s2 = similarity(v2, v1)
+        assert abs(s1 - s2) < 1e-10
+
+
+# ═══════════════════════════════════════════════════════════════
+#  shared/connection.py — database operation invariants
+# ═══════════════════════════════════════════════════════════════
+
+import uuid
+from shared.connection import AsyncConnectionManager
+
+
+class TestConnectionProperties:
+    @given(n=st.integers(min_value=1, max_value=20))
+    @settings(max_examples=20)
+    def test_insert_fetchall_roundtrip(self, n):
+        """Insert n rows, fetchall returns exactly n rows."""
+
+        async def t():
+            cm = AsyncConnectionManager(base_dir="/tmp")
+            name = f"prop_{uuid.uuid4().hex[:8]}.db"
+            conn = await cm.get(name)
+            await conn.execute("CREATE TABLE IF NOT EXISTS t (id INTEGER)")
+            await conn.executemany("INSERT INTO t VALUES (?)", [(i,) for i in range(n)])
+            await conn.commit()
+            cur = await conn.execute("SELECT COUNT(*) FROM t")
+            row = await cur.fetchone()
+            return row[0]
+
+        result = asyncio.run(t())
+        assert result == n
+
+    def test_get_reuses_connection(self):
+        """Getting the same DB name returns the same connection object."""
+
+        async def t():
+            cm = AsyncConnectionManager(base_dir="/tmp")
+            c1 = await cm.get("reuse_test.db")
+            c2 = await cm.get("reuse_test.db")
+            return c1 is c2
+
+        result = asyncio.run(t())
+        assert result is True
+
+    def test_execute_script_works(self):
+        """execute_script runs DDL and DML."""
+
+        async def t():
+            cm = AsyncConnectionManager(base_dir="/tmp")
+            name = f"script_{uuid.uuid4().hex[:8]}.db"
+            await cm.execute_script(name, "CREATE TABLE t (x INTEGER); INSERT INTO t VALUES (42);")
+            conn = await cm.get(name)
+            cur = await conn.execute("SELECT x FROM t")
+            row = await cur.fetchone()
+            return row[0]
+
+        result = asyncio.run(t())
+        assert result == 42
+
+
+# ═══════════════════════════════════════════════════════════════
+#  shared/cache.py — cache get/set invariant
+# ═══════════════════════════════════════════════════════════════
+
+from shared.cache import MemoryCache
+
+
+class TestCacheProperties:
+    @given(
+        key=st.text(min_size=1, max_size=50, alphabet=st.characters(blacklist_categories=("Cs",))),
+        value=st.text(min_size=1, max_size=200, alphabet=st.characters(blacklist_categories=("Cs",))),
+    )
+    @settings(max_examples=100)
+    def test_set_get_roundtrip(self, key, value):
+        """set(k, v) → get(k) returns v."""
+        cache = MemoryCache()
+        cache.set(key, value)
+        assert cache.get(key) == value
+
+    @given(key=st.text(min_size=1, max_size=50, alphabet=st.characters(blacklist_categories=("Cs",))))
+    @settings(max_examples=50)
+    def test_get_missing_returns_none(self, key):
+        """get(k) for missing key returns None."""
+        cache = MemoryCache()
+        assert cache.get(key) is None
+
+    @given(n=st.integers(min_value=1, max_value=20))
+    @settings(max_examples=20)
+    def test_size_after_inserts(self, n):
+        """After inserting n unique keys, size == n."""
+        cache = MemoryCache()
+        for i in range(n):
+            cache.set(f"k{i}", f"v{i}")
+        assert cache.size() == n
