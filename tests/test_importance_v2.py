@@ -1,4 +1,4 @@
-"""Tests for Importance v2 — multi-signal scorer."""
+"""Tests for Importance v2 — multi-signal scorer — parametrized."""
 
 import pytest
 from shared.importance import ImportanceScorer
@@ -9,14 +9,9 @@ def scorer():
     return ImportanceScorer()
 
 
-def test_noise_short_text_penalized(scorer):
-    s = scorer.score("ok")
-    assert s.noise_penalty > 0.9
-    assert s.total() < 0.1
-
-
-def test_noise_russian_ack_penalized(scorer):
-    s = scorer.score("ага")
+@pytest.mark.parametrize("text", ["ok", "ага", "да", "понял"])
+def test_noise_penalized(scorer, text):
+    s = scorer.score(text)
     assert s.total() < 0.15
 
 
@@ -31,13 +26,14 @@ def test_commitment_kind_has_emotional_high(scorer):
     assert s.emotional >= 0.8
 
 
-def test_question_bonus(scorer):
-    s1 = scorer.score("hello")
-    s2 = scorer.score("what is this?")
-    s3 = scorer.score("a? b? c?")
-    assert s1.question == 0
-    assert s2.question == 0.5
-    assert s3.question == 1.0
+@pytest.mark.parametrize("text,expected_q", [
+    ("hello", 0),
+    ("what is this?", 0.5),
+    ("a? b? c?", 1.0),
+])
+def test_question_bonus(scorer, text, expected_q):
+    s = scorer.score(text)
+    assert s.question == expected_q
 
 
 def test_length_s_curve_capped(scorer):
@@ -48,13 +44,12 @@ def test_length_s_curve_capped(scorer):
     assert s_long.length == 1.0
 
 
-def test_technical_keywords_ru(scorer):
-    s = scorer.score("Redis cluster на постгресе с JWT на /api/auth")
-    assert s.tech_keyword > 0.3
-
-
-def test_technical_keywords_en(scorer):
-    s = scorer.score("the redis postgres jwt oauth api is critical for production")
+@pytest.mark.parametrize("text", [
+    "Redis cluster на постгресе с JWT на /api/auth",
+    "the redis postgres jwt oauth api is critical for production",
+])
+def test_technical_keywords(scorer, text):
+    s = scorer.score(text)
     assert s.tech_keyword > 0.3
 
 
@@ -73,16 +68,15 @@ def test_retrieval_signal_log_scale(scorer):
     assert s100.retrieval_signal <= 1.0
 
 
-def test_total_in_unit_interval(scorer):
-    for text in ["ok", "hello?", "redis jwt crash", ""]:
-        s = scorer.score(text)
-        assert 0.0 <= s.total() <= 1.0
+@pytest.mark.parametrize("text", ["ok", "hello?", "redis jwt crash", ""])
+def test_total_in_unit_interval(scorer, text):
+    s = scorer.score(text)
+    assert 0.0 <= s.total() <= 1.0
 
 
 def test_kind_auto_detection(scorer):
     s_fact = scorer.score("мой день рождения 15 июня")
     assert 0.4 <= s_fact.base <= 0.6
-
     s_commit = scorer.score("я обещаю сделать отчёт завтра")
     assert s_commit.base >= 0.8
 
