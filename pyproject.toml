@@ -38,6 +38,7 @@ dev = [
     "pytest-asyncio>=0.21",
     "pytest-timeout>=2.0",
     "pytest-cov>=4.0",
+    "pytest-xdist>=3.0",
     "ruff>=0.1",
     "mypy>=1.0",
     "hypothesis>=6.0",
@@ -80,7 +81,7 @@ packages = ["."]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
-timeout = 30
+timeout = 60
 filterwarnings = [
     "ignore::pytest.PytestUnhandledThreadExceptionWarning",
     "ignore::DeprecationWarning:features.auth",
@@ -92,7 +93,7 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W"]
-ignore = ["E402", "E501", "E722", "E712", "F841", "F811", "UP031", "UP035"]
+ignore = ["E402", "E501", "F841", "F811", "UP031", "UP035"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]

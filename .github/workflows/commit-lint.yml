@@ -23,4 +23,3 @@ jobs:
       - run: pip install commitizen
       - name: Lint commits
         run: cz check --rev-range origin/master..HEAD
-

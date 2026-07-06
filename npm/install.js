@@ -16,7 +16,7 @@ function findPython() {
     'python',
     'py',
   ];
-  
+
   for (const cmd of candidates) {
     try {
       const out = execSync(`"${cmd}" --version 2>&1`, { encoding: 'utf8', shell: true });
@@ -34,16 +34,16 @@ function findPython() {
       }
     } catch {}
   }
-  
+
   // Fallback: try Windows store and common paths
   const fullPaths = [
     'C:\\Python312\\python.exe',
-    'C:\\Python311\\python.exe', 
+    'C:\\Python311\\python.exe',
     'C:\\Python310\\python.exe',
     process.env.LOCALAPPDATA + '\\Programs\\Python\\Python312\\python.exe',
     process.env.LOCALAPPDATA + '\\Programs\\Python\\Python311\\python.exe',
   ];
-  
+
   for (const p of fullPaths) {
     if (!p) continue;
     try {
@@ -53,7 +53,7 @@ function findPython() {
       }
     } catch {}
   }
-  
+
   return null;
 }
 

@@ -62,7 +62,7 @@ class ReflexBuffer:
                     data = json.load(f)
                 for entry in data:
                     self._buffer.append(ReflexEntry(**entry))
-            except:
+            except (FileNotFoundError, json.JSONDecodeError, KeyError):
                 pass
 
     def _save(self):
@@ -70,5 +70,5 @@ class ReflexBuffer:
             try:
                 with open(self.persist_path, "w") as f:
                     json.dump([vars(e) for e in self._buffer], f)
-            except:
+            except (OSError, TypeError):
                 pass
