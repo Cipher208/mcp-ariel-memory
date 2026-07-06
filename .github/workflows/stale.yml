@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: "0 0 * * *"
 
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
 permissions:
   issues: write
   pull-requests: write
@@ -22,3 +25,4 @@ jobs:
           stale-pr-label: "stale"
           exempt-issue-labels: "pinned,security,bug"
           exempt-pr-labels: "pinned,security"
+
