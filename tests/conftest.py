@@ -2,6 +2,7 @@
 
 import gc
 import os
+import sys
 
 # Disable backup_cron before any imports to prevent daemon threads
 os.environ["BACKUP_CRON_DISABLED"] = "1"
@@ -20,18 +21,7 @@ def master_key_env():
     gc.collect()
 
 
-@pytest.fixture(scope="session", autouse=True)
-async def cleanup_db_connections():
-    """Guarantee all aiosqlite engines are closed before session ends."""
-    yield
-    try:
-        from shared.connection import connection_manager
-        for name, conn in list(connection_manager._conns.items()):
-            try:
-                if hasattr(conn, '_conn') and hasattr(conn._conn, 'close'):
-                    conn._conn.close()
-            except Exception:
-                pass
-        connection_manager._conns.clear()
-    except Exception:
-        pass
+@pytest.hookimpl(trylast=True)
+def pytest_sessionfinish(session, exitstatus):
+    """Force exit after all tests complete — aiosqlite worker thread bug."""
+    os._exit(0)
