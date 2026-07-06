@@ -20,15 +20,10 @@ def master_key_env():
     os.environ.pop("MCP_MASTER_KEY", None)
     # Force cleanup of all resources
     gc.collect()
-    # Close any remaining aiosqlite connections synchronously
+    # Clear connection cache — avoids unawaited coroutine warnings from aiosqlite
     try:
         from shared.connection import connection_manager
 
-        for name, conn in list(connection_manager._conns.items()):
-            try:
-                conn.close()
-            except Exception:
-                pass
         connection_manager._conns.clear()
     except Exception:
         pass
