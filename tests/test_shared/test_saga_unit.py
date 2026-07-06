@@ -6,7 +6,6 @@ import time
 from shared.saga import (
     Saga,
     SagaStep,
-    SagaStatus,
     SagaWatchdog,
     create_consolidation_saga,
     create_backup_saga,

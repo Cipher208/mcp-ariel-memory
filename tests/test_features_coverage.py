@@ -1,10 +1,7 @@
 """Tests to boost coverage for features/ modules."""
 
 import asyncio
-import json
-import time
 import pytest
-from pathlib import Path
 
 
 # ── typed_export ──
@@ -430,4 +427,4 @@ def test_saga_compute_idempotency_key():
     assert len(key) == 64  # SHA-256 hex
 
     step_no_key = SagaStep(name="no_key", action=lambda d: {"ok": True})
-    assert s._compute_idempotency_key(step_no_key) is None or "error" in result
+    assert s._compute_idempotency_key(step_no_key) is None

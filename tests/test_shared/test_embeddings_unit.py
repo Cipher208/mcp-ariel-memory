@@ -1,7 +1,7 @@
 """Tests for shared/embeddings.py — remaining unit tests."""
 
 import pytest
-from shared.embeddings import _hash_embedding, similarity
+from shared.embeddings import similarity
 
 
 def test_similarity_zero_vector():
