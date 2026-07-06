@@ -63,6 +63,7 @@ graph TD
 | **Two layers** | User (about people) + Agent (self-knowledge) | User only |
 | **Wiki** | 14 types, .md files as source of truth, FTS5 | None |
 | **24 hooks** | Intercept operations at every stage | 0 |
+| **Lost-in-the-Middle prevention** | L4 CoreMemory at start/end of prompt | None |
 | **Encryption** | libsodium secretbox (keychain-first) | Usually none |
 | **Tests** | 250 (79 property-based/logic/chaos) | — |
 | **Dashboard** | Real-time HTML dashboard | — |

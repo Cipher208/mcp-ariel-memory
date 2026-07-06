@@ -5,6 +5,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [1.4.0] - 2026-07-06
 
+### Added
+- **Lost-in-the-Middle prevention** — context_inject and memory_context now place L4 CoreMemory at start and end of prompt, L2/L1 in middle. LLMs remember first and last items best.
+- **repo-visualizer** — GitHub Action generates SVG map of repo structure on push.
+- **release-drafter** — auto-generates CHANGELOG from merged PRs based on conventional commits.
+
 ### Testing
 - **Test suite optimization** — 364→250 tests via parametrization, deduplication, and property-based expansion.
 - **Parametrized** 6 files: test_rag_scoring, test_rag_search_facade, test_memory_types, test_importance_v2, test_mib_quantize, test_tools_unit.
