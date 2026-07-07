@@ -8,6 +8,7 @@ Caching is applied to context_inject and recall.
 from shared.constants import DB_NAME
 import hashlib
 import logging
+import re
 import time
 from typing import Any, Optional
 
@@ -24,9 +25,78 @@ from mcp_server.models import (
     StatsResult,
 )
 from mcp_server.registry import _get_ctx, register_tool
+from mcp_server.utils.privacy import strip_secrets
 from shared.metrics import metrics
 
 logger = logging.getLogger(__name__)
+
+
+class _DedupCache:
+    _doc_ = "SHA-256 dedup with TTL and periodic cleanup."
+
+    def __init__(self, ttl=300, max_size=10000):
+        self._cache = {}
+        self._ttl = ttl
+        self._max_size = max_size
+        self._last_cleanup = time.time()
+
+    def _cleanup(self):
+        now = time.time()
+        if now - self._last_cleanup < 60:
+            return
+        self._last_cleanup = now
+        expired = [k for k, v in self._cache.items() if now - v > self._ttl]
+        for k in expired:
+            del self._cache[k]
+        if len(self._cache) > self._max_size:
+            oldest = sorted(self._cache.keys(), key=lambda k: self._cache[k])[: len(self._cache) // 4]
+            for k in oldest:
+                del self._cache[k]
+
+    def is_duplicate(self, session_id, tool, input_text):
+        self._cleanup()
+        key = hashlib.sha256(f"{session_id}:{tool}:{input_text[:500]}".encode()).hexdigest()
+        now = time.time()
+        if key in self._cache and now - self._cache[key] < self._ttl:
+            return True
+        self._cache[key] = now
+        return False
+
+
+_dedup_cache = _DedupCache(ttl=300, max_size=10000)
+
+
+# Token budget configuration
+DEFAULT_TOKEN_BUDGET = 2000
+CHARS_PER_TOKEN = 4
+
+
+def _estimate_tokens(text: str) -> int:
+    if not text:
+        return 0
+    cjk_count = len(re.findall(r"[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]", text))
+    remaining_chars = len(text) - cjk_count
+    non_cjk_tokens = remaining_chars // CHARS_PER_TOKEN
+    return cjk_count + non_cjk_tokens
+
+
+def _truncate_to_budget(text: str, max_tokens: int) -> tuple:
+    estimated = _estimate_tokens(text)
+    if estimated <= max_tokens:
+        return text, False
+    char_limit = max_tokens * CHARS_PER_TOKEN
+    lines = text.split("\\n")
+    result_lines = []
+    current_len = 0
+    for line in lines:
+        line_len = len(line) + 1
+        if current_len + line_len > char_limit:
+            break
+        result_lines.append(line)
+        current_len += line_len
+    truncated = "\\n".join(result_lines)
+    truncated += "\\n[...truncated to token budget]"
+    return truncated, True
 
 
 def _get_memory(app, layer: str, user_id: str):
@@ -135,6 +205,7 @@ async def memory_remember(
     key: str = "",
     value: str = "",
     importance: float = 0.5,
+    session_id: str = "",
     ctx: Optional[Context] = None,
 ) -> dict:
     """Save a fact to long-term memory (L4 CoreMemory).
@@ -145,7 +216,14 @@ async def memory_remember(
         key: Fact key (e.g. "name", "language", "principle")
         value: Fact value
         importance: Importance score 0.0-1.0 (default 0.5)
+        session_id: Session ID for dedup (optional)
     """
+    # SHA-256 dedup: skip identical calls within 5min window
+    value = strip_secrets(value)
+    if session_id and _dedup_cache.is_duplicate(session_id, key, value):
+        logger.info("Dedup: skipping identical remember key=%s user=%s", key, user_id)
+        return RememberResult(status="skipped", reason="duplicate_within_ttl").dict()
+
     app = _get_ctx(ctx)
     layer = _validate_layer(layer)
     metrics.inc("tool_calls")
@@ -802,17 +880,24 @@ async def memory_context_inject(
     if facts_text:
         context_parts.append("REMEMBER: " + facts_text)
 
+    # Apply token budget
+    context_text = "\n".join(context_parts)
+    context_text, was_truncated = _truncate_to_budget(context_text, DEFAULT_TOKEN_BUDGET)
+
     result = {
-        "context": "\n".join(context_parts),
+        "context": context_text,
         "l4_facts_count": len(l4_facts),
         "l3_episodes_count": len(l3_episodes),
         "l1_recent_count": len(l1_recent),
         "wiki_count": len(wiki_entries),
+        "estimated_tokens": _estimate_tokens(context_text),
+        "was_truncated": was_truncated,
+        "token_budget": DEFAULT_TOKEN_BUDGET,
     }
     _set_cached(cache_key, result)
 
     # Trigger dream_buffer hook for context staging
-    await _fire_hook("dream_buffer", layer, {"text": "\n".join(context_parts), "user_id": user_id})
+    await _fire_hook("dream_buffer", layer, {"text": context_text, "user_id": user_id})
 
     return result
 
