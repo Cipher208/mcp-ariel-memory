@@ -250,7 +250,9 @@ def _get_ner() -> Any:
 
 # Задача G3: журнал co-retrieval. hits из FTS5 — это rag_pages.id, из графа —
 # epi_nodes.node_id: разные пространства. Компромисс — пишем пары ЛЮБЫХ hit-id
-# с префиксом типа ('f:5', 'g:12'); минер #7 отбирает только g:-пары.
+# с префиксом типа ('f:5', 'g:12'); минер #7 минерит g:-пары напрямую, а f:-пары
+# через маппинг rag_pages.path → wiki-узел (node_type='wiki_page',
+# lifecycle/wiki_graph_builder.py). Смешанные g/f-пары не минерятся.
 _G_PREFIX = "g:"
 _F_PREFIX = "f:"
 
@@ -354,13 +356,24 @@ async def miner_provenance(cm: AsyncConnectionManager, layer: str) -> dict[str, 
 
 
 async def miner_co_retrieval(cm: AsyncConnectionManager, layer: str) -> dict[str, int]:
-    """#7: co-retrieval journal, count>=2 → `co_recalled` edges (только g:-пары)."""
+    """#7: co-retrieval journal, count>=2 → `co_recalled` edges (g:-пары + f:-пары).
+
+    g:<node_id> — прямое ребро между узлами слоя. f:<page_id> — wiki/rag-страница:
+    маппинг через rag_pages.path → epi_nodes.content (node_type='wiki_page',
+    создаёт lifecycle/wiki_graph_builder.py). Страница без wiki-узла пропускается.
+    """
     await ensure_co_pairs(cm)
     conn = await cm.get(DB_NAME)
     rows = await (
         await conn.execute(
             "SELECT node_a, node_b, COUNT(*) AS c FROM recall_co_pairs WHERE node_a LIKE ? AND node_b LIKE ? GROUP BY node_a, node_b HAVING c >= 2",
             (f"{_G_PREFIX}%", f"{_G_PREFIX}%"),
+        )
+    ).fetchall()
+    frows = await (
+        await conn.execute(
+            "SELECT node_a, node_b, COUNT(*) AS c FROM recall_co_pairs WHERE node_a LIKE ? AND node_b LIKE ? GROUP BY node_a, node_b HAVING c >= 2",
+            (f"{_F_PREFIX}%", f"{_F_PREFIX}%"),
         )
     ).fetchall()
     edges = 0
@@ -370,8 +383,42 @@ async def miner_co_retrieval(cm: AsyncConnectionManager, layer: str) -> dict[str
         if len(existing) < 2:  # узлы не из этого слоя/удалены — ребро не строим
             continue
         edges += await _insert_edge(conn, min(na, nb), max(na, nb), "co_recalled", min(0.3 + 0.1 * int(c), 0.6), "co_retrieval")
+    edges += await _f_pair_edges(conn, layer, frows)
     await conn.commit()
     return {"edges": edges}
+
+
+async def _f_pair_edges(conn: Any, layer: str, rows: list[Any]) -> int:
+    """f:-пары → co_recalled рёбра между wiki-узлами (rag_pages.path → epi_nodes).
+
+    Маппинг: rag_pages.path == epi_nodes.content при node_type='wiki_page'
+    (инвариант wiki_graph_builder._ensure_node). Пара минерится только когда
+    ОБЕ страницы имеют wiki-узел этого слоя — иначе ребро некуда повесить.
+    """
+    edges = 0
+    node_cache: dict[str, int | None] = {}
+    for a, b, c in rows:
+        ids: list[int] = []
+        for page_id in (str(a)[2:], str(b)[2:]):
+            if page_id not in node_cache:
+                row = await (
+                    await conn.execute(
+                        "SELECT n.node_id FROM rag_pages p JOIN epi_nodes n"
+                        " ON n.content = p.path AND n.layer = ? AND n.node_type = 'wiki_page'"
+                        " WHERE p.id = ? LIMIT 1",
+                        (layer, int(page_id)),
+                    )
+                ).fetchone()
+                node_cache[page_id] = int(row["node_id"]) if row else None
+            node_id = node_cache[page_id]
+            if node_id is None:
+                ids = []
+                break
+            ids.append(node_id)
+        if len(ids) < 2:
+            continue
+        edges += await _insert_edge(conn, min(ids), max(ids), "co_recalled", min(0.3 + 0.1 * int(c), 0.6), "co_retrieval")
+    return edges
 
 
 _EMBED_JACCARD = 0.7

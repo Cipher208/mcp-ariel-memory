@@ -7,10 +7,17 @@ deduplicates by (title, content_prefix), and reranks by score.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Entity source (S10, 6th RRF source): query tokens resolved through synonym
+# canon-classes (rag/synonyms) → nodes whose content contains ANY class member.
+# Deterministic, LLM-free; fixed score below typical FTS hits.
+_TOKEN_RE = re.compile(r"[а-яёa-z0-9]+")
+_ENTITY_SCORE = 0.45
 
 # Per-source weight overrides by intent; sources absent from an intent's
 # dict keep weight 1.0.
@@ -54,10 +61,11 @@ class MultiSourceRAG:
         include_episodic: bool = True,
         include_core: bool = True,
         include_graph: bool = True,
+        include_entities: bool | None = None,
         strategy: str = "hybrid",
         intent: str = "balanced",
     ) -> list[dict[str, Any]]:
-        """Search across RAG, Wiki, Episodic, Core and Graph sources, merge and deduplicate.
+        """Search across RAG, Wiki, Episodic, Core, Graph and Entity sources, merge and deduplicate.
 
         Args:
             query: Search query
@@ -68,6 +76,7 @@ class MultiSourceRAG:
             include_episodic: Include L3 episodic results (default True)
             include_core: Include L4 core results (default True)
             include_graph: Include Graph results (default True)
+            include_entities: Include entity-expanded results (default: config rag.entity_rrf, true)
             strategy: RAG search strategy (fts, mib, hybrid, auto)
             intent: weight bias ("recent", "core", "balanced")
 
@@ -76,6 +85,10 @@ class MultiSourceRAG:
             from config import config
 
             limit = int(config.get("rag", "search_limit", default=10))
+        if include_entities is None:
+            from config import config
+
+            include_entities = bool(config.get("rag", "entity_rrf", default=True))
 
         weights = _INTENT_WEIGHTS.get(intent, {})
         plan = [
@@ -84,6 +97,7 @@ class MultiSourceRAG:
             ("include_episodic", self._from_episodic),
             ("include_core", self._from_core),
             ("include_graph", self._from_graph),
+            ("include_entities", self._from_entities),
         ]
         flags = {
             "include_rag": include_rag,
@@ -91,6 +105,7 @@ class MultiSourceRAG:
             "include_episodic": include_episodic,
             "include_core": include_core,
             "include_graph": include_graph,
+            "include_entities": include_entities,
         }
 
         results: list[dict[str, Any]] = []
@@ -226,6 +241,47 @@ class MultiSourceRAG:
                 "source": "graph",
             }
             for r in graph_rows
+        ]
+
+    async def _from_entities(self, query: str, user_id: str, limit: int, strategy: str, weight: float) -> list[dict[str, Any]]:
+        """Entity-expanded source (S10 6th): synonym canon-classes → epi_nodes LIKE.
+
+        Query tokens that belong to a synonym class (rag/synonyms) expand to ALL
+        class members; nodes whose content contains ANY member are candidates
+        (deterministic, LLM-free). Fixed score sits below typical FTS hits — the
+        source ADDS candidates to the fusion, it never replaces direct hits.
+        """
+        if not self.cm:
+            return []
+        from rag.synonyms import load_synonyms
+
+        syn = load_synonyms()
+        members: set[str] = set()
+        for tok in _TOKEN_RE.findall(query.lower()):
+            if len(tok) < 4 or (tok not in syn and not any(tok in vs for vs in syn.values())):
+                continue
+            # класс токена — тот же набор, из которого canonical_form берёт минимум
+            members |= {tok, *syn.get(tok, []), *(k for k, vs in syn.items() if tok in vs)}
+        if not members:
+            return []
+
+        from shared.constants import DB_NAME
+
+        conn = await self.cm.get(DB_NAME)
+        likes = " OR ".join("content LIKE ?" for _ in members)
+        cur = await conn.execute(
+            f"SELECT node_id, content, node_type, confidence FROM epi_nodes WHERE user_id=? AND ({likes}) LIMIT ?",
+            (user_id, *(f"%{m}%" for m in sorted(members)), limit * 2),
+        )
+        return [
+            {
+                "id": -r["node_id"] - _ID_OFFSET_GRAPH,
+                "title": f"Graph Node {r['node_id']} ({r['node_type']})",
+                "content": r["content"],
+                "score": _ENTITY_SCORE * weight,
+                "source": "entities",
+            }
+            for r in await cur.fetchall()
         ]
 
     async def _expand_graph(self, results: list[dict[str, Any]], user_id: str) -> list[dict[str, Any]]:

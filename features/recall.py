@@ -137,8 +137,8 @@ async def recall_protocol(
         try:
             hits = await rag.search(query, user_id=user_id, limit=8)
             # G3: журнал co-retrieval — пары hit-id ('g:12'/'f:5') для минера #7.
-            # Компромисс: пары любых hit-id с префиксом типа, минер отбирает
-            # только графовые g:-пары (epi_nodes.node_id).
+            # Пары любых hit-id с префиксом типа; минер #7 строит рёбра из g:-пар
+            # (epi_nodes) и f:-пар через маппинг rag_pages.path → wiki-узел.
             try:
                 from lifecycle.graph_miners import log_co_pairs
                 from shared.connection import connection_manager

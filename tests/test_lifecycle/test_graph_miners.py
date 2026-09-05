@@ -58,6 +58,17 @@ async def _edges(relation: str) -> list[Any]:
     return await (await conn.execute("SELECT * FROM epi_edges WHERE relation=? ORDER BY source_id, target_id", (relation,))).fetchall()
 
 
+async def _wiki_node(file_path: str) -> int:
+    """Wiki-узел графа (как lifecycle/wiki_graph_builder._ensure_node): fact-like строка в epi_nodes."""
+    conn = await connection_manager.get(DB_NAME)
+    cur = await conn.execute(
+        "INSERT INTO epi_nodes (layer, user_id, content, node_type, tags, confidence, created_at) VALUES ('user', 'gu', ?, 'wiki_page', '[]', 0.5, ?)",
+        (file_path, T),
+    )
+    await conn.commit()
+    return int(cur.lastrowid or 0)
+
+
 async def _edge(a: int, b: int, relation: str = "mentions", weight: float = 0.8) -> None:
     """Ручное (не эвристическое) ребро — как их создаёт EpistemicGraph.add_edge."""
     conn = await connection_manager.get(DB_NAME)
@@ -261,6 +272,83 @@ async def test_miner_co_retrieval_single_occurrence_no_edge(db):
 
     assert (await miner_co_retrieval(db, "user"))["edges"] == 0
     assert await _edges("co_recalled") == []
+
+
+@pytest.mark.asyncio
+async def test_miner_co_retrieval_f_pairs_map_to_wiki_nodes(db):
+    """S10: f:-пары минерятся через маппинг rag_pages.path → wiki_page-узел.
+
+    Журнал с одной f:-парой (count 2) + обе страницы отражены в epi_nodes
+    (node_type='wiki_page', content=path) → одно co_recalled-ребро между узлами.
+    """
+    from lifecycle.graph_miners import log_co_pairs, miner_co_retrieval
+
+    conn = await connection_manager.get(DB_NAME)
+    await conn.executemany(
+        "INSERT INTO rag_pages (layer, user_id, title, path, content, created_at, updated_at) VALUES ('user', 'gu', ?, ?, 'body', ?, ?)",
+        [("tuning", "docs/wiki/tuning.md", T, T), ("backup", "docs/wiki/backup.md", T, T)],
+    )
+    await conn.commit()
+    page_a, page_b = [int(r["id"]) for r in await (await conn.execute("SELECT id FROM rag_pages ORDER BY id")).fetchall()]
+    wa = await _wiki_node("docs/wiki/tuning.md")
+    wb = await _wiki_node("docs/wiki/backup.md")
+
+    hits = [{"id": page_a, "source": "fts5"}, {"id": page_b, "source": "fts5"}]
+    await log_co_pairs(db, "postgres", hits)
+    await log_co_pairs(db, "postgres", hits)  # второй совместный recall
+
+    result = await miner_co_retrieval(db, "user")
+
+    assert result["edges"] == 1, f"f:-пара с маппингом в wiki-узлы должна дать 1 ребро, got={result}"
+    rows = await _edges("co_recalled")
+    assert (rows[0]["source_id"], rows[0]["target_id"]) == (min(wa, wb), max(wa, wb))
+    assert rows[0]["weight"] == pytest.approx(0.5)  # 0.3 + 0.1*2, как у g:-пар
+
+
+@pytest.mark.asyncio
+async def test_miner_co_retrieval_f_pair_without_wiki_node_skipped(db):
+    """Страница без wiki_page-узла (builder ещё не гонялся) — пара пропускается, не падает."""
+    from lifecycle.graph_miners import log_co_pairs, miner_co_retrieval
+
+    conn = await connection_manager.get(DB_NAME)
+    await conn.execute(
+        "INSERT INTO rag_pages (layer, user_id, title, path, content, created_at, updated_at)"
+        " VALUES ('user', 'gu', 'orphan', 'docs/wiki/orphan.md', 'body', ?, ?)",
+        (T, T),
+    )
+    await conn.commit()
+    orphan = int((await (await conn.execute("SELECT last_insert_rowid()")).fetchone())[0])
+
+    hits = [{"id": orphan, "source": "fts5"}, {"id": orphan + 1, "source": "fts5"}]  # +1 не существует вовсе
+    await log_co_pairs(db, "q", hits)
+    await log_co_pairs(db, "q", hits)
+
+    assert (await miner_co_retrieval(db, "user"))["edges"] == 0
+    assert await _edges("co_recalled") == []
+
+
+@pytest.mark.asyncio
+async def test_miner_co_retrieval_mixed_g_f_pairs_not_mined(db):
+    """Смешанные g:/f:-пары не минерятся — ребро требует однородного пространства id."""
+    from lifecycle.graph_miners import log_co_pairs, miner_co_retrieval
+    from rag.multi_source import _ID_OFFSET_GRAPH
+
+    n1 = await _node("графовый хит со страницей", T)
+    await _wiki_node("docs/wiki/pg.md")
+    conn = await connection_manager.get(DB_NAME)
+    await conn.execute(
+        "INSERT INTO rag_pages (layer, user_id, title, path, content, created_at, updated_at)"
+        " VALUES ('user', 'gu', 'pg', 'docs/wiki/pg.md', 'body', ?, ?)",
+        (T, T),
+    )
+    await conn.commit()
+    page = int((await (await conn.execute("SELECT last_insert_rowid()")).fetchone())[0])
+
+    hits = [{"id": -n1 - _ID_OFFSET_GRAPH, "source": "graph"}, {"id": page, "source": "fts5"}]
+    await log_co_pairs(db, "q", hits)
+    await log_co_pairs(db, "q", hits)
+
+    assert (await miner_co_retrieval(db, "user"))["edges"] == 0
 
 
 @pytest.mark.asyncio
