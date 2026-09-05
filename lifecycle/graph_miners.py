@@ -101,7 +101,14 @@ async def miner_tags(cm: AsyncConnectionManager, layer: str) -> dict[str, int]:
 
 
 async def miner_tokens(cm: AsyncConnectionManager, layer: str) -> dict[str, int]:
-    """#2: ≥2 общих редких токена и Jaccard ≥0.3 → `topic_overlap`, weight = Jaccard."""
+    """#2: ≥2 общих редких токена и Jaccard ≥ порога → `topic_overlap`, weight = Jaccard.
+
+    Порог = max(0.3, mad_threshold(jaccards)) — MAD-порог (G2 sanitation) поднимает
+    cutoff только когда распределение действительно смещено вверх; floor 0.3
+    сохраняет историческое поведение на разреженных слоях.
+    """
+    from lifecycle.graph_sanitation import mad_threshold
+
     conn = await cm.get(DB_NAME)
     nodes = await (await conn.execute("SELECT node_id, content FROM epi_nodes WHERE layer=?", (layer,))).fetchall()
     syn: dict[str, list[str]] | None = None
@@ -113,7 +120,7 @@ async def miner_tokens(cm: AsyncConnectionManager, layer: str) -> dict[str, int]
             syn = load_synonyms()
         toks[int(r["node_id"])] = _canon_tokens(str(r["content"]), syn)
     ids = sorted(toks)
-    edges = 0
+    cands: list[tuple[int, int, float]] = []
     for i, a in enumerate(ids):
         ta = toks[a]
         if not ta:
@@ -121,8 +128,13 @@ async def miner_tokens(cm: AsyncConnectionManager, layer: str) -> dict[str, int]
         for b in ids[i + 1 :]:
             shared = ta & toks[b]
             jaccard = len(shared) / len(ta | toks[b])
-            if len(shared) >= 2 and jaccard >= 0.3:
-                edges += await _insert_edge(conn, a, b, "topic_overlap", jaccard, "tokens")
+            if len(shared) >= 2:
+                cands.append((a, b, jaccard))
+    tau = max(0.3, mad_threshold([c[2] for c in cands])) if cands else 0.3
+    edges = 0
+    for a, b, jaccard in cands:
+        if jaccard >= tau:
+            edges += await _insert_edge(conn, a, b, "topic_overlap", jaccard, "tokens")
     await conn.commit()
     return {"edges": edges}
 

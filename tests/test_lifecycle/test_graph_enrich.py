@@ -91,7 +91,7 @@ async def test_graph_enrich_noop_layer_keeps_stats_shape(graph):
     assert result == {
         "nodes_cleaned": 0,
         "miners": {k: {"edges": 0} for k in result["miners"]},
-        "sanitation": {"expired": 0},
+        "sanitation": {"expired": 0, "valence_tagged": 0, "centrality_top": []},
         "behavior": {},
         "dream": {"nrem_decayed": 0, "nrem_pruned": 0, "rem_bridged": 0, "insights": 0},
     }
@@ -189,3 +189,65 @@ async def test_dream_insight_materializes_abstraction(graph, no_miners):
     assert rows, "узел типа 'insight' создан"
     joined = " ".join(r["content"] for r in rows)
     assert "redis" in joined.lower(), f"insight-узел обобщает члены сообщества, rows={rows!r}"
+
+
+@pytest.mark.asyncio
+async def test_dream_rem_excludes_hub_from_bridge_targets(graph, no_miners):
+    """G5 hub exclusion: изолированный дубль не мостится к MOC-хабу (Ar9av), только к обычному узлу."""
+    ids = await _dream_graph(graph)
+    conn = await connection_manager.get("memory.db")
+    await graph.add_node("gu", "MOC: индекс всех заметок кэш redis воркеры", "moc")
+    await conn.commit()
+
+    from lifecycle.graph_enrich import graph_enrich
+
+    result = await graph_enrich(layer="user")
+    assert result["dream"]["rem_bridged"] >= 1
+
+    rows = await (await conn.execute("SELECT source_id, target_id, relation FROM epi_edges WHERE relation='dream_bridge'")).fetchall()
+    moc = await (await conn.execute("SELECT node_id FROM epi_nodes WHERE node_type='moc' LIMIT 1")).fetchone()
+    moc_id = int(moc["node_id"])
+    assert all(moc_id not in (r["source_id"], r["target_id"]) for r in rows), f"REM-мосты не идут в MOC-хаб, rows={rows!r}"
+    touching = [r for r in rows if ids["iso"] in (r["source_id"], r["target_id"])]
+    assert touching, f"мост к изолированному узлу сохранился, rows={rows!r}"
+
+
+@pytest.mark.asyncio
+async def test_sanitation_valence_tags_classified_facts(graph, no_miners):
+    """G5 valence: факт с contradicts-ребром получает тег valence:contrasting, primary не тегируется."""
+    conn = await connection_manager.get("memory.db")
+    a = await graph.add_node("gu", "деплой на postgres 16", "fact")
+    b = await graph.add_node("gu", "деплой на postgres 15", "fact")
+    c = await graph.add_node("gu", "кэш redis обслуживает воркеры", "fact")
+    await graph.add_edge(a, b, "contradicts", 0.6)
+    await graph.add_edge(a, c, "mentions", 0.6)
+    await conn.commit()
+
+    from lifecycle.graph_enrich import graph_enrich
+
+    result = await graph_enrich(layer="user")
+    assert result["sanitation"]["valence_tagged"] >= 1
+
+    tags_a = [r["tag"] for r in await (await conn.execute("SELECT tag FROM epi_tags WHERE node_id=?", (a,))).fetchall()]
+    tags_c = [r["tag"] for r in await (await conn.execute("SELECT tag FROM epi_tags WHERE node_id=?", (c,))).fetchall()]
+    assert "valence:contrasting" in tags_a, f"contradicts-факт тегирован contrasting, tags={tags_a}"
+    assert not any(t.startswith("valence:") for t in tags_c), f"primary-факт без valence-тега, tags={tags_c}"
+
+
+@pytest.mark.asyncio
+async def test_sanitation_centrality_top_in_report(graph, no_miners):
+    """G5 centrality: отчёт содержит centrality_top; хабы (moc/auto_index) исключены."""
+    conn = await connection_manager.get("memory.db")
+    a = await graph.add_node("gu", "деплой на postgres 16", "fact")
+    await graph.add_node("gu", "MOC: индекс заметок", "moc")
+    b = await graph.add_node("gu", "кэш redis обслуживает воркеры", "fact")
+    await graph.add_edge(a, b, "mentions", 0.6)
+    await conn.commit()
+
+    from lifecycle.graph_enrich import graph_enrich
+
+    result = await graph_enrich(layer="user")
+    top = result["sanitation"]["centrality_top"]
+    assert isinstance(top, list)
+    moc = await (await conn.execute("SELECT node_id FROM epi_nodes WHERE node_type='moc' LIMIT 1")).fetchone()
+    assert int(moc["node_id"]) not in top, f"moc-хаб вне centrality-топа, top={top}"

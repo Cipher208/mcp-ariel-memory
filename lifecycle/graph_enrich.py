@@ -10,11 +10,15 @@ contribute no edges yet.
 from __future__ import annotations
 
 import contextlib
+import logging
 import time
 from typing import Any
 
+from lifecycle.graph_sanitation import HUB_EXCLUSION_PARAMS, hub_exclusion_clause
 from shared.connection import connection_manager
 from shared.constants import DB_NAME
+
+logger = logging.getLogger(__name__)
 
 # Content markers of raw-harness junk that must never live as graph nodes.
 _JUNK_LIKE = ("[{%", "%tool_use_id%", "%[ariel recall]%")
@@ -73,15 +77,21 @@ async def _dream_rem(conn: Any, layer: str, now: float) -> int:
         (int(r["node_id"]), tokens(str(r["content"])))
         for r in await _rows(
             conn,
-            "SELECT node_id, content FROM epi_nodes n WHERE n.layer=? AND node_type NOT IN ('moc','auto_index')"
-            " AND NOT EXISTS (SELECT 1 FROM epi_edges e WHERE e.source_id=n.node_id OR e.target_id=n.node_id)",
-            (layer,),
+            "SELECT node_id, content FROM epi_nodes n WHERE n.layer=?"
+            " AND NOT EXISTS (SELECT 1 FROM epi_edges e WHERE e.source_id=n.node_id OR e.target_id=n.node_id)"
+            " AND " + hub_exclusion_clause("n"),
+            (layer, *HUB_EXCLUSION_PARAMS),
         )
     ]
     if not isolated:
         return 0
     others = [
-        (int(r["node_id"]), tokens(str(r["content"]))) for r in await _rows(conn, "SELECT node_id, content FROM epi_nodes WHERE layer=?", (layer,))
+        (int(r["node_id"]), tokens(str(r["content"])))
+        for r in await _rows(
+            conn,
+            "SELECT node_id, content FROM epi_nodes n WHERE n.layer=? AND " + hub_exclusion_clause("n"),
+            (layer, *HUB_EXCLUSION_PARAMS),
+        )
     ]
     bridged = 0
     seen: set[tuple[int, int]] = set()
@@ -119,7 +129,9 @@ async def _dream_insight(conn: Any, layer: str) -> int:
     nodes = [
         (int(r["node_id"]), str(r["user_id"]), str(r["content"]))
         for r in await _rows(
-            conn, "SELECT node_id, user_id, content FROM epi_nodes WHERE layer=? AND node_type NOT IN ('moc','auto_index','insight')", (layer,)
+            conn,
+            "SELECT node_id, user_id, content FROM epi_nodes n WHERE n.layer=? AND " + hub_exclusion_clause("n") + " AND n.node_type != 'insight'",
+            (layer, *HUB_EXCLUSION_PARAMS),
         )
     ]
     member_ids = {nid for nid, _, _ in nodes}
@@ -230,6 +242,43 @@ async def graph_enrich(layer: str = "user") -> dict[str, Any]:
 
     expired = await validate_edges(conn)
 
+    # G5 sanitation valence: факт-узлы классифицируются по валентности их рёбер
+    # (classify_fact) → тег 'valence:<bucket>' (primary не тегируется — по умолчанию).
+    valence_tagged = 0
+    try:
+        from lifecycle.graph_sanitation import classify_fact
+
+        rel_rows = await _rows(
+            conn,
+            "SELECT e.source_id, e.target_id, e.relation FROM epi_edges e"
+            " JOIN epi_nodes n ON n.node_id = e.source_id OR n.node_id = e.target_id"
+            " WHERE n.layer=?",
+            (layer,),
+        )
+        node_rels: dict[int, list[str]] = {}
+        for r in rel_rows:
+            node_rels.setdefault(int(r["source_id"]), []).append(str(r["relation"]))
+            node_rels.setdefault(int(r["target_id"]), []).append(str(r["relation"]))
+        for nid, rels in node_rels.items():
+            bucket = classify_fact(rels)
+            if bucket == "primary":
+                continue
+            await conn.execute("DELETE FROM epi_tags WHERE node_id=? AND tag LIKE 'valence:%'", (nid,))
+            await conn.execute("INSERT OR IGNORE INTO epi_tags (node_id, tag) VALUES (?, ?)", (nid, f"valence:{bucket}"))
+            valence_tagged += 1
+        await conn.commit()
+    except Exception as exc:
+        logger.warning("valence tagging failed: %s", exc)
+
+    # G5 sanitation centrality: топ-степень слоя без MOC/auto_index-хабов (Ar9av) — в ночной отчёт.
+    centrality_top: list[int] = []
+    try:
+        from lifecycle.graph_sanitation import centrality_candidates
+
+        centrality_top = (await centrality_candidates(conn, layer))[:5]
+    except Exception as exc:
+        logger.warning("centrality top failed: %s", exc)
+
     # S6b behavior-аннотации: per-tool статистика в отчёте (Stage 2 hints).
     from lifecycle.tool_stats import tool_behavior_stats
 
@@ -245,7 +294,7 @@ async def graph_enrich(layer: str = "user") -> dict[str, Any]:
     return {
         "nodes_cleaned": cleaned,
         "miners": miners,
-        "sanitation": {"expired": expired},
+        "sanitation": {"expired": expired, "valence_tagged": valence_tagged, "centrality_top": centrality_top},
         "behavior": behavior,
         "dream": dream,
     }
