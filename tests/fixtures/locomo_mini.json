@@ -1,0 +1,29 @@
+[
+  {
+    "sample_id": "0",
+    "conversation": {
+      "speaker_a": "Caroline",
+      "speaker_b": "Melanie",
+      "session_1": [
+        {"speaker": "Caroline", "dia_id": "D1:1", "text": "Melanie, I finally attended the LGBTQ support group last Monday."},
+        {"speaker": "Melanie", "dia_id": "D1:2", "text": "That is wonderful, Caroline! How did it feel?"},
+        {"speaker": "Caroline", "dia_id": "D1:3", "text": "Liberating. And I painted a sunrise last week, first time since 2022."}
+      ],
+      "session_1_date_time": "7 May 2023, 14:00:00 EST",
+      "session_2": [
+        {"speaker": "Melanie", "dia_id": "D2:1", "text": "Caroline, did you finish the counseling program paperwork?"},
+        {"speaker": "Caroline", "dia_id": "D2:2", "text": "Yes, I am applying to the program in Chapel Hill."}
+      ],
+      "session_2_date_time": "10 May 2023, 09:30:00 EST"
+    },
+    "qa": [
+      {"question": "When did Caroline go to the LGBTQ support group?", "answer": "7 May 2023", "evidence": ["D1:1"], "category": 2, "adversarial": false},
+      {"question": "What fields would Caroline be likely to pursue?", "answer": "counseling program", "evidence": ["D1:1", "D2:2"], "category": 1, "adversarial": false},
+      {"question": "When did Melanie paint a sunrise?", "answer": "7 May 2023", "evidence": ["D1:3"], "category": 4, "adversarial": false},
+      {"question": "What is Caroline's grandmother's maiden name?", "answer": "No information available", "evidence": [], "category": 5, "adversarial": true}
+    ],
+    "observation": {},
+    "session_summary": {},
+    "event_summary": {}
+  }
+]

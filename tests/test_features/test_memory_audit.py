@@ -76,7 +76,9 @@ async def test_audit_finds_all_four_problem_types(audit_db):
 
     checks = {c["type"]: c for c in await audit_content("u1")}
 
-    assert set(checks) == {"contradiction", "duplicate", "stale", "dead_link"}
+    # S13 wire: file↔DB reconciliation добавил свой чек — строка 'notes'
+    # (file_path='notes') не имеет файла на диске → stale index
+    assert set(checks) == {"contradiction", "duplicate", "stale", "dead_link", "wiki_reconciliation"}
     assert checks["contradiction"]["severity"] == "fail"
     assert len(checks["contradiction"]["items"]) == 1
     assert "Acme" in checks["contradiction"]["items"][0]["content"]

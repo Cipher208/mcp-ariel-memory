@@ -211,6 +211,22 @@ async def audit_content(user_id: str = "default") -> list[dict[str, Any]]:
                 }
             )
 
+    # (g) S13 file↔DB reconciliation: wiki .md files vs wiki_index rows
+    #     (orphans — файл без строки, stale — строка без файла)
+    from features.wiki_reconciliation import reconcile
+
+    rec = await reconcile(user_id)
+    rec_items = [{"orphan": p} for p in rec["orphans"]] + [{"stale_index": p} for p in rec["stale"]]
+    if rec_items:
+        out.append(
+            {
+                "severity": "warn",
+                "type": "wiki_reconciliation",
+                "items": rec_items[:100],
+                "suggestion": "Orphan .md → WikiManager.reindex_all(); stale index row → WikiManager.delete(path).",
+            }
+        )
+
     return out
 
 

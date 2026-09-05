@@ -8,6 +8,7 @@ Subcommands:
     grep PATTERN     LIKE search over core_memory values + wiki content → file/key
     stats            per-table counts: l0 statuses, core, episodes, wiki, epi graph
     mermaid          epi_nodes/epi_edges → Mermaid `graph TD` (C7 canvas)
+    trace NODE_ID    decision causal chain BFS (S13 trace_decision_chain)
 
 MCP_MEMORY_DATA_DIR is read by shared.connection at import time (l0_cli
 pattern): set it in the environment BEFORE running. Without it the default
@@ -171,6 +172,24 @@ def _cmd_mermaid(args: argparse.Namespace) -> int:
     return 0
 
 
+async def _trace(node_id: int, user_id: str, depth: int) -> dict[str, Any]:
+    from features.decision_trace import trace_decision_chain
+
+    return await trace_decision_chain(node_id, user_id, depth)
+
+
+def _cmd_trace(args: argparse.Namespace) -> int:
+    res = asyncio.run(_with_db(lambda: _trace(args.node_id, args.user, args.depth)))
+    if res["root"] is None:
+        print("node not found (wrong id/user/layer)")
+        return 1
+    r = res["root"]
+    print(f"ROOT {r['node_id']} [{r['node_type']}] {r['content']}")
+    for c in res["chain"]:
+        print(f"  {'  ' * (c['depth'] - 1)}→ {c['node_id']} [{c['node_type']}] {c['content']}  ({c['relation']}, {c['strength']:.2f}, d{c['depth']})")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="ariel-cli — read-only memory introspection (Phase H Task 4)")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -202,6 +221,12 @@ def main(argv: list[str] | None = None) -> int:
     p_mermaid.add_argument("--layer", choices=("user", "agent"), default="user", help="epi layer (default user)")
     p_mermaid.add_argument("--limit", type=int, default=50, help="max nodes (default 50)")
     p_mermaid.set_defaults(fn=_cmd_mermaid)
+
+    p_trace = sub.add_parser("trace", help="decision causal chain from an action node (S13, BFS by CAUSAL_RELATIONS)")
+    p_trace.add_argument("node_id", type=int, help="epi_nodes id of the action node")
+    p_trace.add_argument("--user", default="default", help="user_id (default 'default')")
+    p_trace.add_argument("--depth", type=int, default=5, help="max BFS depth (default 5)")
+    p_trace.set_defaults(fn=_cmd_trace)
 
     args = ap.parse_args(argv)
     try:
