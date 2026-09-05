@@ -140,6 +140,13 @@ class BackupCron:
             from lifecycle.l0_sweep import sweep_expired
 
             self._await_on_main_loop(sweep_expired())
+        # S6: L0 tiering — warm (preview+zlib) / cold (CLACK archive). After the
+        # sweep so freshly processed rows age through tiers in a stable order.
+        with contextlib.suppress(Exception):
+            from lifecycle.l0_tiers import tier_l0
+
+            tiers = self._await_on_main_loop(tier_l0())
+            logger.info("L0 tiering: %s", tiers)
         # F-T7 (S3): rebuild session summaries from L0 texts (was dead code).
         with contextlib.suppress(Exception):
             from features.l2_enrich import enrich_sessions

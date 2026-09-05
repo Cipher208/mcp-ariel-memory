@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import time
@@ -9,6 +10,7 @@ from typing import Any
 
 from shared.connection import connection_manager
 from shared.constants import DB_NAME
+from shared.fractional_index import midpoint
 
 
 async def capture(
@@ -27,24 +29,37 @@ async def capture(
         conn = await connection_manager.get(DB_NAME)
         ts = ts_override or time.time()
         rt = raw_type or classify_raw(text)
-        cur = await conn.execute(
-            "INSERT INTO l0_journal (ts, event, source_msg_id, layer, user_id, text, raw_type, status, decisions)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, 'received', ?)",
-            (
-                ts,
-                event,
-                source_msg_id,
-                layer,
-                user_id,
-                text,
-                rt,
-                json.dumps(decisions or [], ensure_ascii=False),
-            ),
-        )
+        # S1 order_key: fractional-индекс после последней записи. Колонки может
+        # не быть в живых БД до миграции — тогда пишем без order_key.
+        prev: Any | None = None
+        try:
+            prev = await (await conn.execute("SELECT hash_self, order_key FROM l0_journal ORDER BY id DESC LIMIT 1")).fetchone()
+        except Exception:
+            with contextlib.suppress(Exception):
+                prev = await (await conn.execute("SELECT hash_self FROM l0_journal ORDER BY id DESC LIMIT 1")).fetchone()
+        prev_key: str | None = None
+        if prev is not None:
+            with contextlib.suppress(IndexError):  # fallback-SELECT без order_key
+                prev_key = prev[1]
+        order_key: str | None = None
+        with contextlib.suppress(Exception):
+            order_key = midpoint(prev_key) if prev_key else midpoint(None)
+        params = (ts, event, source_msg_id, layer, user_id, text, rt, json.dumps(decisions or [], ensure_ascii=False))
+        try:
+            cur = await conn.execute(
+                "INSERT INTO l0_journal (ts, event, source_msg_id, layer, user_id, text, raw_type, status, decisions, order_key)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, 'received', ?, ?)",
+                (*params, order_key),
+            )
+        except Exception:  # колонки order_key ещё нет (БД до миграции) — пишем без неё
+            cur = await conn.execute(
+                "INSERT INTO l0_journal (ts, event, source_msg_id, layer, user_id, text, raw_type, status, decisions)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, 'received', ?)",
+                params,
+            )
         rid = int(cur.lastrowid or 0)
         # hash-chain (S1, tamper-evidence): сбой цепочки не блокирует запись
-        prev = await (await conn.execute("SELECT hash_self FROM l0_journal WHERE id < ? ORDER BY id DESC LIMIT 1", (rid,))).fetchone()
-        hash_prev = (prev[0] if prev else "") or ""
+        hash_prev = (prev[0] if prev is not None else "") or ""
         digest = hashlib.sha256(f"{hash_prev}|{rt}|{ts}|{text}"[:200].encode()).hexdigest()[:16]
         await conn.execute("UPDATE l0_journal SET hash_prev=?, hash_self=? WHERE id=?", (hash_prev, digest, rid))
         await conn.commit()
