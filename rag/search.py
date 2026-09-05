@@ -109,13 +109,35 @@ async def search_binary(
         (user_id, layer),
     )
 
+    rows_all = await cursor.fetchall()
     scored = []
-    BATCH_SIZE = 1000
-    while True:
-        rows = await cursor.fetchmany(BATCH_SIZE)
-        if not rows:
-            break
-        for r in rows:
+    # Взвешенный Hamming (draft v37, опция): веса по битам = log(1/P(b=1)),
+    # редкий информативный бит весит больше. Выключено по умолчанию — включается
+    # rag.weighted_hamming=1 и сверяется Stage-2 ablation'ом против plain Hamming.
+    weighted = False
+    if _HAS_BINARY:
+        from config import config
+
+        weighted = bool(config.get("rag", "weighted_hamming", default=0))
+    weights: Any = None
+    if weighted:
+        from rag.quantize import bit_frequency_weights, weighted_hamming_score
+
+        weights = bit_frequency_weights([r["bin_embedding"] for r in rows_all], dim=binary_dim)
+        scored = [
+            {
+                "id": r["id"],
+                "page_id": r["page_id"],
+                "title": r["title"],
+                "content": r["content"][:1024],
+                "wiki_type": r["wiki_type"],
+                "score": weighted_hamming_score(q_bin, r["bin_embedding"], weights, binary_dim),
+                "source": "mib",
+            }
+            for r in rows_all
+        ]
+    else:
+        for r in rows_all:
             d = hamming_distance(q_bin, r["bin_embedding"])
             scored.append(
                 {

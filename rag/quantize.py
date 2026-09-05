@@ -202,6 +202,44 @@ def hamming_distance(a: bytes, b: bytes) -> int:
     return int(np.unpackbits(arr_a ^ arr_b, bitorder="big").sum())
 
 
+def bit_frequency_weights(corpus: list[bytes], dim: int = DEFAULT_DIM) -> list[float]:
+    """Бит-веса w_i = log(1/P(B_i=1)) по корпусу (сглаживание +1), clamped ≥0.1.
+
+    Редкий (информативный) бит весит больше; константный бит почти ничего.
+    """
+    _check_numpy()
+    if not corpus:
+        return [1.0] * dim
+    bits = np.unpackbits(np.frombuffer(b"".join(corpus), dtype=np.uint8), bitorder="big")
+    bits = bits[: len(corpus) * dim].reshape(len(corpus), dim)
+    p1 = (bits.sum(axis=0) + 1.0) / (len(corpus) + 2.0)
+    w = np.maximum(-np.log(np.clip(p1, 1e-9, 1.0)), 0.1)
+    return [float(x) for x in w]
+
+
+def weighted_hamming_score(a: bytes, b: bytes, weights: Sequence[float], dim: int = DEFAULT_DIM) -> float:
+    """Информационный Hamming (draft v37 §EDM): d_wH = Σ w_i·1[b_i≠c_i], скор = 1 − d_wH/Σw.
+
+    weights[i] — вес бита i (напр. w_i = log(1/P(B_i=1)) — редкий информативный
+    бит весит больше тривиального). Не утверждено EDM-статьёй (модель) —
+    включается флагом и сверяется ablation'ом (Stage 2), дефолтный путь —
+    обычный hamming_distance.
+    """
+    _check_numpy()
+    if len(a) != len(b):
+        raise ValueError(f"length mismatch: {len(a)} vs {len(b)}")
+    w = np.asarray(weights, dtype=np.float32)
+    if w.shape[0] != dim:
+        raise ValueError(f"expected {dim} weights, got {w.shape[0]}")
+    arr_a = np.frombuffer(a, dtype=np.uint8)
+    arr_b = np.frombuffer(b, dtype=np.uint8)
+    diff = np.unpackbits(arr_a ^ arr_b, bitorder="big")[:dim].astype(np.float32)
+    total_w = float(w.sum())
+    if total_w <= 0:
+        return 0.0
+    return 1.0 - float((diff * w).sum()) / total_w
+
+
 def hamming_to_score(distance: int, dim: int = DEFAULT_DIM) -> float:
     """Convert Hamming distance to similarity in [0, 1]."""
     return 1.0 - (distance / dim)
