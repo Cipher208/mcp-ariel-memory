@@ -50,13 +50,13 @@ def test_config_override_merges(monkeypatch):
 
 
 def test_canonical_form_unfolds_reverse():
-    """Однонаправленный конфиг-вход разворачивается в обе стороны: токен,
-    встречающийся только как значение, канонизируется к классу."""
+    """Однонаправленный конфиг-вход разворачивается в обе стороны: все члены
+    класса канонизируются к ОДНОЙ форме (без фикса value-токен давал бы сам
+    себя, и дистиллятор-ключи разъезжались)."""
     from rag.synonyms import canonical_form
 
     one_way = {"мамочка": ["mom"]}
-    assert canonical_form("mom", one_way) == "мамочка"  # value → key (обратный разворот)
-    assert canonical_form("мамочка", one_way) == "мамочка"  # key → сам себя
+    assert canonical_form("mom", one_way) == canonical_form("мамочка", one_way) == "mom"  # класс один, канон = lexicographic min
     assert canonical_form("postgres") == "postgres"  # built-in: минимальный элемент класса
     assert canonical_form("psql") == "postgres"
     assert canonical_form("unknownterm") == "unknownterm"  # вне класса — без изменений

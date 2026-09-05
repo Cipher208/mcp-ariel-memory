@@ -200,8 +200,9 @@ async def test_agent_hooks_error_occurred():
     ah = AgentHooks("test_hooks")
     await ah.graph.init_db()
     r = await ah._error_occurred({"error": "NullPointerException"})
-    assert "node_id" in r
+    # Адаптировано под F-T9: хук capture'ит в L0 + дистиллирует (mem=None → capture-only)
     assert r["action"] == "error_analyzed"
+    assert r.get("captured") is True
 
 
 @pytest.mark.asyncio
@@ -211,8 +212,8 @@ async def test_agent_hooks_decision_made():
     ah = AgentHooks("test_hooks")
     await ah.graph.init_db()
     r = await ah._decision_made({"decision": "Use async", "rationale": "performance"})
-    assert "node_id" in r
     assert r["action"] == "decision_logged"
+    assert r.get("captured") is True
 
 
 # ── wiki_manager ──

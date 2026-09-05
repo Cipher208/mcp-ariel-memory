@@ -71,11 +71,14 @@ async def test_causal_action_validates(hermetic_base):
 
 
 async def test_default_action_unchanged(hermetic_base):
-    """action='node' (default) keeps the existing single-node behavior."""
+    """action='node' (default) keeps the existing single-node behavior.
+
+    Адаптировано под F-T9: plain-узел требует provenance+confidence.
+    """
     from graph.epistemic import EpistemicGraph
     from mcp_server.tools.graph import memory_graph_add
 
     ctx = _ctx()
     ctx.request_context.lifespan_context.user_graph = EpistemicGraph(layer="user", cm=connection_manager)
-    res = await memory_graph_add(content="solo node", ctx=ctx, user_id="default")
+    res = await memory_graph_add(content="solo node", ctx=ctx, user_id="default", source="test", confidence=0.8)
     assert res["node_id"] > 0  # GraphNodeResult shape unchanged

@@ -131,7 +131,7 @@ async def test_episode_save():
 async def test_graph_add():
     ctx, app = _make_ctx()
     app.user_graph.add_node = AsyncMock(return_value=1)
-    result = await memory_graph_add(layer="user", user_id="u1", content="Fact", node_type="fact", ctx=ctx)
+    result = await memory_graph_add(layer="user", user_id="u1", content="Fact", node_type="fact", source="test", confidence=0.8, ctx=ctx)
     assert "node_id" in result
 
 

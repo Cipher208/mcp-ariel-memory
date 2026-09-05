@@ -1,6 +1,5 @@
 from __future__ import annotations
 import logging
-import asyncio
 
 from mcp_server.models import RememberResult, RecallResult
 from mcp_server.registry import _get_ctx
@@ -11,7 +10,6 @@ from .base import (
     _validate_layer,
     _check_rate_limit,
     _get_memory,
-    _get_graph,
     _dedup_cache,
     _invalidate_cache,
     _get_recall_cache,
@@ -59,34 +57,23 @@ async def memory_remember(
         return RememberResult(status="skipped", reason="below_importance_threshold").dict()
 
     mem = _get_memory(app, layer, user_id)
-    graph = _get_graph(app, layer)
 
     if layer == "agent":
-        entry_id, node_id = await asyncio.gather(
-            mem.remember(key, value, importance, ttl_minutes=ttl_minutes),
-            graph.add_node(
-                user_id,
-                value,
-                "error_analysis" if "error" in key.lower() else "decision_log" if "decision" in key.lower() else "agent_fact",
-                ["error_pattern"] if "error" in key.lower() else ["decided_because"] if "decision" in key.lower() else [],
-                importance,
-            ),
-        )
-        await _fire_post_remember_hooks(layer, user_id, key, value, mem, graph)
+        # F-T9 single-entry: только L4 — граф наполняет дистиллятор/минеры
+        # (dual-write здесь дублировал бы каждый факт в epi_nodes).
+        entry_id = await mem.remember(key, value, importance, ttl_minutes=ttl_minutes)
+        await _fire_post_remember_hooks(layer, user_id, key, value, mem)
     else:
         entry_id = await mem.remember(key, value, importance, ttl_minutes=ttl_minutes)
-        node_id = await graph.add_node(user_id, value, "fact", [], importance)
-        await _fire_hook("emotion_trigger", layer, {"text": value, "user_id": user_id, "key": key}, mem=mem, graph=graph)
-        await _fire_hook("message_received", layer, {"text": value, "key": key, "user_id": user_id}, mem=mem, graph=graph)
+        await _fire_hook("emotion_trigger", layer, {"text": value, "user_id": user_id, "key": key}, mem=mem)
+        await _fire_hook("message_received", layer, {"text": value, "key": key, "user_id": user_id}, mem=mem)
 
     _invalidate_cache(layer, user_id)
-    return RememberResult(status="ok", entry_id=entry_id, graph_node_id=node_id).dict()
+    return RememberResult(status="ok", entry_id=entry_id, graph_node_id=None).dict()
 
 
 async def _fire_post_remember_hooks(layer: str, user_id: str, key: str, value: str, mem: Any, graph: Any = None) -> None:
     await _fire_hook("message_received", layer, {"text": value, "key": key, "user_id": user_id}, mem=mem, graph=graph)
-    # User-emotion analysis on agent texts is semantically wrong; agent
-    # self-reflection has its own hooks (error/decision/personality/emotion_context).
     if layer == "user":
         await _fire_hook("emotion_trigger", layer, {"text": value, "user_id": user_id, "key": key}, mem=mem, graph=graph)
     if "error" in key.lower():

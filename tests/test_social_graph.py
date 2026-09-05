@@ -81,6 +81,8 @@ def test_tool_social_upsert_and_edge(tmp_path):
             node_type="fact",
             relates_to=bob,
             relation="knows",
+            source="test",
+            confidence=0.8,
             ctx=ctx,
         )
         assert r3["node_id"] > 0

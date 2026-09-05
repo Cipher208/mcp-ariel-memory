@@ -17,7 +17,6 @@ from mcp_server.tools.base import (
     _validate_layer,
     _check_rate_limit,
     _get_memory,
-    _get_graph,
     _get_wiki,
     _fire_hook,
 )
@@ -64,7 +63,6 @@ async def think(
     routing = {"importance": importance, "length": len(text), "emotional_weight": scorer_result.signals.emotional, "resolved_layer": resolved_layer}
 
     mem = _get_memory(app, resolved_layer, user_id)
-    graph = _get_graph(app, resolved_layer)
     wiki = _get_wiki(app, resolved_layer)
 
     tasks = []
@@ -112,8 +110,13 @@ async def think(
     has_relation = any(re.search(p, text, re.IGNORECASE) for p in relation_patterns)
 
     if has_relation:
-        tasks.append(graph.add_node(user_id, text[:500], "relation", ["think_primitive"], importance))
-        actions.append({"type": "Graph_node_add", "node_type": "relation"})
+        # F-T9 single-entry: прямой add_node убран — текст с отношением попадает
+        # в L0 (capture) и в дистиллятор через message_received-хук; узел графа
+        # создаёт _wire_atoms, а не обходной путь из тул-слоя.
+        from shared.l0 import capture
+
+        tasks.append(capture(event="think_relation", layer=resolved_layer, user_id=user_id, text=text))
+        actions.append({"type": "L0_captured", "event": "think_relation"})
 
     # 5. Hooks
     hook_tasks = [_fire_hook("message_received", resolved_layer, {"text": text, "user_id": user_id}, mem=mem)]

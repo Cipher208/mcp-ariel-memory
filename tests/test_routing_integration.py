@@ -54,6 +54,7 @@ async def app(tmp_path):
             return r
 
     app.importance = _Scorer()
+    app.cm = cm
     return app
 
 
@@ -106,11 +107,20 @@ async def test_think_long_text_goes_to_wiki(app):
 
 
 @pytest.mark.asyncio
-async def test_relation_detected_adds_graph_node(app):
+async def test_relation_detected_captures_l0(app):
+    """Адаптировано под F-T9: think с relation-текстом пишет L0 (event=think_relation),
+    узел графа создаёт дистиллятор, не тул-слой. capture пишет через ГЛОБАЛЬНЫЙ
+    connection_manager (единый журнал) — мигрируем и читаем его."""
+    from shared.connection import connection_manager
+    from shared.migrations import MigrationManager
+
+    await MigrationManager(cm=connection_manager).migrate()
+
     text = "sqlite WAL is part of the storage layer and it is related to durability"
     await think(text=text, layer="user", user_id="rt", ctx=_make_ctx(app))
-    nodes = await app.user_graph.find_nodes_matching("rt", "%storage layer%")
-    assert len(nodes) >= 1
+    conn = await connection_manager.get("memory.db")
+    n = (await (await conn.execute("SELECT COUNT(*) FROM l0_journal WHERE event='think_relation'")).fetchone())[0]
+    assert n >= 1, "relation-текст захвачен в L0 (single-entry)"
 
 
 @pytest.mark.asyncio

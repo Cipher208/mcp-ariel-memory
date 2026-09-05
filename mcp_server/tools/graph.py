@@ -26,6 +26,8 @@ async def memory_graph_add(
     action: str = "node",
     outcome: str = "",
     strength: float = 0.8,
+    source: str = "",
+    confidence: float | None = None,
     ctx: Context[Any, Any] | None = None,
 ) -> dict[str, Any]:
     """Add a node to the epistemic graph.
@@ -38,11 +40,21 @@ async def memory_graph_add(
     link instead — idempotent action/outcome nodes joined by a strength edge.
     Requires content (the action) and outcome; relation must be causal
     (led_to/caused/blocked, see CAUSAL_RELATIONS).
+
+    F-T9 single-entry: for plain nodes `source` (provenance: who/what created
+    this — "agent", "user", "tool:<name>", ...) and `confidence` are REQUIRED;
+    without them the node cannot be blame/rollback-tracked and is rejected.
     """
     app = _get_ctx(ctx)
     layer = _validate_layer(layer)
     metrics.inc("tool_calls")
     metrics.inc("tool_graph_add")
+
+    if action == "node" and node_type not in SOCIAL_NODE_TYPES:
+        if not source:
+            raise ValueError("graph_add requires provenance (source)")
+        if confidence is None:
+            raise ValueError("graph_add requires confidence")
 
     rate_limit = await _check_rate_limit(app, user_id)
     if rate_limit:
@@ -61,7 +73,12 @@ async def memory_graph_add(
     if node_type in SOCIAL_NODE_TYPES:
         node_id, created = await graph.find_or_add_entity(user_id, content, entity_type=node_type, tags=tags)
     else:
-        node_id = await graph.add_node(user_id, content, node_type, tags)
+        # Провенанс материализуем: confidence в колонку, source — тегом
+        # provenance:<source> (миграции epi_nodes не требуется).
+        node_tags = list(tags or [])
+        node_tags.append(f"provenance:{source}")
+        assert confidence is not None  # валидация выше для не-social узлов
+        node_id = await graph.add_node(user_id, content, node_type, node_tags, float(confidence))
 
     if relates_to:
         await graph.add_edge(node_id, relates_to, relation or "relates_to")

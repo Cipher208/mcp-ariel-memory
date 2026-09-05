@@ -179,7 +179,9 @@ async def test_episode_save_and_recall(app):
 @pytest.mark.asyncio
 async def test_graph_add_and_query(app):
     ctx = _make_ctx(app)
-    add = await memory_graph_add(layer="user", user_id="eg", content="Python AI", node_type="fact", tags=["py"], ctx=ctx)
+    add = await memory_graph_add(
+        layer="user", user_id="eg", content="Python AI", node_type="fact", tags=["py"], source="test", confidence=0.8, ctx=ctx
+    )
     assert "node_id" in add
     q = await memory_graph_query(layer="user", user_id="eg", node_type="fact", ctx=ctx)
     assert len(q["nodes"]) > 0
@@ -303,8 +305,8 @@ async def test_hook_dispatch_all_tools(app):
         start = await memory_session_start(layer="user", user_id="eha", ctx=ctx)
         await memory_session_end(layer="user", user_id="eha", session_id=start["session_id"], summary="done", ctx=ctx)
 
-        await memory_graph_add(layer="user", user_id="eha", content="Err", node_type="error_analysis", ctx=ctx)
-        await memory_graph_add(layer="user", user_id="eha", content="Dec", node_type="decision_log", ctx=ctx)
+        await memory_graph_add(layer="user", user_id="eha", content="Err", node_type="error_analysis", source="test", confidence=0.8, ctx=ctx)
+        await memory_graph_add(layer="user", user_id="eha", content="Dec", node_type="decision_log", source="test", confidence=0.8, ctx=ctx)
 
         await memory_recall(layer="user", user_id="eha", query="test", ctx=ctx)
         await memory_context_inject(layer="user", user_id="eha", ctx=ctx)

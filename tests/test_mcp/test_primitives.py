@@ -89,7 +89,7 @@ async def test_think_routing_l3_emotion():
 
 @pytest.mark.asyncio
 async def test_think_routing_graph():
-    """Test think routes relations to graph."""
+    """Test think routes relation-texts to L0 capture (F-T9: no direct add_node)."""
     ctx, app = _make_ctx()
     app.importance.score = MagicMock()
     app.importance.score.return_value.score = 0.5
@@ -100,8 +100,8 @@ async def test_think_routing_graph():
     result = await think(text="Alice is related to Bob", ctx=ctx)
 
     assert result["status"] == "ok"
-    assert any(a["type"] == "Graph_node_add" for a in result["actions"])
-    app.user_graph.add_node.assert_called_once()
+    assert any(a["type"] == "L0_captured" for a in result["actions"]), f"relation-text captured to L0, actions={result['actions']}"
+    app.user_graph.add_node.assert_not_called()
 
 
 def _make_ctx():

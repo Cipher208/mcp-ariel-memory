@@ -82,38 +82,55 @@ class AgentHooks:
 
         return await adaptive_threshold.gate(min(1.0, score))
 
+    async def _capture_route(self, mem: Any, event: str, text: str, score: float) -> dict[str, Any]:
+        """F-T9 single-entry: L0 capture (журнал) → distill-маршрут.
+
+        Прямой add_node из хуков убран: граф наполняет дистиллятор (_wire_atoms)
+        и минеры — тот же путь, что и у user-layer auto_save_text. mem недоступен
+        (registry не передал) → остаётся только capture, ночи/дистиллятор допишут.
+        """
+        from shared.l0 import capture
+
+        await capture(event=event, layer=AGENT_LAYER, user_id=self.user_id, text=text)
+        if mem is None:
+            return {"captured": True}
+        from lifecycle.distiller import distill_and_route
+
+        route_stats = await distill_and_route(mem, self.graph, self.user_id, text, score, event=event)
+        return {"captured": True, **route_stats}
+
     @hook_registry.mark("error_occurred", layer=AGENT_LAYER)
-    async def _error_occurred(self, ctx: dict[str, Any]) -> dict[str, Any]:
+    async def _error_occurred(self, ctx: dict[str, Any], mem: Any | None = None) -> dict[str, Any]:
         error = ctx.get("error", "")
-        node_id = await self.graph.add_node(self.user_id, error, "error_analysis", ["error_pattern"], 0.8)
-        return {"action": "error_analyzed", "node_id": node_id}
+        out = await self._capture_route(mem, "error_occurred", error, 0.8)
+        return {"action": "error_analyzed", **out}
 
     @hook_registry.mark("decision_made", layer=AGENT_LAYER)
-    async def _decision_made(self, ctx: dict[str, Any]) -> dict[str, Any]:
+    async def _decision_made(self, ctx: dict[str, Any], mem: Any | None = None) -> dict[str, Any]:
         decision = ctx.get("decision", "")
         rationale = ctx.get("rationale", "")
-        node_id = await self.graph.add_node(self.user_id, f"{decision}: {rationale}", "decision_log", ["decided_because"], 0.7)
-        return {"action": "decision_logged", "node_id": node_id}
+        out = await self._capture_route(mem, "decision_made", f"{decision}: {rationale}", 0.7)
+        return {"action": "decision_logged", **out}
 
     @hook_registry.mark("self_correction", layer=AGENT_LAYER)
-    async def _self_correction(self, ctx: dict[str, Any]) -> dict[str, Any]:
+    async def _self_correction(self, ctx: dict[str, Any], mem: Any | None = None) -> dict[str, Any]:
         error = ctx.get("error", "")
         fix = ctx.get("fix", "")
-        node_id = await self.graph.add_node(self.user_id, f"Error: {error} → Fix: {fix}", "correction", ["correction_pattern"], 0.6)
-        return {"action": "correction_logged", "node_id": node_id}
+        out = await self._capture_route(mem, "self_correction", f"Error: {error} → Fix: {fix}", 0.6)
+        return {"action": "correction_logged", **out}
 
     @hook_registry.mark("personality_shift", layer=AGENT_LAYER)
-    async def _personality_shift(self, ctx: dict[str, Any]) -> dict[str, Any]:
+    async def _personality_shift(self, ctx: dict[str, Any], mem: Any | None = None) -> dict[str, Any]:
         shift = ctx.get("shift", "")
-        node_id = await self.graph.add_node(self.user_id, shift, "personality_evolution", ["personality_trait", "evolved_to"], 0.9)
-        return {"action": "personality_evolved", "node_id": node_id}
+        out = await self._capture_route(mem, "personality_shift", shift, 0.9)
+        return {"action": "personality_evolved", **out}
 
     @hook_registry.mark("emotion_context", layer=AGENT_LAYER)
-    async def _emotion_context(self, ctx: dict[str, Any]) -> dict[str, Any]:
+    async def _emotion_context(self, ctx: dict[str, Any], mem: Any | None = None) -> dict[str, Any]:
         emotion = ctx.get("emotion", "")
         context = ctx.get("context", "")
-        node_id = await self.graph.add_node(self.user_id, f"{emotion} in: {context}", "emotional_context", ["felt_in_context"], 0.6)
-        return {"action": "emotion_logged", "node_id": node_id}
+        out = await self._capture_route(mem, "emotion_context", f"{emotion} in: {context}", 0.6)
+        return {"action": "emotion_logged", **out}
 
     @hook_registry.mark("wiki_agent", layer=AGENT_LAYER)
     async def _wiki_agent(self, ctx: dict[str, Any]) -> dict[str, Any]:
@@ -144,7 +161,7 @@ class AgentHooks:
         return await conflict_resolver(ctx, self.user_id)
 
     @hook_registry.mark("emotion", layer=AGENT_LAYER)
-    async def _emotion(self, ctx: dict[str, Any]) -> dict[str, Any]:
+    async def _emotion(self, ctx: dict[str, Any], mem: Any | None = None) -> dict[str, Any]:
         emotion = ctx.get("emotion", "")
-        node_id = await self.graph.add_node(self.user_id, emotion, "emotional_context", ["felt_in_context"], 0.5)
-        return {"action": "emotion_recorded", "node_id": node_id}
+        out = await self._capture_route(mem, "emotion", emotion, 0.5)
+        return {"action": "emotion_recorded", **out}

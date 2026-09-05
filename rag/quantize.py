@@ -210,8 +210,8 @@ def bit_frequency_weights(corpus: list[bytes], dim: int = DEFAULT_DIM) -> list[f
     _check_numpy()
     if not corpus:
         return [1.0] * dim
-    bits = np.unpackbits(np.frombuffer(b"".join(corpus), dtype=np.uint8), bitorder="big")
-    bits = bits[: len(corpus) * dim].reshape(len(corpus), dim)
+    bits_flat = np.unpackbits(np.frombuffer(b"".join(corpus), dtype=np.uint8), bitorder="big")
+    bits: Any = bits_flat[: len(corpus) * dim].reshape(len(corpus), dim)
     p1 = (bits.sum(axis=0) + 1.0) / (len(corpus) + 2.0)
     w = np.maximum(-np.log(np.clip(p1, 1e-9, 1.0)), 0.1)
     return [float(x) for x in w]
