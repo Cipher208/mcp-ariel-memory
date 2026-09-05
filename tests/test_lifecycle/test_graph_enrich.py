@@ -87,13 +87,14 @@ async def test_graph_enrich_noop_layer_keeps_stats_shape(graph):
 
     result = await graph_enrich(layer="agent")
 
-    # Адаптировано под C3/S6b + C6: dream-фаза добавляет блок статистики (нулевой на noop-слое).
+    # Адаптировано под C3/S6b + C6 + C8: dream + segments (нулевые на noop-слое).
     assert result == {
         "nodes_cleaned": 0,
         "miners": {k: {"edges": 0} for k in result["miners"]},
         "sanitation": {"expired": 0, "valence_tagged": 0, "centrality_top": []},
         "behavior": {},
         "dream": {"nrem_decayed": 0, "nrem_pruned": 0, "rem_bridged": 0, "insights": 0},
+        "segments": {"records": 0, "segments": 0, "avg_segment": 0.0, "largest": 0},
     }
 
 

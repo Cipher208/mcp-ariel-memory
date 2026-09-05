@@ -7,6 +7,7 @@ Layer-isolated: every row carries the memory layer ('user' | 'agent', ...),
 so agent identity never collides with user facts.
 """
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -48,6 +49,7 @@ class CoreMemory:
                 user_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL,
                 importance REAL DEFAULT 0.5, memory_kind TEXT, expires_at REAL,
                 source TEXT DEFAULT 'manual', metadata TEXT,
+                visibility TEXT NOT NULL DEFAULT 'visible',
                 created_at REAL NOT NULL, updated_at REAL NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_core_user ON core_memory(user_id);
@@ -59,6 +61,11 @@ class CoreMemory:
             CREATE INDEX IF NOT EXISTS idx_core_importance ON core_memory(layer, user_id, importance DESC);
         """,
         )
+        # C8 self-healing: колонка visibility для живых БД (миграция g21).
+        with contextlib.suppress(Exception):
+            conn = await self._cm.get(DB_NAME)
+            await conn.execute("ALTER TABLE core_memory ADD COLUMN visibility TEXT NOT NULL DEFAULT 'visible'")
+            await conn.commit()
 
     async def save(
         self,
@@ -72,25 +79,31 @@ class CoreMemory:
         metadata: dict[str, Any] | None = None,
         layer: str | None = None,
         triggered_by: str | None = None,
+        visibility: str | None = None,
     ) -> int:
         layer = layer or self.layer
         now = time.time()
         memory_kind, importance, expires_at = self._prepare_save_params(value, memory_kind, importance, expires_at, now)
         metadata_json = json.dumps(metadata or {}, ensure_ascii=False)
+        vis = visibility or "visible"
+        if vis not in ("visible", "pinned", "private"):
+            raise ValueError(f"invalid visibility: {vis!r}")
 
         conn = await self._cm.get(DB_NAME)
         existing_id = await self._find_existing_id(conn, layer, user_id, key)
 
         if existing_id is not None:
             old = await self._fetch_row_by_id(conn, existing_id)
-            await self._update_entry(conn, existing_id, value, importance, memory_kind, expires_at, source, metadata_json, now)
+            await self._update_entry(conn, existing_id, value, importance, memory_kind, expires_at, source, metadata_json, now, vis)
             entry_id = existing_id
             new_row = self._row_snapshot(key, value, importance, memory_kind, expires_at, source, metadata_json)
             await self._record_history(conn, layer, user_id, key, old, new_row, triggered_by or source, now)
             # A2.1: close the old interval, open the new one (bi-temporal chain)
             await self._record_temporal(conn, layer, user_id, key, value, importance, memory_kind, now)
         else:
-            entry_id = await self._insert_entry(conn, layer, user_id, key, value, importance, memory_kind, expires_at, source, metadata_json, now)
+            entry_id = await self._insert_entry(
+                conn, layer, user_id, key, value, importance, memory_kind, expires_at, source, metadata_json, now, vis
+            )
             new_row = self._row_snapshot(key, value, importance, memory_kind, expires_at, source, metadata_json)
             await self._record_history(conn, layer, user_id, key, None, new_row, triggered_by or source, now)
             await self._record_temporal(conn, layer, user_id, key, value, importance, memory_kind, now)
@@ -126,23 +139,37 @@ class CoreMemory:
         row = await cursor.fetchone()
         return int(row[0]) if row and row[0] is not None else None
 
-    async def _update_entry(self, conn: Any, eid: int, val: str, imp: float, kind: str, exp: float | None, src: str, meta: str, now: float) -> None:
+    async def _update_entry(
+        self, conn: Any, eid: int, val: str, imp: float, kind: str, exp: float | None, src: str, meta: str, now: float, vis: str = "visible"
+    ) -> None:
         await conn.execute(
             """UPDATE core_memory SET value=?, importance=?, memory_kind=?,
-               expires_at=?, source=?, metadata=?, updated_at=?
+               expires_at=?, source=?, metadata=?, visibility=?, updated_at=?
                WHERE entry_id=?""",
-            (val, imp, kind, exp, src, meta, now, eid),
+            (val, imp, kind, exp, src, meta, vis, now, eid),
         )
 
     async def _insert_entry(
-        self, conn: Any, layer: str, uid: str, key: str, val: str, imp: float, kind: str, exp: float | None, src: str, meta: str, now: float
+        self,
+        conn: Any,
+        layer: str,
+        uid: str,
+        key: str,
+        val: str,
+        imp: float,
+        kind: str,
+        exp: float | None,
+        src: str,
+        meta: str,
+        now: float,
+        vis: str = "visible",
     ) -> int:
         cursor = await conn.execute(
             """INSERT INTO core_memory
                (layer, user_id, key, value, importance, memory_kind, expires_at,
-                source, metadata, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (layer, uid, key, val, imp, kind, exp, src, meta, now, now),
+                source, metadata, visibility, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (layer, uid, key, val, imp, kind, exp, src, meta, vis, now, now),
         )
         return int(cursor.lastrowid or 0)
 
@@ -281,6 +308,16 @@ class CoreMemory:
         rows = await cursor.fetchall()
         return [self._row_to_entry(r) for r in rows]
 
+    async def get_pinned(self, user_id: str, limit: int = 10) -> list[CoreEntry]:
+        """C8: pinned-факты — всегда в inject, независимо от важности/бюджет-конкуренции."""
+        conn = await self._cm.get(DB_NAME)
+        cursor = await conn.execute(
+            "SELECT * FROM core_memory WHERE layer=? AND user_id=? AND visibility='pinned' ORDER BY updated_at DESC LIMIT ?",
+            (self.layer, user_id, limit),
+        )
+        rows = await cursor.fetchall()
+        return [self._row_to_entry(r) for r in rows]
+
     async def delete(self, user_id: str, key: str, triggered_by: str | None = None) -> bool:
         conn = await self._cm.get(DB_NAME)
         cursor = await conn.execute(
@@ -324,8 +361,9 @@ class CoreMemory:
         like_params: list[Any] = []
         for t in tokens:
             like_params.extend([f"%{t}%", f"%{t}%"])
-        # Overfetch so Python-side ranking can prefer more-matching rows
-        sql = f"SELECT * FROM core_memory WHERE layer=? AND user_id=? AND ({like_conds}) ORDER BY importance DESC LIMIT ?"
+        # Overfetch so Python-side ranking can prefer more-matching rows.
+        # C8: private-факты не покидают стор через recall (inject pinned-блок их не читает).
+        sql = f"SELECT * FROM core_memory WHERE layer=? AND user_id=? AND visibility != 'private' AND ({like_conds}) ORDER BY importance DESC LIMIT ?"
         cursor = await conn.execute(sql, (layer, user_id, *like_params, max(limit * 10, 50)))
         rows = await cursor.fetchall()
 

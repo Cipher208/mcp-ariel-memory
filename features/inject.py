@@ -195,18 +195,31 @@ async def build_inject_blocks(
 
     important_min = float(config.get("inject", "important_min", default=0.8))
     facts = await mem.l4.get_all(user_id, 50)
-    important = [f for f in facts if f.importance >= important_min]
+    important = [f for f in facts if f.importance >= important_min and getattr(f, "visibility", "visible") == "visible"]
     if important:
         content = "; ".join(f"{f.key}={f.value[:80]}" for f in important)
         cost = estimate_tokens(content)
         if cost <= remaining:
             blocks.append({"kind": "important", "content": content, "score": max(f.importance for f in important)})
 
+    # C8 pinned block: pinned-факты инжектятся всегда (stable prefix, E9),
+    # независимо от важности и бюджетной конкуренции.
+    try:
+        pinned = await mem.l4.get_pinned(user_id, 10)
+    except Exception as exc:
+        logger.debug("pinned block skipped: %s", exc)
+        pinned = []
+    if pinned:
+        content = "; ".join(f"📌 {f.key}={f.value[:80]}" for f in pinned)
+        cost = estimate_tokens(content)
+        if cost <= remaining:
+            blocks.append({"kind": "pinned", "content": content, "score": 1.0})
+
     # E9: prompt-cache-friendly ordering — query-independent blocks (stable
     # across calls) form the prefix; a <cache:break> marker separates them
     # from per-query dynamics so provider prompt caches hit the prefix.
-    stable = [b for b in blocks if b["kind"] in ("rehydrate", "important")]
-    dynamic = [b for b in blocks if b["kind"] not in ("rehydrate", "important")]
+    stable = [b for b in blocks if b["kind"] in ("rehydrate", "important", "pinned")]
+    dynamic = [b for b in blocks if b["kind"] not in ("rehydrate", "important", "pinned")]
     if stable and dynamic:
         marker = {"kind": "cache_break", "content": "<cache:break>", "score": 0.0}
         blocks = [*stable, marker, *dynamic]

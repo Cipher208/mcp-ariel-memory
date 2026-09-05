@@ -129,7 +129,9 @@ async def replay(*, since_days: int = 7, gate: str = "g1") -> dict[str, int]:
         graph = EpistemicGraph(cm=connection_manager, layer=row["layer"] or "user")
         route = await distill_and_route(mem, graph, row["user_id"], row["text"], 0.6, event=gate)
         conflicts += route["conflicts"]
-        new_status = "promoted_l4" if route["l4_saved"] else ("saved_l3" if route["l3_saved"] else "gated_out")
+        # C8: novelty_skipped = факт уже в L4 (повторный прогон той же строки) —
+        # это идемпотентный успех, не gated_out.
+        new_status = "promoted_l4" if (route["l4_saved"] or route.get("novelty_skipped")) else ("saved_l3" if route["l3_saved"] else "gated_out")
         decisions.append({"gate": gate, "config_hash": chash, "ts": time.time()})
         await conn.execute(
             "UPDATE l0_journal SET status=?, processed_at=?, decisions=? WHERE id=?",

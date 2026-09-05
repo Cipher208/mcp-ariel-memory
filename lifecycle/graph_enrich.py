@@ -291,10 +291,20 @@ async def graph_enrich(layer: str = "user") -> dict[str, Any]:
     with contextlib.suppress(Exception):
         dream = await _dream(conn, layer)
 
+    # C8 segment-consolidation: Lychee boundary-карта суточного L0 (отчёт).
+    segment_map: dict[str, Any] = {}
+    try:
+        from lifecycle.segment_consolidation import segment_l0
+
+        segment_map = await segment_l0(since_hours=24.0, layer=layer)
+    except Exception as exc:
+        logger.debug("segment map skipped: %s", exc)
+
     return {
         "nodes_cleaned": cleaned,
         "miners": miners,
         "sanitation": {"expired": expired, "valence_tagged": valence_tagged, "centrality_top": centrality_top},
         "behavior": behavior,
         "dream": dream,
+        "segments": segment_map,
     }

@@ -19,6 +19,7 @@ async def cm(tmp_path):
             user_id TEXT, "key" TEXT, value TEXT,
             importance REAL, memory_kind TEXT,
             expires_at REAL, source TEXT DEFAULT 'manual', metadata TEXT,
+            visibility TEXT NOT NULL DEFAULT 'visible',
             created_at REAL, updated_at REAL
         );
         CREATE UNIQUE INDEX IF NOT EXISTS idx_core_layer_user_key ON core_memory(layer, user_id, "key");

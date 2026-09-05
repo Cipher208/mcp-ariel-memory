@@ -46,6 +46,48 @@ def _canonical_key(clause: str, kind: MemoryKind) -> str:
     return f"{kind.value}:" + "_".join(canon) if canon else f"{kind.value}:misc"
 
 
+# C8 novelty-gate: paraphrase-Jaccard против уже сохранённых same-key фактов;
+# выше порога — дубликат, skip (не плодим near-dup L4-ключи).
+NOVELTY_JACCARD_MAX = 0.85
+
+
+def _is_novel(clause: str, existing_values: list[str]) -> bool:
+    """Вернуть True, если clause не парафраз существующих значений ключа (LLM-free)."""
+    if not existing_values:
+        return True
+    from rag.edm import tokens
+
+    ct = tokens(clause)
+    if not ct:
+        return True
+    for val in existing_values:
+        vt = tokens(val)
+        union = ct | vt
+        if union and len(ct & vt) / len(union) > NOVELTY_JACCARD_MAX:
+            return False
+    return True
+
+
+# C8 topic-классификация: словарные маркеры → тег для epi_tags/wiki-типа (LLM-free).
+_TOPIC_MARKERS: dict[str, tuple[str, ...]] = {
+    "deploy": ("деплой", "deploy", "release", "выкатил", "мигр"),
+    "error": ("ошибк", "error", "exception", "упал", "fail", "npe", "traceback"),
+    "decision": ("решил", "решено", "decision", "выбрал", "остановил", "выбран"),
+    "config": ("конфиг", "config", "настро", "yaml", "toml", "env"),
+    "performance": ("медленн", "latency", "перформ", "perf", "оптимиз", "кэш", "cache"),
+    "security": ("секрет", "токен", "пароль", "secret", "auth", "уязвим"),
+    "memory": ("памят", "memory", "запом", "эпизод", "факт"),
+}
+
+
+def _topic_of(clause: str) -> str:
+    low = clause.lower()
+    for topic, markers in _TOPIC_MARKERS.items():
+        if any(m in low for m in markers):
+            return topic
+    return "general"
+
+
 def atomize(text: str) -> list[str]:
     parts = _CLAUSE_SPLIT.split(text.strip())
     return [p.strip() for p in parts if len(p.strip()) >= 8][:10]
@@ -78,12 +120,24 @@ async def distill_and_route(
 
     cmem = CoreMemory(cm=getattr(mem, "_cm", None), layer="user")
     await cmem._init_db()  # self-healing schema, как ConflictResolver.check — fixture может быть без миграций
-    stats = {"l4_saved": 0, "l3_saved": 0, "conflicts": 0}
+    stats: dict[str, Any] = {"l4_saved": 0, "l3_saved": 0, "conflicts": 0, "novelty_skipped": 0}
     resolver = ConflictResolver()
     saved: list[str] = []
     for clause in atomize(text):
         kind = kind_for_text(clause)
         key = _canonical_key(clause, kind)
+        if route_kind(kind) == "l4":
+            # C8 novelty-gate: парафраз уже сохранённых same-key фактов — skip.
+            conn = await cmem._cm.get("memory.db")
+            rows = await (
+                await conn.execute(
+                    "SELECT value FROM core_memory WHERE layer=? AND user_id=? AND key=? AND visibility != 'private'",
+                    (cmem.layer, user_id, key),
+                )
+            ).fetchall()
+            if not _is_novel(clause, [str(r["value"]) for r in rows]):
+                stats["novelty_skipped"] += 1
+                continue
         conflict = await resolver.check(user_id, clause)
         has_conflict = bool(conflict.get("is_conflict"))
         if route_kind(kind) == "l4":
@@ -114,7 +168,8 @@ async def distill_and_route(
             stats["l4_saved"] += 1
             saved.append(clause)
         else:
-            await mem.l3.save(user_id, clause[:500], score, [*extra_tags, event, kind.value])
+            # C8 topic-классификация: словарный топик → epi_tags эпизода.
+            await mem.l3.save(user_id, clause[:500], score, [*extra_tags, event, kind.value, f"topic:{_topic_of(clause)}"])
             stats["l3_saved"] += 1
             saved.append(clause)
             if has_conflict:

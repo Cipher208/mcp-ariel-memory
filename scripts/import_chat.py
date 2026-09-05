@@ -147,8 +147,13 @@ async def _capture_and_distill(user_id: str, text: str, ts: float | None = None)
     graph = EpistemicGraph(cm=connection_manager, layer="user")
     route = await distill_and_route(mem, graph, user_id, text, 0.6, event="import")
     # condition-splitting (C4): ConflictResolver hit сохраняет ОБЕ записи
-    # (scope=earlier/later) и теперь учитывается в l4_saved — routed, не gated out
-    status = "promoted_l4" if route["l4_saved"] else ("saved_l3" if (route["l3_saved"] or route["conflicts"]) else "gated_out")
+    # (scope=earlier/later) и учитывается в l4_saved — routed, не gated out.
+    # C8: novelty_skipped = дубликат уже в L4 — идемпотентный успех.
+    status = (
+        "promoted_l4"
+        if (route["l4_saved"] or route.get("novelty_skipped"))
+        else ("saved_l3" if (route["l3_saved"] or route["conflicts"]) else "gated_out")
+    )
     decisions = [{"gate": "import"}, {"gate": "g1", "config_hash": config_hash(), "ts": time.time()}]
     await conn.execute(
         "UPDATE l0_journal SET status=?, processed_at=?, decisions=? WHERE id=?",
