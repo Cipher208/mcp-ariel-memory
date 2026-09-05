@@ -51,6 +51,18 @@ def _canonical_key(clause: str, kind: MemoryKind) -> str:
 NOVELTY_JACCARD_MAX = 0.85
 
 
+def _merged_meta(raw: Any, source_rid: int) -> dict[str, Any]:
+    """S6a-4: metadata L4-строки с вмерженным source_raw_id (не затирая остальное)."""
+    try:
+        meta = json.loads(raw) if raw else {}
+    except (TypeError, ValueError):
+        meta = {}
+    if not isinstance(meta, dict):
+        meta = {}
+    meta["source_raw_id"] = source_rid
+    return meta
+
+
 def _is_novel(clause: str, existing_values: list[str]) -> bool:
     """Вернуть True, если clause не парафраз существующих значений ключа (LLM-free)."""
     if not existing_values:
@@ -107,6 +119,7 @@ async def distill_and_route(
     *,
     event: str = "new_message",
     extra_tags: tuple[str, ...] | list[str] = (),
+    source_rid: int | None = None,
 ) -> dict[str, int]:
     """Разложить text на атомы и развести по слоям.
 
@@ -114,6 +127,9 @@ async def distill_and_route(
     и сразу обвязывается лёгкими минерами — инкрементальный режим, ночной
     batch не ждём. mem.l3.save — дверь для событий, CoreMemory — для инвариантов.
     Ошибки не глушатся: auto_save_text уже стоит за fire-контрактом registry.
+    source_rid (S6a-4): id строки l0_journal-источника — пишется в metadata
+    L4-записей (source_raw_id) и тегом raw:<rid> на L3-эпизодах → drill-down
+    до исходного сырья.
     """
     from core.memory import CoreMemory
     from rag.conflict import ConflictResolver
@@ -131,7 +147,7 @@ async def distill_and_route(
             conn = await cmem._cm.get("memory.db")
             rows = await (
                 await conn.execute(
-                    "SELECT value FROM core_memory WHERE layer=? AND user_id=? AND key=? AND visibility != 'private'",
+                    "SELECT value, metadata FROM core_memory WHERE layer=? AND user_id=? AND key=? AND visibility != 'private'",
                     (cmem.layer, user_id, key),
                 )
             ).fetchall()
@@ -149,7 +165,9 @@ async def distill_and_route(
                 # importance ×0.9 (конфликт снижает уверенность).
                 stats["conflicts"] += 1
                 first_key = await _mark_earlier_scope(cmem, user_id, conflict)
-                meta_new: dict[str, Any] = {"scope": "later", "contradiction": True}
+                meta_new: dict[str, Any] = _merged_meta(rows[0]["metadata"] if rows else None, source_rid) if source_rid is not None else {}
+                meta_new["scope"] = "later"
+                meta_new["contradiction"] = True
                 if first_key:
                     meta_new["contradicts"] = first_key
                 await cmem.save(
@@ -164,12 +182,19 @@ async def distill_and_route(
                 stats["l4_saved"] += 2 if first_key else 1
                 saved.append(clause)
                 continue
-            await cmem.save(user_id, key, clause, importance=score, memory_kind=kind.value, source=event)
+            l4_meta: dict[str, Any] | None = None
+            if source_rid is not None:
+                l4_meta = _merged_meta(rows[0]["metadata"] if rows else None, source_rid)
+            await cmem.save(user_id, key, clause, importance=score, memory_kind=kind.value, source=event, metadata=l4_meta)
             stats["l4_saved"] += 1
             saved.append(clause)
         else:
             # C8 topic-классификация: словарный топик → epi_tags эпизода.
-            await mem.l3.save(user_id, clause[:500], score, [*extra_tags, event, kind.value, f"topic:{_topic_of(clause)}"])
+            # S6a-4: у episodes нет metadata-колонки — провенанс уходит тегом raw:<rid>.
+            l3_tags = [*extra_tags, event, kind.value, f"topic:{_topic_of(clause)}"]
+            if source_rid is not None:
+                l3_tags.append(f"raw:{source_rid}")
+            await mem.l3.save(user_id, clause[:500], score, l3_tags)
             stats["l3_saved"] += 1
             saved.append(clause)
             if has_conflict:

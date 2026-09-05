@@ -22,6 +22,15 @@ from shared.memory_types import MemoryKind, default_importance, get_policy, kind
 logger = logging.getLogger(__name__)
 
 
+def _load_meta(raw: Any) -> dict[str, Any]:
+    """Metadata — JSON-строка в колонке; битый/чужой формат → {} (не роняем чтение)."""
+    try:
+        parsed = json.loads(raw) if raw else {}
+    except (TypeError, ValueError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
 @dataclass
 class CoreEntry:
     entry_id: int
@@ -32,6 +41,7 @@ class CoreEntry:
     memory_kind: str
     created_at: float
     updated_at: float
+    expired: bool = False  # S5 (Memanto): expires_at < now на момент чтения
 
 
 class CoreMemory:
@@ -301,12 +311,19 @@ class CoreMemory:
 
     async def get_all(self, user_id: str, limit: int = 50) -> list[CoreEntry]:
         conn = await self._cm.get(DB_NAME)
+        now = time.time()
         cursor = await conn.execute(
             "SELECT * FROM core_memory WHERE layer=? AND user_id=? ORDER BY importance DESC LIMIT ?",
             (self.layer, user_id, limit),
         )
         rows = await cursor.fetchall()
-        return [self._row_to_entry(r) for r in rows]
+        entries = [self._row_to_entry(r, now=now) for r in rows]
+        # S5 (Memanto): мягкое истечение — expired остаются recallable с меткой
+        # [EXPIRED] (значение в БД не трогается, полем expired читается точно).
+        for e in entries:
+            if e.expired:
+                e.value = "[EXPIRED] " + e.value
+        return entries
 
     async def get_pinned(self, user_id: str, limit: int = 10) -> list[CoreEntry]:
         """C8: pinned-факты — всегда в inject, независимо от важности/бюджет-конкуренции."""
@@ -375,17 +392,49 @@ class CoreMemory:
             scored.append((matched, float(r["importance"]), r))
         scored.sort(key=lambda x: (-x[0], -x[1]))
 
-        return [
-            {
-                "key": str(r["key"]),
+        now = time.time()
+        picked = scored[:limit]
+        # S2 read-time fusion (приоритетнее gate-time): если в выдаче сошлась
+        # пара condition-splitting (metadata scope 'earlier' + 'later') —
+        # 'earlier' скрывается из выдачи, 'later' аннотируется
+        # superseded_context. Строки в БД остаются — история не теряется.
+        picked_metas = [(_load_meta(r["metadata"]), str(r["key"])) for _, _, r in picked]
+        superseded_keys: set[str] = set()  # ключи earlier-строк, скрытых парой
+        fused_later: set[int] = set()  # индексы later-строк в picked
+        for i, (meta, key) in enumerate(picked_metas):
+            if meta.get("scope") != "later":
+                continue
+            # пара: по contradicts-ссылке на ключ ранней, иначе same-key
+            ref = meta.get("contradicts")
+            ref_key = str(ref) if ref is not None else key
+            for j, (meta_j, key_j) in enumerate(picked_metas):
+                if j != i and meta_j.get("scope") == "earlier" and key_j == ref_key:
+                    superseded_keys.add(key_j)
+                    fused_later.add(i)
+                    break
+        out: list[dict[str, Any]] = []
+        for i, (_, _, r) in enumerate(picked):
+            meta, key = picked_metas[i]
+            if meta.get("scope") == "earlier" and key in superseded_keys:
+                continue  # скрыта read-time fusion'ом — осталась в core_memory
+            item: dict[str, Any] = {
+                "key": key,
                 "value": str(r["value"]),
                 "importance": float(r["importance"]),
                 "entry_id": int(r["entry_id"]),
                 "updated_at": float(r["updated_at"]),
                 "memory_kind": r["memory_kind"],  # E15: kind weights read this
             }
-            for _, _, r in scored[:limit]
-        ]
+            if i in fused_later:
+                item["superseded_context"] = {"scope": "later", "has_earlier": True}
+            # S5 (Memanto): мягкое истечение — expired остаётся в выдаче с
+            # меткой [EXPIRED] и restorable-провенансом имени правила.
+            if r["expires_at"] is not None and float(r["expires_at"]) < now:
+                item["value"] = "[EXPIRED] " + item["value"]
+                item["expired"] = True
+                item["restorable"] = bool(meta.get("expiry_rule"))
+            out.append(item)
+        return out
 
     async def count(self, user_id: str | None = None) -> int:
         conn = await self._cm.get(DB_NAME)
@@ -396,7 +445,8 @@ class CoreMemory:
         row = await cursor.fetchone()
         return int(row[0]) if row and row[0] is not None else 0
 
-    def _row_to_entry(self, row: dict[str, Any] | Any) -> CoreEntry:
+    def _row_to_entry(self, row: dict[str, Any] | Any, now: float | None = None) -> CoreEntry:
+        exp = row["expires_at"]
         return CoreEntry(
             entry_id=int(row["entry_id"]),
             user_id=str(row["user_id"]),
@@ -406,6 +456,7 @@ class CoreMemory:
             memory_kind=str(row["memory_kind"] or "fact"),
             created_at=float(row["created_at"]),
             updated_at=float(row["updated_at"]),
+            expired=exp is not None and float(exp) < (time.time() if now is None else now),
         )
 
     async def list_by_kind(

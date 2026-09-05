@@ -1,8 +1,11 @@
-"""TTL sweep: delete expired L4 facts (expires_at < now) with B5 protections.
+"""TTL sweep: soft-expiry of expired L4 facts (expires_at < now) with B5 protections.
 
-Protections (never delete more than is safe):
+S5 (Memanto): истечение мягкое — expired-строки не уничтожаются, а архивируются
+в archived_memories (restorable через ForgettingSystem.restore_entries).
+
+Protections (never touch more than is safe):
 - min_remain: never shrink a layer below min_remain live rows — the batch is
-  trimmed (deletion stops at the floor).
+  trimmed (sweep stops at the floor).
 - stop_pct: if expired rows exceed stop_pct of all rows, the sweep refuses to
   run entirely (mass-expiry signal — likely a clock/batch bug, not real decay).
 never_archive kinds (rule/instruction/commitment) are always exempt, even when
@@ -58,16 +61,26 @@ async def sweep_expired(
 
     to_delete = max(0, total - min_remain)
     batch = min(expired, to_delete)
+    if batch <= 0:
+        summary = {"deleted": 0, "skipped_reason": None, "remaining": total}
+        await _journal(summary, layer)
+        return summary
 
-    cur = await conn.execute(
-        f"""DELETE FROM core_memory WHERE entry_id IN (
-                SELECT entry_id FROM core_memory
+    # S5: архивируем (restorable), не стираем — contract для TTL-тестов тот же
+    # (строки уходят из core_memory), но данные остаются в archived_memories.
+    from lifecycle.forgetting import ForgettingSystem
+
+    ids_rows = await (
+        await conn.execute(
+            f"""SELECT entry_id FROM core_memory
                 WHERE {where_layer} AND expires_at IS NOT NULL AND expires_at < ?
                   AND (memory_kind IS NULL OR memory_kind NOT IN ({placeholders}))
-                LIMIT ?)""",
-        (*params, now, *protected, batch),
-    )
-    deleted = cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
+                LIMIT ?""",
+            (*params, now, *protected, batch),
+        )
+    ).fetchall()
+    ids = [int(r["entry_id"]) for r in ids_rows]
+    deleted = await ForgettingSystem(cm=cm or connection_manager, layer=layer or "user").archive_entries(ids)
     await conn.commit()
 
     remaining = total - deleted

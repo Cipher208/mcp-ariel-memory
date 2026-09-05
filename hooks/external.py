@@ -182,7 +182,7 @@ async def auto_save_text(
     # события→L3 через mem.l3.save). Граф не пишем напрямую — наполняют минеры.
     from lifecycle.distiller import distill_and_route
 
-    route_stats = await distill_and_route(mem, graph, user_id, text, score, event=event, extra_tags=rule_out["tags"])
+    route_stats = await distill_and_route(mem, graph, user_id, text, score, event=event, extra_tags=rule_out["tags"], source_rid=l0_id)
     result["saved_l3"] = route_stats["l3_saved"] > 0
     result["saved_graph"] = route_stats["l3_saved"] > 0
     result["routes"] = route_stats

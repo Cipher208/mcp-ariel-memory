@@ -12,6 +12,45 @@ from typing import Any
 HEAL_ACTIONS = ("remigrate", "reset_breakers", "purge_invalid_l1")
 
 
+async def drill_down(entry_id: int, user_id: str) -> dict[str, Any]:
+    """S6a-4 provenance reader: L4-запись → исходное сырье l0_journal.
+
+    По metadata.source_raw_id (пишет distiller) достаём raw-строку l0_journal:
+    текст, момент фиксации и событие-источник — гидратация вниз «почему мы
+    так решили». Нет провенанса → {'source_raw_id': None}.
+    """
+    from shared.connection import connection_manager
+    from shared.constants import DB_NAME
+
+    conn = await connection_manager.get(DB_NAME)
+    row = await (
+        await conn.execute("SELECT key, value, metadata FROM core_memory WHERE entry_id=? AND user_id=?", (int(entry_id), user_id))
+    ).fetchone()
+    if row is None:
+        return {"source_raw_id": None}
+    try:
+        meta = json.loads(row["metadata"] or "{}")
+    except (TypeError, ValueError):
+        meta = {}
+    if not isinstance(meta, dict):
+        meta = {}
+    rid = meta.get("source_raw_id")
+    if rid is None:
+        return {"source_raw_id": None}
+    raw = await (await conn.execute("SELECT text, ts, event FROM l0_journal WHERE id=? AND user_id=?", (int(rid), user_id))).fetchone()
+    if raw is None:
+        return {"source_raw_id": int(rid), "raw_text": None, "raw_ts": None, "raw_event": None, "key": str(row["key"]), "value": str(row["value"])}
+    return {
+        "entry_id": int(entry_id),
+        "key": str(row["key"]),
+        "value": str(row["value"]),
+        "source_raw_id": int(rid),
+        "raw_text": str(raw["text"]),
+        "raw_ts": float(raw["ts"]),
+        "raw_event": str(raw["event"]),
+    }
+
+
 STALE_DAYS = 90  # mirrors shared.memory_types.can_archive default
 
 # content-audit severities: contradiction = data-integrity fail; rest advisory warn
