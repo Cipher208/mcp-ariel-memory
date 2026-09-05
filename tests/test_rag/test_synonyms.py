@@ -47,3 +47,16 @@ def test_config_override_merges(monkeypatch):
     assert table["redis"] == ["valkey"]
     assert table["postgres"] == ["postgresql", "psql"]  # built-ins survive
     assert "valkey" in expand_fts_query("redis cluster", synonyms=table)
+
+
+def test_canonical_form_unfolds_reverse():
+    """Однонаправленный конфиг-вход разворачивается в обе стороны: токен,
+    встречающийся только как значение, канонизируется к классу."""
+    from rag.synonyms import canonical_form
+
+    one_way = {"мамочка": ["mom"]}
+    assert canonical_form("mom", one_way) == "мамочка"  # value → key (обратный разворот)
+    assert canonical_form("мамочка", one_way) == "мамочка"  # key → сам себя
+    assert canonical_form("postgres") == "postgres"  # built-in: минимальный элемент класса
+    assert canonical_form("psql") == "postgres"
+    assert canonical_form("unknownterm") == "unknownterm"  # вне класса — без изменений

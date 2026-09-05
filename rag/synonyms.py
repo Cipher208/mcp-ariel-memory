@@ -32,6 +32,19 @@ def load_synonyms() -> dict[str, list[str]]:
     return {**_BUILTIN_SYNONYMS, **overrides}
 
 
+def canonical_form(w: str, synonyms: dict[str, list[str]] | None = None) -> str:
+    """Canonical form of a token: the synonym class unfolded in BOTH directions.
+
+    Config `rag.synonyms` entries may be one-directional (`{"мамочка": ["mom"]}`
+    without the reverse key) — a token that appears only as a value still maps
+    to the class. Canon = lexicographically smallest member (stable across
+    callers: distiller keys, graph miner entity linking).
+    """
+    table = synonyms if synonyms is not None else load_synonyms()
+    cls = {w, *table.get(w, []), *(k for k, vs in table.items() if w in vs)}
+    return min(cls)
+
+
 def expand_fts_query(query: str, synonyms: dict[str, list[str]] | None = None) -> str:
     """Expand query tokens with synonyms → an FTS5 MATCH expression.
 

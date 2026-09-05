@@ -51,8 +51,10 @@ async def _insert_edge(conn: Any, a: int, b: int, relation: str, weight: float, 
 
 
 def _canon(w: str, syn: dict[str, list[str]]) -> str:
-    """Каноническая форма токена: класс синонимов в обе стороны (postgres/postgresql/psql → postgres)."""
-    return min({w, *syn.get(w, []), *(k for k, vs in syn.items() if w in vs)})
+    """Каноническая форма токена: делегирует в rag.synonyms.canonical_form (двусторонний разворот класса)."""
+    from rag.synonyms import canonical_form
+
+    return canonical_form(w, syn)
 
 
 def _canon_tokens(text: str, syn: dict[str, list[str]] | None = None) -> set[str]:

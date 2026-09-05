@@ -31,7 +31,7 @@ class Atom:
 
 
 def _canonical_key(clause: str, kind: MemoryKind) -> str:
-    from rag.synonyms import load_synonyms
+    from rag.synonyms import canonical_form, load_synonyms
 
     syn = load_synonyms()
     words = re.findall(r"[а-яёa-z0-9]+", clause.lower())
@@ -40,7 +40,7 @@ def _canonical_key(clause: str, kind: MemoryKind) -> str:
         if len(w) <= 2:
             continue
         # синонимы → одна каноническая форма (алфавитно-первая), postgres/postgresql/psql → postgres
-        canon.append(min([w, *syn.get(w, [])]))
+        canon.append(canonical_form(w, syn))
         if len(canon) == 4:
             break
     return f"{kind.value}:" + "_".join(canon) if canon else f"{kind.value}:misc"
