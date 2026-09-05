@@ -117,7 +117,7 @@ print(res["summary"])
 | 📁 **Projects** | Decision log (what/why/outcome), artifact map, graphify code index — survives between sessions |
 | ⚡ **Auto-Hooks** | Push-model memory: a per-agent daemon tails the conversation and ariel saves what matters on its own — importance thresholds, staged mutations (proposal → review → apply → revert), `DREAM:` markers, session-start inject, gap reports, **compaction-aware rehydrate** (drift log + salvage + one-shot rehydrate blocks). **Native integrations**: Hermes runs ariel as an in-process `MemoryProvider` plugin, MiMoCode via a fork-hooks plugin, CowAgent via code-level hooks. [Wiring guide →](docs/hooks/autohooks-platforms.md) |
 | 🎯 **Skills** | Skill = Memory: agent-read Markdown pages (first-class `skill` wiki type), progressive disclosure (`wiki_list → wiki_search → wiki_read`), 4KB lint cap, promotion from `DREAM: skill:` episodes, shared SSOT sync across agents, usage-driven reinforcement — [skills guide →](docs/features/skills.md) |
-| 🔐 **Security** | Envelope encryption (NaCl `SecretBox` = XSalsa20-Poly1305), master key chain, rate limiting |
+| 🔐 **Security** | NaCl `SecretBox` (XSalsa20-Poly1305) envelope encryption for auth/saga secrets, master key chain, rate limiting |
 | 🛠️ **Ops** | Auto-backup cron, saga rollback pattern, Prometheus metrics, read-only replica, hourly self-maintenance (decay + consolidation + auto-VACUUM) |
 | 🌐 **Wiki** | FTS5-indexed markdown files — edit in Obsidian/VS Code, search from MCP, 6 analytical perspectives (`wiki_summarize`), schema lint on save, external-dir sync |
 
@@ -167,12 +167,12 @@ graph TD
 | **Local-only (no cloud)** | ✅ **SQLite — 0 infra** | ⚠️ API or self-host Docker | ❌ needs LLM API | ✅ local OSS + Cloud option |
 | **Own semantic search (no API)** | ✅ FTS5 + MIB binary hybrid | ⚠️ BM25+entity (LLM-dependent) | ❌ LLM-only | ⚠️ hybrid on Cloud only |
 | **Knowledge graph** | ✅ Typed nodes + edges + temporal timeline | ⚠️ entities only | ❌ | ❌ |
-| **Envelope encryption** | ✅ NaCl SecretBox at rest | ❌ | ❌ | ❌ |
+| **Envelope encryption (secrets)** | ✅ NaCl SecretBox (auth/saga secrets; memory data is plaintext SQLite) | ❌ | ❌ | ❌ |
 | **Lifecycle hooks** | ✅ 19 names, per-layer, config-gated | limited | limited | none |
 | **Self-maintenance** | ✅ Hourly consolidation + auto-VACUUM | ❌ | ❌ | ❌ |
 | **Backup / restore** | ✅ Auto-cron + saga rollback | ❌ | ❌ | ❌ |
 
-Notes (Sep 2026): mem0 now ships a self-hosted Docker image and a managed cloud with hybrid BM25+entity search; chroma is 29k★ and added hybrid+FTS5 to its Cloud tier (OSS server remains vector-only). What still differentiates a-memory: zero-infra SQLite (no Docker), NaCl encryption at rest, layer isolation, hourly self-maintenance, and the temporal graph timeline.
+Notes (Sep 2026): mem0 now ships a self-hosted Docker image and a managed cloud with hybrid BM25+entity search; chroma is 29k★ and added hybrid+FTS5 to its Cloud tier (OSS server remains vector-only). What still differentiates a-memory: zero-infra SQLite (no Docker), NaCl-encrypted auth/saga secrets, layer isolation, hourly self-maintenance, and the temporal graph timeline.
 
 ---
 
