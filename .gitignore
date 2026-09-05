@@ -25,3 +25,5 @@ docs/compose/
 site/
 .github/tmp-protection.json
 .venv_test/
+.pytest_cache/
+reports/
